@@ -27,7 +27,8 @@ async function validateSkills(): Promise<void> {
       failures.push(`missing canonical Skill file: ${relative(root, path)}`);
       continue;
     }
-    const frontmatter = content.match(/^---\n([\s\S]*?)\n---\n/);
+    const normalizedContent = content.replaceAll("\r\n", "\n");
+    const frontmatter = normalizedContent.match(/^---\n([\s\S]*?)\n---\n/);
     if (!frontmatter) {
       failures.push(`${relative(root, path)} has no YAML frontmatter`);
       continue;
