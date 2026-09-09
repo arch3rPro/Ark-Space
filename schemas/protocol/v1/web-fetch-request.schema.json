@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "protocolVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "capability": {
+      "type": "string",
+      "const": "web.fetch"
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "urls": {
+          "minItems": 1,
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 4096,
+            "format": "uri"
+          }
+        },
+        "timeoutMs": {
+          "default": 30000,
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 120000
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "exa",
+            "tavily",
+            "firecrawl"
+          ]
+        },
+        "onlyMainContent": {
+          "default": true,
+          "type": "boolean"
+        },
+        "maxCharacters": {
+          "default": 20000,
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 100000
+        }
+      },
+      "required": [
+        "urls",
+        "timeoutMs",
+        "onlyMainContent",
+        "maxCharacters"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "protocolVersion",
+    "capability",
+    "input"
+  ],
+  "additionalProperties": false
+}

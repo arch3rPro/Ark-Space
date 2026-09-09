@@ -1,0 +1,38 @@
+{
+  "name": "arkspace",
+  "version": "0.1.0",
+  "description": "Provider-aware Web retrieval, structured extraction, cited Research, Code Context, and reusable agent skills.",
+  "author": {
+    "name": "arch3rPro"
+  },
+  "license": "MIT",
+  "keywords": [
+    "agent-skills",
+    "web-search",
+    "research",
+    "providers"
+  ],
+  "skills": "./skills/",
+  "hooks": {},
+  "interface": {
+    "displayName": "ArkSpace",
+    "shortDescription": "Reusable provider-aware agent skills",
+    "longDescription": "Use ArkSpace for provider-aware Web retrieval, structured extraction, cited Research, and implementation context through a stable local CLI contract.",
+    "developerName": "arch3rPro",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read"
+    ],
+    "defaultPrompt": [
+      "Search the web for current sources about this topic.",
+      "Fetch these URLs and summarize their contents with citations.",
+      "Map this site and identify the most relevant pages.",
+      "Crawl this site within a bounded page and depth limit.",
+      "Extract schema-bound data from these exact URLs.",
+      "Retrieve implementation context for this API.",
+      "Produce a bounded, cited research report from authoritative sources."
+    ],
+    "brandColor": "#5B6CFF",
+    "screenshots": []
+  }
+}

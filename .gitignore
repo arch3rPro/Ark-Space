@@ -1,0 +1,37 @@
+# Dependencies and build output
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+release/artifacts/
+
+# Logs and caches
+*.log
+.cache/
+.tmp/
+tmp/
+.DS_Store
+
+# Environment and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ArkSpace private configuration and state
+.arkspace/
+*.state.json
+*.state.db
+*.sqlite
+*.sqlite3
+
+# Editors
+.idea/
+.vscode/
+
+# Local worktrees and research material
+.worktrees/
+reference/
+docs/superpowers/

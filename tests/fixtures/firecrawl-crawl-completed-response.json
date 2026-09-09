@@ -1,0 +1,25 @@
+{
+  "status": "completed",
+  "total": 2,
+  "completed": 2,
+  "creditsUsed": 2,
+  "data": [
+    {
+      "markdown": "# Start\n\nWelcome to the documentation.",
+      "metadata": {
+        "title": "Start",
+        "sourceURL": "https://docs.example.com/start",
+        "statusCode": 200
+      }
+    },
+    {
+      "markdown": "",
+      "metadata": {
+        "sourceURL": "https://docs.example.com/broken",
+        "statusCode": 500,
+        "error": "Upstream page failed"
+      }
+    }
+  ],
+  "next": null
+}

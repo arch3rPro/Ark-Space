@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "id": "firecrawl-search-fixture",
+  "data": {
+    "web": [
+      {
+        "title": "ArkSpace",
+        "description": "Provider-aware agent skills.",
+        "url": "https://example.com/arkspace",
+        "markdown": "# ArkSpace"
+      }
+    ]
+  },
+  "creditsUsed": 1
+}

@@ -1,0 +1,26 @@
+{
+  "data": [
+    {
+      "id": "run-fixture",
+      "monitorId": "monitor-fixture",
+      "status": "completed",
+      "output": {
+        "results": [
+          {
+            "title": "ArkSpace Browser release",
+            "url": "https://example.com/release",
+            "publishedDate": "2026-01-01",
+            "highlights": ["Owned browser sessions are available."]
+          }
+        ],
+        "content": "One new release was found."
+      },
+      "failReason": null,
+      "startedAt": "2026-01-01T00:00:01.000Z",
+      "completedAt": "2026-01-01T00:00:05.000Z",
+      "durationMs": 4000
+    }
+  ],
+  "hasMore": false,
+  "nextCursor": null
+}

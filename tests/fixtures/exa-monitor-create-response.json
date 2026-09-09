@@ -1,0 +1,21 @@
+{
+  "id": "monitor-fixture",
+  "name": "Agent releases",
+  "status": "active",
+  "search": {
+    "query": "new agent coding tool releases",
+    "numResults": 10
+  },
+  "trigger": {
+    "type": "interval",
+    "period": "1d"
+  },
+  "webhook": {
+    "url": "https://example.com/hook",
+    "events": ["monitor.run.completed"]
+  },
+  "webhookSecret": "whsec-redacted-fixture",
+  "nextRunAt": "2026-01-02T00:00:00.000Z",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:00:00.000Z"
+}

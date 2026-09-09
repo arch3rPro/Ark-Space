@@ -1,0 +1,10 @@
+{
+  "success": true,
+  "id": "browser-fixture-session",
+  "status": "active",
+  "cdpUrl": "wss://browser.example.invalid/cdp?token=redacted-fixture",
+  "liveViewUrl": "https://live.example.invalid/view/redacted-fixture",
+  "interactiveLiveViewUrl": "https://live.example.invalid/control/redacted-fixture",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "expiresAt": "2026-01-01T00:10:00.000Z"
+}

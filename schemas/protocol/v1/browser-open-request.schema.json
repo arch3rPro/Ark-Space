@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "protocolVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "capability": {
+      "type": "string",
+      "const": "browser.open"
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "maxLength": 4096,
+          "format": "uri"
+        },
+        "ttlSeconds": {
+          "default": 600,
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 3600
+        },
+        "activityTtlSeconds": {
+          "default": 300,
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 3600
+        },
+        "timeoutMs": {
+          "default": 30000,
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 120000
+        }
+      },
+      "required": [
+        "url",
+        "ttlSeconds",
+        "activityTtlSeconds",
+        "timeoutMs"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "protocolVersion",
+    "capability",
+    "input"
+  ],
+  "additionalProperties": false
+}

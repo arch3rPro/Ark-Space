@@ -1,0 +1,101 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "protocolVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "capability": {
+      "type": "string",
+      "const": "web.crawl"
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "maxLength": 4096,
+          "format": "uri"
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "maxPages": {
+          "default": 20,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "maxDepth": {
+          "default": 2,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "timeoutMs": {
+          "default": 120000,
+          "type": "integer",
+          "minimum": 10000,
+          "maximum": 300000
+        },
+        "maxCharacters": {
+          "default": 20000,
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 100000
+        },
+        "onlyMainContent": {
+          "default": true,
+          "type": "boolean"
+        },
+        "includePaths": {
+          "default": [],
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "excludePaths": {
+          "default": [],
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "tavily",
+            "firecrawl"
+          ]
+        }
+      },
+      "required": [
+        "url",
+        "maxPages",
+        "maxDepth",
+        "timeoutMs",
+        "maxCharacters",
+        "onlyMainContent",
+        "includePaths",
+        "excludePaths"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "protocolVersion",
+    "capability",
+    "input"
+  ],
+  "additionalProperties": false
+}

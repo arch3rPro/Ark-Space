@@ -1,0 +1,11 @@
+{
+  "success": true,
+  "data": {
+    "markdown": "# ArkSpace\n\nProvider-aware agent skills.",
+    "metadata": {
+      "title": "ArkSpace Docs",
+      "sourceURL": "https://example.com/docs",
+      "statusCode": 200
+    }
+  }
+}

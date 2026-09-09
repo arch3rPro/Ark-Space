@@ -1,0 +1,12 @@
+{
+  "requestId": "exa-fixture-request",
+  "results": [
+    {
+      "title": "ArkSpace",
+      "url": "https://example.com/arkspace",
+      "text": "A reusable agent skills workspace.",
+      "score": 0.91,
+      "publishedDate": "2026-01-01"
+    }
+  ]
+}

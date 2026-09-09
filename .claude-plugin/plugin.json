@@ -1,0 +1,15 @@
+{
+  "name": "arkspace",
+  "description": "Provider-aware Web retrieval, structured extraction, cited Research, Code Context, and reusable agent skills.",
+  "version": "0.1.0",
+  "author": {
+    "name": "arch3rPro"
+  },
+  "license": "MIT",
+  "keywords": [
+    "agent-skills",
+    "web-search",
+    "research",
+    "providers"
+  ]
+}

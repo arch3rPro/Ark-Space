@@ -1,0 +1,12 @@
+{
+  "base_url": "https://docs.example.com",
+  "results": [
+    "https://docs.example.com/welcome",
+    "https://docs.example.com/api"
+  ],
+  "response_time": 1.23,
+  "usage": {
+    "credits": 1
+  },
+  "request_id": "tavily-map-fixture"
+}

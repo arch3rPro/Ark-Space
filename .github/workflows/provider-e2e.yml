@@ -1,0 +1,32 @@
+name: Provider E2E
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arkspace-provider-e2e
+  cancel-in-progress: false
+
+jobs:
+  live:
+    name: Credentialed Provider lifecycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: provider-e2e
+    env:
+      EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+      TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+      FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+      ARKSPACE_E2E_WEBHOOK_URL: ${{ secrets.ARKSPACE_E2E_WEBHOOK_URL }}
+      ARKSPACE_E2E_CONFIRM: I_ACCEPT_REMOTE_CHARGES_AND_PERSISTENT_RESOURCES
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts --include=dev
+      - run: npm run test:e2e

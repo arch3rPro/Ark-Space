@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "protocolVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "capability": {
+      "type": "string",
+      "const": "monitor.runs"
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "monitorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "timeoutMs": {
+          "default": 30000,
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 120000
+        },
+        "limit": {
+          "default": 20,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "monitorId",
+        "timeoutMs",
+        "limit"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "protocolVersion",
+    "capability",
+    "input"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "protocolVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "capability": {
+      "type": "string",
+      "const": "web.map"
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "maxLength": 4096,
+          "format": "uri"
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "maxResults": {
+          "default": 100,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "timeoutMs": {
+          "default": 60000,
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 150000
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "tavily",
+            "firecrawl"
+          ]
+        }
+      },
+      "required": [
+        "url",
+        "maxResults",
+        "timeoutMs"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "protocolVersion",
+    "capability",
+    "input"
+  ],
+  "additionalProperties": false
+}

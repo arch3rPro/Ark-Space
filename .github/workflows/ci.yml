@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.name }} / Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x64
+            os: ubuntu-latest
+            node: 20
+          - name: Linux x64
+            os: ubuntu-latest
+            node: 22
+          - name: Linux x64
+            os: ubuntu-latest
+            node: 24
+          - name: Linux arm64
+            os: ubuntu-24.04-arm
+            node: 22
+          - name: macOS x64
+            os: macos-15-intel
+            node: 22
+          - name: macOS arm64
+            os: macos-14
+            node: 22
+          - name: Windows x64
+            os: windows-latest
+            node: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install without dependency lifecycle scripts
+        run: npm ci --ignore-scripts --include=dev
+      - name: Validate, typecheck, build, and test
+        run: npm run check
+
+  schemas:
+    name: Committed Protocol schemas
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts --include=dev
+      - run: npm run generate:schemas
+      - name: Require generated schemas to be committed
+        run: git diff --exit-code -- schemas/protocol
+      - name: Verify packed artifact and install-script policy
+        run: npm run verify:package
