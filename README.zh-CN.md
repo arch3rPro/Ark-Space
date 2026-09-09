@@ -6,7 +6,7 @@
 
 **ArkSpace 是一个面向可复用 Agent Skills 及其可靠执行工具的创意工作区。** 它为 Agent 提供聚焦、可安装的指导，同时允许不同能力选择真正适合的执行方式：Host 工具、Skill 自带脚本、外部应用，或 ArkSpace 共享服务。
 
-> **状态：** 0.1.0 是首个预览版发布候选，已提供 Web 检索、Code Context、带引用的 Research、具备所有权的 Firecrawl Browser Session、独立的 Exa 与 Firecrawl Monitor，以及 MCP stdio。发布不代表替换或退役现有 ArkSpace；平台与真实 Provider 验证将在发布后继续。
+> **状态：** 0.1.0 是首个预览版，已提供 Web 检索、Code Context、带引用的 Research、具备所有权的 Firecrawl Browser Session、独立的 Exa 与 Firecrawl Monitor，以及 MCP stdio。该版本不代表替换或退役现有 ArkSpace；真实 Provider 与迁移验证将在发布后继续。
 
 ## 不变的核心价值
 
@@ -34,7 +34,7 @@ ArkSpace 的长期范围不局限于第一批 Provider 能力：
 
 ## `arks` CLI
 
-ArkSpace 的共享执行命令是 **`arks`**，使用 Node.js 和 TypeScript 实现，要求 Node.js 20 或更高版本。npm 发布后可运行：
+ArkSpace 的共享执行命令是 **`arks`**，使用 Node.js 和 TypeScript 实现，要求 Node.js 20 或更高版本。可从 npm 安装已发布版本：
 
 ```bash
 npm install --global @arkspace/cli@0.1.0
