@@ -6,7 +6,7 @@
 
 **ArkSpace is a creative workspace for reusable Agent Skills and the tools that make them reliable.** It gives agents focused, installable guidance while allowing each capability to use the execution model that fits it: host tools, skill-local scripts, external applications, or shared ArkSpace services.
 
-> **Status:** Version 0.1.0 is an initial preview release candidate. It provides Web retrieval, Code Context, cited Research, owned Firecrawl Browser sessions, separate Exa and Firecrawl monitoring, and MCP stdio. Publication does not replace or retire the existing ArkSpace project; platform and credentialed Provider qualification continues after release.
+> **Status:** Version 0.1.0 is the initial preview release. It provides Web retrieval, Code Context, cited Research, owned Firecrawl Browser sessions, separate Exa and Firecrawl monitoring, and MCP stdio. This release does not replace or retire the existing ArkSpace project; credentialed Provider and migration qualification continues after release.
 
 ## What Stays Core
 
@@ -34,7 +34,7 @@ The implemented canonical Skill boundaries are `web`, `research`, `browser`, and
 
 ## `arks` CLI
 
-ArkSpace's shared execution command is **`arks`**, implemented in Node.js and TypeScript. It requires Node.js 20 or newer. After npm publication:
+ArkSpace's shared execution command is **`arks`**, implemented in Node.js and TypeScript. It requires Node.js 20 or newer. Install the published release from npm:
 
 ```bash
 npm install --global @arkspace/cli@0.1.0
