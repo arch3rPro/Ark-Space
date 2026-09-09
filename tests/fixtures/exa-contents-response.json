@@ -1,0 +1,23 @@
+{
+  "requestId": "exa-contents-fixture",
+  "results": [
+    {
+      "id": "https://example.com/docs",
+      "title": "ArkSpace Docs",
+      "url": "https://example.com/docs",
+      "publishedDate": "2026-01-02",
+      "text": "# ArkSpace\n\nProvider-aware skills."
+    }
+  ],
+  "statuses": [
+    {
+      "id": "https://example.com/docs",
+      "status": "success",
+      "source": "cached"
+    },
+    {
+      "id": "https://example.com/missing",
+      "status": "error"
+    }
+  ]
+}

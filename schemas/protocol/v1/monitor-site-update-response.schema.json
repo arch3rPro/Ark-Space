@@ -1,0 +1,863 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "attempts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "provider": {
+                "type": "string",
+                "enum": [
+                  "exa",
+                  "tavily",
+                  "firecrawl"
+                ]
+              },
+              "keyId": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{16}$"
+              },
+              "ok": {
+                "type": "boolean"
+              },
+              "errorKind": {
+                "type": "string",
+                "enum": [
+                  "auth",
+                  "permission",
+                  "rate-limit",
+                  "quota",
+                  "transient",
+                  "network",
+                  "invalid-request",
+                  "invalid-response",
+                  "config",
+                  "unknown"
+                ]
+              },
+              "status": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "retryable": {
+                "type": "boolean"
+              },
+              "safeToRetry": {
+                "type": "boolean"
+              },
+              "cleanup": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "crawl-job"
+                      },
+                      "attempted": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "ok": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "attempted",
+                      "ok"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "research-job"
+                      },
+                      "jobId": {
+                        "type": "string"
+                      },
+                      "attempted": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "ok": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "jobId",
+                      "attempted",
+                      "ok"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "browser-session"
+                      },
+                      "sessionId": {
+                        "type": "string"
+                      },
+                      "attempted": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "ok": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "sessionId",
+                      "attempted",
+                      "ok"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "monitor"
+                      },
+                      "monitorId": {
+                        "type": "string"
+                      },
+                      "attempted": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "ok": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "monitorId",
+                      "attempted",
+                      "ok"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "site-monitor"
+                      },
+                      "monitorId": {
+                        "type": "string"
+                      },
+                      "attempted": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "ok": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "monitorId",
+                      "attempted",
+                      "ok"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "submission": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "research-job"
+                      },
+                      "state": {
+                        "type": "string",
+                        "const": "acceptance-unknown"
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "state"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "browser-session"
+                      },
+                      "state": {
+                        "type": "string",
+                        "const": "acceptance-unknown"
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "state"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "monitor"
+                      },
+                      "state": {
+                        "type": "string",
+                        "const": "acceptance-unknown"
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "state"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "site-monitor"
+                      },
+                      "state": {
+                        "type": "string",
+                        "const": "acceptance-unknown"
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "state"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "remoteJob": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "extract-job"
+                      },
+                      "jobId": {
+                        "type": "string"
+                      },
+                      "state": {
+                        "type": "string",
+                        "const": "possibly-running"
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "jobId",
+                      "state"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "research-job"
+                      },
+                      "jobId": {
+                        "type": "string"
+                      },
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "possibly-running",
+                          "completed",
+                          "failed",
+                          "cancelled"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "jobId",
+                      "state"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": [
+              "provider",
+              "ok"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "capability": {
+          "type": "string",
+          "const": "monitor.site.update"
+        },
+        "ok": {
+          "type": "boolean",
+          "const": true
+        },
+        "provider": {
+          "type": "string",
+          "const": "firecrawl"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "monitorId": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "active",
+                "paused",
+                "deleted",
+                "unknown"
+              ]
+            },
+            "schedule": {
+              "type": "object",
+              "properties": {
+                "cron": {
+                  "type": "string"
+                },
+                "timezone": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "cron",
+                "timezone"
+              ],
+              "additionalProperties": false
+            },
+            "targetTypes": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "scrape",
+                  "crawl",
+                  "search"
+                ]
+              }
+            },
+            "retentionDays": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "goal": {
+              "type": "string"
+            },
+            "judgeEnabled": {
+              "type": "boolean"
+            },
+            "nextRunAt": {
+              "type": "string"
+            },
+            "lastRunAt": {
+              "type": "string"
+            },
+            "currentCheckId": {
+              "type": "string"
+            },
+            "estimatedCreditsPerMonth": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "lastCheckSummary": {
+              "type": "object",
+              "properties": {
+                "totalPages": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "same": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "changed": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "new": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "removed": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "error": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "totalPages",
+                "same",
+                "changed",
+                "new",
+                "removed",
+                "error"
+              ],
+              "additionalProperties": false
+            },
+            "createdAt": {
+              "type": "string"
+            },
+            "updatedAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "monitorId",
+            "status",
+            "targetTypes"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "attempts",
+        "warnings",
+        "capability",
+        "ok",
+        "provider",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "attempts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "provider": {
+                "type": "string",
+                "enum": [
+                  "exa",
+                  "tavily",
+                  "firecrawl"
+                ]
+              },
+              "keyId": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{16}$"
+              },
+              "ok": {
+                "type": "boolean"
+              },
+              "errorKind": {
+                "type": "string",
+                "enum": [
+                  "auth",
+                  "permission",
+                  "rate-limit",
+                  "quota",
+                  "transient",
+                  "network",
+                  "invalid-request",
+                  "invalid-response",
+                  "config",
+                  "unknown"
+                ]
+              },
+              "status": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "retryable": {
+                "type": "boolean"
+              },
+              "safeToRetry": {
+                "type": "boolean"
+              },
+              "cleanup": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "crawl-job"
+                      },
+                      "attempted": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "ok": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "attempted",
+                      "ok"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "research-job"
+                      },
+                      "jobId": {
+                        "type": "string"
+                      },
+                      "attempted": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "ok": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "jobId",
+                      "attempted",
+                      "ok"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "browser-session"
+                      },
+                      "sessionId": {
+                        "type": "string"
+                      },
+                      "attempted": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "ok": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "sessionId",
+                      "attempted",
+                      "ok"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "monitor"
+                      },
+                      "monitorId": {
+                        "type": "string"
+                      },
+                      "attempted": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "ok": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "monitorId",
+                      "attempted",
+                      "ok"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "site-monitor"
+                      },
+                      "monitorId": {
+                        "type": "string"
+                      },
+                      "attempted": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "ok": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "monitorId",
+                      "attempted",
+                      "ok"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "submission": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "research-job"
+                      },
+                      "state": {
+                        "type": "string",
+                        "const": "acceptance-unknown"
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "state"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "browser-session"
+                      },
+                      "state": {
+                        "type": "string",
+                        "const": "acceptance-unknown"
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "state"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "monitor"
+                      },
+                      "state": {
+                        "type": "string",
+                        "const": "acceptance-unknown"
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "state"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "site-monitor"
+                      },
+                      "state": {
+                        "type": "string",
+                        "const": "acceptance-unknown"
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "state"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "remoteJob": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "extract-job"
+                      },
+                      "jobId": {
+                        "type": "string"
+                      },
+                      "state": {
+                        "type": "string",
+                        "const": "possibly-running"
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "jobId",
+                      "state"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "resource": {
+                        "type": "string",
+                        "const": "research-job"
+                      },
+                      "jobId": {
+                        "type": "string"
+                      },
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "possibly-running",
+                          "completed",
+                          "failed",
+                          "cancelled"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "resource",
+                      "jobId",
+                      "state"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": [
+              "provider",
+              "ok"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ok": {
+          "type": "boolean",
+          "const": false
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "auth",
+                "permission",
+                "rate-limit",
+                "quota",
+                "transient",
+                "network",
+                "invalid-request",
+                "invalid-response",
+                "config",
+                "unknown"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "retryable": {
+              "type": "boolean"
+            },
+            "correction": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "message",
+            "retryable"
+          ],
+          "additionalProperties": false
+        },
+        "capability": {
+          "type": "string",
+          "const": "monitor.site.update"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "attempts",
+        "warnings",
+        "ok",
+        "error",
+        "capability"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

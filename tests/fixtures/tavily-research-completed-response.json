@@ -1,0 +1,12 @@
+{
+  "request_id": "tavily-research-fixture",
+  "created_at": "2026-09-09T00:00:00Z",
+  "status": "completed",
+  "content": "The official references document asynchronous task polling [1].",
+  "sources": [
+    { "title": "Research API", "url": "https://docs.example.com/research", "favicon": "https://docs.example.com/favicon.ico" },
+    { "title": "Research API duplicate", "url": "https://docs.example.com/research" }
+  ],
+  "response_time": 5,
+  "usage": { "credits": 16 }
+}

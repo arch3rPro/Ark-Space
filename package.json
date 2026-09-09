@@ -1,0 +1,62 @@
+{
+  "name": "@arkspace/cli",
+  "version": "0.1.0",
+  "description": "Provider-aware retrieval, research, browser, monitor, and MCP runtime for ArkSpace skills",
+  "private": false,
+  "license": "MIT",
+  "author": "arch3rPro",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arch3rPro/ark-space.git"
+  },
+  "homepage": "https://github.com/arch3rPro/ark-space#readme",
+  "bugs": {
+    "url": "https://github.com/arch3rPro/ark-space/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "bin": {
+    "arks": "dist/cli/main.js"
+  },
+  "files": [
+    "dist",
+    "skills",
+    ".agents",
+    ".claude-plugin",
+    ".codex-plugin",
+    "README.md",
+    "LICENSE",
+    "NOTICE.md"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "npm run validate && npm run typecheck && npm test",
+    "dev": "tsx src/cli/main.ts",
+    "generate:schemas": "tsx scripts/generate-protocol-schemas.ts",
+    "test": "npm run build && vitest run",
+    "test:e2e": "npm run build && node scripts/e2e-providers.mjs",
+    "test:hosts": "node scripts/test-installed-hosts.mjs",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "validate": "tsx scripts/validate-project.ts",
+    "verify:package": "npm run build && node scripts/verify-package.mjs",
+    "verify:release": "npm run validate && npm run typecheck && npm run verify:package && node scripts/verify-release.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.0.0",
+    "ajv": "^8.20.0",
+    "commander": "^14.0.2",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.14"
+  }
+}

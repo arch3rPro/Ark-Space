@@ -1,0 +1,13 @@
+{
+  "success": true,
+  "links": [
+    {
+      "url": "https://docs.example.com/welcome",
+      "title": "Welcome",
+      "description": "Start using the documentation."
+    },
+    {
+      "url": "https://docs.example.com/api"
+    }
+  ]
+}

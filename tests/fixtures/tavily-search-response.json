@@ -1,0 +1,12 @@
+{
+  "request_id": "tavily-fixture-request",
+  "results": [
+    {
+      "title": "ArkSpace",
+      "url": "https://example.com/arkspace",
+      "content": "A reusable agent skills workspace.",
+      "score": 0.87,
+      "published_date": "2026-01-01"
+    }
+  ]
+}

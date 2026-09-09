@@ -1,0 +1,31 @@
+{
+  "id": "agent_run_fixture",
+  "object": "agent_run",
+  "status": "completed",
+  "stopReason": "schema_satisfied",
+  "createdAt": "2026-09-09T00:00:00Z",
+  "completedAt": "2026-09-09T00:00:05Z",
+  "output": {
+    "text": "Official documentation describes the current lifecycle [1].",
+    "structured": null,
+    "grounding": [
+      {
+        "field": "output.text",
+        "citations": [
+          { "url": "https://docs.example.com/lifecycle", "title": "Lifecycle reference" },
+          { "url": "https://docs.example.com/lifecycle", "title": "Lifecycle reference" }
+        ],
+        "confidence": "high"
+      }
+    ]
+  },
+  "usage": {
+    "agentComputeUnits": 2,
+    "searches": 4,
+    "emails": 0,
+    "phoneNumbers": 0
+  },
+  "costDollars": {
+    "total": 0.12
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "requestId": "exa-context-fixture",
+  "query": "current TypeScript SDK usage",
+  "response": "## Example\n\n```ts\nimport { Client } from \"example-sdk\";\n```\n\nSource: https://docs.example.com/sdk",
+  "resultsCount": 4,
+  "outputTokens": 1200,
+  "costDollars": {
+    "total": 0.01
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "arkspace-dev",
+  "description": "Development marketplace for ArkSpace skills",
+  "owner": {
+    "name": "arch3rPro"
+  },
+  "plugins": [
+    {
+      "name": "arkspace",
+      "description": "Provider-aware Web retrieval, structured extraction, cited Research, Code Context, and reusable agent skills.",
+      "version": "0.1.0",
+      "source": "./",
+      "author": {
+        "name": "arch3rPro"
+      }
+    }
+  ]
+}

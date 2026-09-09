@@ -1,0 +1,18 @@
+{
+  "base_url": "https://docs.example.com",
+  "results": [
+    {
+      "url": "https://docs.example.com/start",
+      "raw_content": "# Start\n\nWelcome to the documentation."
+    },
+    {
+      "url": "https://docs.example.com/api",
+      "raw_content": "# API\n\nAPI reference."
+    }
+  ],
+  "response_time": 2.4,
+  "usage": {
+    "credits": 2
+  },
+  "request_id": "tavily-crawl-fixture"
+}

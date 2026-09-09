@@ -1,0 +1,76 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "protocolVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "capability": {
+      "type": "string",
+      "const": "monitor.create"
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "numResults": {
+          "default": 10,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "period": {
+          "type": "string",
+          "maxLength": 16,
+          "pattern": "^(?:[1-9]\\d*)(?:h|d)$"
+        },
+        "webhookUrl": {
+          "type": "string",
+          "maxLength": 4096,
+          "format": "uri"
+        },
+        "webhookSecretPath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true
+        },
+        "timeoutMs": {
+          "default": 30000,
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 120000
+        }
+      },
+      "required": [
+        "query",
+        "numResults",
+        "period",
+        "webhookUrl",
+        "webhookSecretPath",
+        "confirmed",
+        "timeoutMs"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "protocolVersion",
+    "capability",
+    "input"
+  ],
+  "additionalProperties": false
+}

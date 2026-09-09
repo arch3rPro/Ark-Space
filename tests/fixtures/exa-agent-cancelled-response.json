@@ -1,0 +1,11 @@
+{
+  "id": "agent_run_fixture",
+  "object": "agent_run",
+  "status": "cancelled",
+  "stopReason": "cancelled",
+  "createdAt": "2026-09-09T00:00:00Z",
+  "completedAt": "2026-09-09T00:00:03Z",
+  "output": { "text": "", "structured": null, "grounding": [] },
+  "usage": { "agentComputeUnits": 1, "searches": 1, "emails": 0, "phoneNumbers": 0 },
+  "costDollars": { "total": 0.03 }
+}
