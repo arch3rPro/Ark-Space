@@ -7,11 +7,11 @@
   "author": "arch3rPro",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/arch3rPro/ark-space.git"
+    "url": "git+https://github.com/arch3rPro/Ark-Space.git"
   },
-  "homepage": "https://github.com/arch3rPro/ark-space#readme",
+  "homepage": "https://github.com/arch3rPro/Ark-Space#readme",
   "bugs": {
-    "url": "https://github.com/arch3rPro/ark-space/issues"
+    "url": "https://github.com/arch3rPro/Ark-Space/issues"
   },
   "publishConfig": {
     "access": "public"
