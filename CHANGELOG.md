@@ -2,7 +2,7 @@
 
 Notable released changes to ArkSpace will be recorded here.
 
-## 0.1.0 - Unreleased
+## 0.1.0 - 2026-09-09
 
 - Established the greenfield product, architecture, and migration boundaries.
 - Added the first Node.js and TypeScript `arks` CLI implementation.
