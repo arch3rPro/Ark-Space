@@ -33,14 +33,20 @@ async function validateSkills(): Promise<void> {
       failures.push(`${relative(root, path)} has no YAML frontmatter`);
       continue;
     }
-    if (!new RegExp(`^name:\\s*${escapeRegex(entry.name)}\\s*$`, "m").test(frontmatter[1] ?? "")) {
+    if (
+      !new RegExp(`^name:\\s*${escapeRegex(entry.name)}\\s*$`, "m").test(
+        frontmatter[1] ?? "",
+      )
+    ) {
       failures.push(`${relative(root, path)} name must match its directory`);
     }
     if (!/^description:\s*\S.+$/m.test(frontmatter[1] ?? "")) {
       failures.push(`${relative(root, path)} requires a non-empty description`);
     }
     if (!/^compatibility:\s*\S.+$/m.test(frontmatter[1] ?? "")) {
-      failures.push(`${relative(root, path)} requires a non-empty compatibility declaration`);
+      failures.push(
+        `${relative(root, path)} requires a non-empty compatibility declaration`,
+      );
     }
   }
 }
@@ -65,14 +71,21 @@ async function validateMarkdownLinks(): Promise<void> {
 
 async function validatePluginMetadata(): Promise<void> {
   const packageJson = await json<{ version: string }>("package.json");
-  const codex = await json<{ version: string; skills: string }>(".codex-plugin/plugin.json");
-  const claude = await json<{ version: string }>(".claude-plugin/plugin.json");
-  const codexMarketplace = await json<{ plugins: Array<{ source: { url: string } }> }>(
-    ".agents/plugins/marketplace.json",
+  const codex = await json<{ version: string; skills: string }>(
+    ".codex-plugin/plugin.json",
   );
-  if (codex.skills !== "./skills/") failures.push("Codex plugin must reference ./skills/");
-  if (codexMarketplace.plugins[0]?.source.url !== "./") failures.push("Codex marketplace must reference repository root");
-  if (codex.version !== packageJson.version || claude.version !== packageJson.version) {
+  const claude = await json<{ version: string }>(".claude-plugin/plugin.json");
+  const codexMarketplace = await json<{
+    plugins: Array<{ source: { url: string } }>;
+  }>(".agents/plugins/marketplace.json");
+  if (codex.skills !== "./skills/")
+    failures.push("Codex plugin must reference ./skills/");
+  if (codexMarketplace.plugins[0]?.source.url !== "./")
+    failures.push("Codex marketplace must reference repository root");
+  if (
+    codex.version !== packageJson.version ||
+    claude.version !== packageJson.version
+  ) {
     failures.push("package and plugin versions must match");
   }
 }
