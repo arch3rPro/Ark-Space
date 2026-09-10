@@ -1,11 +1,12 @@
 ---
 name: research
 description: Produce a bounded, cited synthesis across multiple public sources through ArkSpace. Use when the requested outcome is a research report, comparison, landscape, or decision-ready answer rather than source discovery or retrieval of known pages.
+compatibility: Requires a local filesystem-based host with shell and network access, Node.js 20+, the arks CLI, and Exa or Tavily credentials; intended for Claude Code and Codex CLI on macOS, Linux, and Windows.
 ---
 
 # Research
 
-Use the installed `arks` CLI for long-running, Provider-backed synthesis. Use the `web` Skill instead when Search, Fetch, Map, Crawl, or exact-URL extraction is sufficient.
+Use the installed `arks` CLI for long-running, Provider-backed synthesis. Use `research.run` for multi-source conclusions, comparisons, and decision-ready reports. Use the `web` Skill for source discovery, exact-page retrieval, site collection, or structured extraction; do not reproduce a Research run with an ad hoc chain of Search calls.
 
 ## Readiness
 
@@ -60,6 +61,8 @@ Before presenting consequential conclusions:
 3. preserve uncertainty when evidence is missing or time-sensitive;
 4. report `warnings`, including completion without source evidence or budget-limited output;
 5. identify the actual Provider and do not describe fallback attempts as completed research.
+
+Return the requested synthesis and a compact source list, or write the requested report artifact. Do not paste the raw Protocol envelope or entire Provider report when a bounded answer or artifact satisfies the request.
 
 ## Lifecycle
 

@@ -1,0 +1,50 @@
+{
+  "web": {
+    "positive": [
+      "Search the public web for the current Node.js release notes and return the source URLs.",
+      "Fetch these three documentation URLs and summarize their differences.",
+      "Map this documentation site, then collect the API reference pages."
+    ],
+    "negative": [
+      "Write a decision-ready market landscape report with citations.",
+      "Click the account menu and change the selected workspace.",
+      "Create a recurring monitor that sends changes to my webhook."
+    ]
+  },
+  "research": {
+    "positive": [
+      "Compare the current offerings of these vendors and produce a cited recommendation.",
+      "Research this technology landscape and write a decision-ready report.",
+      "Synthesize the evidence across primary sources and identify unresolved conflicts."
+    ],
+    "negative": [
+      "Fetch this exact public URL and return its main content.",
+      "Open the site and click through the JavaScript-only pagination.",
+      "Schedule this query to run every day."
+    ]
+  },
+  "browser": {
+    "positive": [
+      "Open this dynamic page, take an accessibility snapshot, and inspect the form controls.",
+      "Click the next-page button and verify the page state changed.",
+      "Fill this web form after I approve the exact values and submission target."
+    ],
+    "negative": [
+      "Fetch this public article without interacting with the page.",
+      "Compare these companies and produce a cited research report.",
+      "Create a persistent weekly change monitor."
+    ]
+  },
+  "monitor": {
+    "positive": [
+      "Create a daily recurring search and deliver new results to this webhook.",
+      "Pause the existing site monitor and report its resulting state.",
+      "Show the recent run history for this recurring monitor."
+    ],
+    "negative": [
+      "Run this search once and return five relevant sources.",
+      "Research the topic now and write a cited synthesis.",
+      "Open the page and click the load-more button."
+    ]
+  }
+}

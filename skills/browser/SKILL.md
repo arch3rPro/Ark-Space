@@ -1,6 +1,7 @@
 ---
 name: browser
 description: Navigate and interact with a website through an owned, bounded ArkSpace browser session. Use when a task requires dynamic page state, clicks, form filling, scrolling, pagination, or an accessibility snapshot rather than ordinary public-web retrieval.
+compatibility: Requires a local filesystem-based host with shell and network access, Node.js 20+, the arks CLI, and Firecrawl credentials; intended for Claude Code and Codex CLI on macOS, Linux, and Windows.
 ---
 
 # Browser
@@ -64,3 +65,5 @@ Close the session as soon as the task completes:
 ```
 
 TTL is a backstop, not normal cleanup. If an action fails with `safeToRetry: false`, report that its external effect is uncertain and do not repeat it automatically. If open reports failed cleanup, preserve and report the session ID because it may remain active and billable. Treat local timeout or process exit as neither proof of failure nor proof of closure.
+
+Report the actions performed, the verified final page state, the close outcome, and any unresolved or uncertain side effect. Summarize snapshots instead of pasting the complete raw snapshot unless the user requests it.
