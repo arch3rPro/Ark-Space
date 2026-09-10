@@ -57,8 +57,8 @@ The Node/TypeScript CLI has a separate software build and npm release process. D
 
 Record a post-release passing `npm run test:e2e` using the procedure in `docs/provider-e2e.md`; it remains manual because it requires dedicated credentials, a public test webhook, charges, and post-run dashboard inspection.
 
-`npm run verify:release` composes project structure validation, typechecking, package verification, identity, legal metadata, and clean-Git checks. For the initial 0.1.0 publication, test execution is explicitly deferred to post-release qualification. It intentionally does not publish or tag. Exact-tag installed-host, hosted platform, and credentialed Provider tests remain post-release qualification for 0.1.0.
+`npm run verify:release` composes project structure validation, typechecking, package verification, identity, legal metadata, and clean-Git checks. Release candidates also pass `npm run check`; the release verifier intentionally does not publish or tag. Exact-tag installed-host, hosted platform, and credentialed Provider tests remain post-release qualification for the 0.1 line.
 
 ## Release boundary
 
-Publishing 0.1.0 requires explicit authorization plus passing `npm run verify:release`. Publication does not declare the replacement cutover complete; the stricter cutover gates in `docs/migration.md` still govern replacing or retiring the existing ArkSpace project. Do not publish npm packages, create tags, change plugin versions, or retire the existing project as a side effect of ordinary maintenance.
+Publishing requires explicit authorization plus passing `npm run check` and `npm run verify:release` on the reviewed release commit. Publication does not declare the replacement cutover complete; the stricter cutover gates in `docs/migration.md` still govern replacing or retiring the existing ArkSpace project. Do not publish npm packages, create tags, change plugin versions, or retire the existing project as a side effect of ordinary maintenance.

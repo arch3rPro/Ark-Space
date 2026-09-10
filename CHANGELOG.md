@@ -2,6 +2,14 @@
 
 Notable released changes to ArkSpace will be recorded here.
 
+## 0.1.1 - 2026-09-10
+
+- Added `arks setup` as a human-controlled credential wizard with hidden terminal input, owner-only local storage where supported, and environment-variable precedence.
+- Added installation-first English and Chinese README flows plus a repository-owned install, verification, update, and uninstall guide.
+- Added explicit Skill compatibility declarations, clearer operation routing, bounded result handling, and array limits for structured extraction guidance.
+- Added positive and negative activation fixtures plus isolated-Skill link and dependency checks.
+- Hardened installed-host MCP verification so malformed protocol output fails immediately with a specific error.
+
 ## 0.1.0 - 2026-09-09
 
 - Established the greenfield product, architecture, and migration boundaries.

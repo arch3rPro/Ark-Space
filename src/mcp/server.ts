@@ -60,7 +60,7 @@ const readOnly = new Set<Capability>(["web.search", "web.fetch", "web.map", "web
 const destructive = new Set<Capability>(["browser.close", "monitor.delete", "monitor.site.delete"]);
 
 export function createMcpServer(): McpServer {
-  const server = new McpServer({ name: "arkspace", version: "0.1.0" });
+  const server = new McpServer({ name: "arkspace", version: "0.1.1" });
   const activeRequests = new Map<string | number, AbortController>();
   for (const capability of Object.keys(inputSchemas) as Capability[]) registerCapability(server, capability, inputSchemas[capability], activeRequests);
   server.server.setNotificationHandler("notifications/cancelled", (notification) => {
@@ -91,6 +91,7 @@ function registerCapability(server: McpServer, capability: Capability, schema: z
       const signal = AbortSignal.any([context.mcpReq.signal, controller.signal]);
       try {
         const result = await invokeCapability(capability, { protocolVersion: PROTOCOL_VERSION, capability, input }, { signal });
+        // SAFETY: Capability results are JSON object envelopes; MCP structuredContent requires the equivalent string-keyed record type.
         const structured = result as unknown as Record<string, unknown>;
         return {
           content: [{ type: "text", text: JSON.stringify(result) }],
