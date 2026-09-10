@@ -1,6 +1,7 @@
 ---
 name: monitor
 description: Create and manage recurring Exa searches or Firecrawl page, crawl, and web-search monitors through ArkSpace. Use when the user wants scheduled change checks, webhook delivery, a monitor paused or resumed, an immediate check triggered, history inspected, or a persistent monitor deleted.
+compatibility: Requires a local filesystem-based host with shell and network access, Node.js 20+, the arks CLI, and Exa or Firecrawl credentials; intended for Claude Code and Codex CLI on macOS, Linux, and Windows.
 ---
 
 # Monitor
@@ -66,3 +67,5 @@ State the exact resource ID and effect before every mutation. Pausing retains co
 ArkSpace never rotates credentials or Providers for an owned monitor. Restore a missing owning environment-variable credential rather than creating a duplicate.
 
 If create reports `acceptance-unknown`, check the correct Provider dashboard before retrying. If a mutation reports `safeToRetry: false`, refresh status or history before acting again. A successful delete confirms removal of the API resource only; do not claim physical erasure of retained artifacts, delivery records, logs, or backups.
+
+Report the monitor ID, Provider, target or query, schedule, current state, and mutation outcome. Summarize run or check history instead of pasting raw Provider payloads, while preserving warnings and uncertain effects.

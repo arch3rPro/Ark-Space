@@ -62,7 +62,7 @@ It does not import `src/`, inspect internal Provider modules, or parse human-ori
 
 ## Verification
 
-- Test representative activation and non-activation prompts.
+- Add at least three representative activation prompts and three neighboring non-activation prompts to `tests/fixtures/skill-activation.json`.
 - Copy the Skill into an isolated temporary host layout.
 - Remove access to sibling Skills and the source repository.
 - Exercise the documented entry path.

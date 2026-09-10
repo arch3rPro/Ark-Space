@@ -2,7 +2,7 @@
 
 Use `web.extract` when exact public URLs must produce JSON matching a supplied JSON Schema. Firecrawl is the only Provider for this operation, and extraction consumes model-backed Provider credits.
 
-1. Define a top-level object schema without references or regular-expression keywords. Keep it limited to fields required by the task.
+1. Define a top-level object schema without references or regular-expression keywords. Keep it limited to fields required by the task, and bound every array with `maxItems`.
 2. Create a protocol request with 1–20 exact, credential-free HTTP(S) URLs:
 
    ```json
@@ -17,6 +17,7 @@ Use `web.extract` when exact public URLs must produce JSON matching a supplied J
          "properties": {
            "plans": {
              "type": "array",
+             "maxItems": 20,
              "items": {
                "type": "object",
                "properties": {

@@ -39,6 +39,9 @@ async function validateSkills(): Promise<void> {
     if (!/^description:\s*\S.+$/m.test(frontmatter[1] ?? "")) {
       failures.push(`${relative(root, path)} requires a non-empty description`);
     }
+    if (!/^compatibility:\s*\S.+$/m.test(frontmatter[1] ?? "")) {
+      failures.push(`${relative(root, path)} requires a non-empty compatibility declaration`);
+    }
   }
 }
 
