@@ -7,7 +7,8 @@ ArkSpace is a creative workspace for reusable Agent Skills and their supporting 
 - Read `README.md` for product scope.
 - Read `docs/architecture.md` before changing boundaries, protocols, provider execution, credentials, or state.
 - Read `docs/migration.md` before porting behavior or fixtures from the existing project.
-- Read the relevant proposed ADR before implementing a decision it owns.
+- Read `INSTALL.md` before installing, upgrading, configuring credentials, or registering MCP for a user.
+- Read the relevant ADR before implementing or changing a decision it owns.
 
 ## Project Contract
 

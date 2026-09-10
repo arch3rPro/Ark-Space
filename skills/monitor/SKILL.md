@@ -20,8 +20,8 @@ Ask one focused question if the intended contract is unclear.
 ## Readiness and ownership
 
 1. Run `arks --version`. If unavailable, explain that ArkSpace CLI is required and ask before changing the user's environment.
-2. Run `arks doctor --json` when Provider readiness is unknown. Ask before changing configuration or key references.
-3. Use only ArkSpace-owned monitor IDs. Every resource is bound to the anonymous key ID that created it.
+2. Run `arks doctor --json` when Provider readiness is unknown. If credentials are missing, direct the human to run `arks setup` in a trusted local terminal. Never ask for an API key in conversation or place one in a command argument.
+3. Ask before changing configuration or the user's environment. Use only ArkSpace-owned monitor IDs; every resource is bound to the anonymous key ID that created it.
 
 ## Create an Exa recurring search
 

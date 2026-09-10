@@ -32,9 +32,11 @@ import { executeWebFetch } from "../capabilities/web-fetch.js";
 import { executeWebMap } from "../capabilities/web-map.js";
 import { executeWebRelated } from "../capabilities/web-related.js";
 import { executeWebSearch } from "../capabilities/web-search.js";
+import { runSetup } from "./setup.js";
+import { loadCredentialEnvironment } from "../config/credentials.js";
 import { resolveArkSpacePaths } from "../config/paths.js";
 import { getProviderConfig } from "../config/schema.js";
-import { addEnvironmentKey, initializeConfig, loadConfig } from "../config/store.js";
+import { addEnvironmentKey, loadConfig } from "../config/store.js";
 import { ProviderError, correctionFor } from "../errors/provider-error.js";
 import { serveArkSpaceStdio } from "../mcp/stdio.js";
 import {
@@ -118,10 +120,8 @@ const program = new Command()
   .description("ArkSpace provider execution CLI")
   .version(VERSION);
 
-program.command("setup").description("Create a configuration with Exa, Tavily, and Firecrawl environment-key references").action(async () => {
-  const paths = resolveArkSpacePaths();
-  await initializeConfig(paths.config);
-  process.stdout.write(`ArkSpace configuration ready at ${paths.config}\n`);
+program.command("setup").description("Configure Providers and securely collect API keys in an interactive terminal").action(async () => {
+  await runSetup(resolveArkSpacePaths());
 });
 
 const providerCommand = program.command("provider").description("Inspect configured providers");
@@ -556,6 +556,11 @@ webCommand
   });
 
 try {
+  const paths = resolveArkSpacePaths();
+  const environment = await loadCredentialEnvironment(paths.credentials);
+  for (const [name, value] of Object.entries(environment)) {
+    if (value !== undefined && process.env[name] === undefined) process.env[name] = value;
+  }
   await program.parseAsync(process.argv);
 } catch (error) {
   const normalized = publicError(error);
@@ -809,7 +814,7 @@ function writeHumanMapResults(result: Extract<Awaited<ReturnType<typeof runWebMa
 }
 
 async function readObjectInput(path: string): Promise<Record<string, unknown>> {
-  const value: unknown = JSON.parse(await readFile(path, "utf8"));
+  const value = await readJsonInput(path);
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new ProviderError("Site monitor input must be a JSON object.", { kind: "invalid-request" });
   return value as Record<string, unknown>;
 }

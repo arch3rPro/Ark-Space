@@ -4,6 +4,7 @@ import { join } from "node:path";
 export interface ArkSpacePaths {
   home: string;
   config: string;
+  credentials: string;
   state: string;
 }
 
@@ -12,6 +13,7 @@ export function resolveArkSpacePaths(environment: NodeJS.ProcessEnv = process.en
   return {
     home,
     config: join(home, "config.json"),
+    credentials: join(home, "credentials.json"),
     state: join(home, "state.json"),
   };
 }

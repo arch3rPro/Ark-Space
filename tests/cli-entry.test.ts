@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createServer, type Server } from "node:http";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -16,6 +16,41 @@ afterEach(async () => {
 });
 
 describe("built arks entry point", () => {
+  it("initializes configuration without requesting secrets from non-interactive input", async () => {
+    const home = await mkdtemp(join(tmpdir(), "arkspace-setup-cli-"));
+    directories.push(home);
+
+    const result = await runCli(["setup"], { ARKSPACE_HOME: home });
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("API keys were not requested");
+    expect(JSON.parse(await readFile(join(home, "config.json"), "utf8"))).toMatchObject({ version: 1 });
+    await expect(readFile(join(home, "credentials.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("loads setup credentials without exposing them in doctor output", async () => {
+    const home = await mkdtemp(join(tmpdir(), "arkspace-doctor-cli-"));
+    directories.push(home);
+    await writeFile(join(home, "config.json"), `${JSON.stringify(defaultConfig())}\n`, { mode: 0o600 });
+    await writeFile(
+      join(home, "credentials.json"),
+      `${JSON.stringify({ version: 1, values: { TAVILY_API_KEY: "stored-doctor-secret" } })}\n`,
+      { mode: 0o600 },
+    );
+
+    const result = await runCli(["doctor", "--json"], { ARKSPACE_HOME: home });
+
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: true,
+      checks: expect.arrayContaining([
+        expect.objectContaining({ name: "provider:tavily", ok: true }),
+      ]),
+    });
+    expect(result.stdout).not.toContain("stored-doctor-secret");
+    expect(result.stderr).toBe("");
+  });
+
   it("invokes web.search through the built binary and versioned JSON file", async () => {
     const home = await mkdtemp(join(tmpdir(), "arkspace-cli-"));
     directories.push(home);
