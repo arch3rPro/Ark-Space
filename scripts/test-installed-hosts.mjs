@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
@@ -17,7 +17,7 @@ try {
   const prefix = join(temporary, "install");
   run(npmCommand(), ["install", "--ignore-scripts", "--prefix", prefix, tarball]);
   const executable = process.platform === "win32" ? join(prefix, "node_modules", ".bin", "arks.cmd") : join(prefix, "node_modules", ".bin", "arks");
-  if (run(executable, ["--version"]).trim() !== "0.1.0") throw new Error("Packed arks version check failed.");
+  if (run(executable, ["--version"]).trim() !== "0.1.1") throw new Error("Packed arks version check failed.");
 
   await verifyInstalledMcp(executable);
   verifyClaude(executable);
@@ -42,31 +42,42 @@ async function verifyInstalledMcp(executable) {
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("Could not start cancellation fixture server.");
   const configPath = join(home, "config.json");
-  const config = JSON.parse(await readFile(configPath, "utf8"));
+  const config = await parseJsonFile(configPath);
   config.providerOrder = ["tavily"];
   config.providers.tavily.baseUrl = `http://127.0.0.1:${address.port}`;
   await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
 
   const child = spawn(executable, ["mcp", "serve"], { env: mergedEnv({ ARKSPACE_HOME: home, TAVILY_API_KEY: "installed-host-cancellation-key" }), stdio: ["pipe", "pipe", "pipe"] });
-  const messages = []; let buffer = ""; let stderr = "";
+  const messages = []; let buffer = ""; let stderr = ""; let protocolError;
   child.stdout.setEncoding("utf8"); child.stderr.setEncoding("utf8");
-  child.stdout.on("data", (chunk) => { buffer += chunk; const lines = buffer.split("\n"); buffer = lines.pop() ?? ""; for (const line of lines) if (line.trim()) messages.push(JSON.parse(line)); });
+  child.stdout.on("data", (chunk) => {
+    buffer += chunk;
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try { messages.push(JSON.parse(line)); }
+      catch (error) { protocolError ??= new Error("Installed MCP emitted invalid JSON.", { cause: error }); }
+    }
+  });
   child.stderr.on("data", (chunk) => { stderr += chunk; });
+  const readProtocolError = () => protocolError;
   send(child, { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "arkspace-installed-host-test", version: "1" } } });
-  await response(messages, 1);
+  await response(messages, 1, readProtocolError);
   send(child, { jsonrpc: "2.0", method: "notifications/initialized" });
   send(child, { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
-  const tools = (await response(messages, 2)).result.tools.map((tool) => tool.name);
+  const toolList = await response(messages, 2, readProtocolError);
+  const tools = toolList.result.tools.map((tool) => tool.name);
   for (const required of ["web_search", "browser_interact", "monitor_create", "monitor_site_create"]) if (!tools.includes(required)) throw new Error(`Installed MCP did not discover ${required}.`);
   send(child, { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "monitor_list", arguments: { limit: 1 } } });
-  const call = await response(messages, 3);
+  const call = await response(messages, 3, readProtocolError);
   if (call.result?.structuredContent?.capability !== "monitor.list") throw new Error("Installed MCP tool call failed.");
 
   send(child, { jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "web_search", arguments: { query: "cancel this request", provider: "tavily", timeoutMs: 60_000 } } });
   await within(submitted, 5_000, "Installed MCP request was not submitted.");
   send(child, { jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: 4, reason: "installed-host cancellation test" } });
   send(child, { jsonrpc: "2.0", id: 5, method: "ping", params: {} });
-  await within(waitUntil(() => messages.some((message) => message.id === 5)), 5_000, `Installed MCP did not process traffic after tool request. stderr=${stderr}`);
+  await response(messages, 5, readProtocolError, `Installed MCP did not process traffic after tool request. stderr=${stderr}`);
   await within(cancelled, 5_000, `Installed MCP cancellation did not abort Provider I/O. stderr=${stderr}; messages=${JSON.stringify(messages)}`);
   child.kill("SIGTERM");
   await within(new Promise((resolvePromise, reject) => { child.once("error", reject); child.once("close", resolvePromise); }), 5_000, "Installed MCP did not exit after SIGTERM.");
@@ -101,6 +112,13 @@ function requireCommand(command, args) { run(command, args); }
 function mergedEnv(extra) { return { ...process.env, PATH: `${process.env.PATH ?? ""}${delimiter}${join(temporary, "install", "node_modules", ".bin")}`, ...extra }; }
 function npmCommand() { return process.platform === "win32" ? "npm.cmd" : "npm"; }
 function send(child, message) { child.stdin.write(`${JSON.stringify(message)}\n`); }
-async function response(messages, id) { await within(waitUntil(() => messages.find((message) => message.id === id)), 5_000, `Timed out waiting for MCP response ${id}.`); return messages.find((message) => message.id === id); }
+async function parseJsonFile(path) {
+  try { return JSON.parse(await readFile(path, "utf8")); }
+  catch (error) { throw new Error(`Could not parse JSON file ${path}.`, { cause: error }); }
+}
+async function response(messages, id, readError = () => undefined, timeoutMessage = `Timed out waiting for MCP response ${id}.`) {
+  await within(waitUntil(() => { const error = readError(); if (error) throw error; return messages.find((message) => message.id === id); }), 5_000, timeoutMessage);
+  return messages.find((message) => message.id === id);
+}
 async function waitUntil(probe) { for (;;) { const value = probe(); if (value) return value; await new Promise((resolvePromise) => setTimeout(resolvePromise, 10)); } }
 async function within(promise, timeoutMs, message) { let timer; try { return await Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(message)), timeoutMs); })]); } finally { clearTimeout(timer); } }

@@ -31,11 +31,11 @@ An Agent performing the installation must:
 Install the pinned release:
 
 ```bash
-npm install --global @arkspace/cli@0.1.0
+npm install --global @arkspace/cli@0.1.1
 arks --version
 ```
 
-Expected version: `0.1.0`.
+Expected version: `0.1.1`.
 
 ## Install the Skills
 
@@ -64,7 +64,7 @@ claude plugin marketplace add arch3rPro/Ark-Space
 claude plugin install arkspace@arkspace-dev --scope user
 ```
 
-The marketplace identifier is `arkspace-dev` in version 0.1.0. Plugin installation references the canonical `skills/` directory; it does not create generated Skill copies.
+The marketplace identifier is `arkspace-dev`. Plugin installation references the canonical `skills/` directory; it does not create generated Skill copies.
 
 ## Configure Providers safely
 
@@ -101,7 +101,7 @@ npx skills@latest list
 
 Installation is ready when:
 
-- `arks --version` reports `0.1.0`;
+- `arks --version` reports `0.1.1`;
 - at least one required Provider is ready in `arks doctor --json`;
 - the target Agent discovers the selected ArkSpace Skills.
 
@@ -119,7 +119,7 @@ Register MCP only for hosts that need it; Skills can execute `arks` directly.
 Update within the 0.1 release line only after reviewing the target version:
 
 ```bash
-npm install --global @arkspace/cli@0.1.0
+npm install --global @arkspace/cli@0.1.1
 npx skills@latest update
 ```
 

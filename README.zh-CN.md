@@ -30,7 +30,7 @@ ArkSpace 为 Coding Agent 提供聚焦的操作说明，而不是一个巨型 Pr
 ### 或者自行安装
 
 ```bash
-npm install --global @arkspace/cli@0.1.0
+npm install --global @arkspace/cli@0.1.1
 npx skills@latest add arch3rPro/Ark-Space
 ```
 
@@ -126,7 +126,7 @@ Protocol Schema 发布在 [`schemas/protocol/v1/`](schemas/protocol/v1/) 下。
 
 ## 版本状态与限制
 
-**0.1.0 是 Preview Release。** 已实现首个 Provider-backed Slice：Web Retrieval、Code Context、带引用的 Research、具备所有权的 Firecrawl Browser Session、Exa Recurring-search Monitor、Firecrawl Site Monitor 与 MCP stdio。
+**0.1.1 是 Preview Update。** 在保留 0.1.0 的 Provider-backed Web、Research、Browser、Monitor 与 MCP 能力基础上，新增由人控制的本地凭证配置、更清晰的 Skill 路由与结果处理、Activation 与 Isolation 验证，以及 Installation-first 文档。
 
 当前限制：
 
