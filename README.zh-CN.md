@@ -48,14 +48,14 @@ Host 安装、验证、更新、卸载、MCP 和凭证细节见 [INSTALL.md](INS
 
 ## 按目标选择 Skill
 
-| Skill | 适用目标 | 主要操作 |
-| --- | --- | --- |
-| [`web`](skills/web/SKILL.md) | 收集有边界的公开 Web 或实现证据 | Search、相似页面、Fetch、Map、Crawl、Extract、Code Context |
-| [`research`](skills/research/SKILL.md) | 产出带引用、可用于决策的综合报告 | 有边界的 Exa 或 Tavily Research Run |
-| [`browser`](skills/browser/SKILL.md) | 读取或改变动态页面状态 | Open、Snapshot、结构化 Interaction、Status、Close |
-| [`monitor`](skills/monitor/SKILL.md) | 持有跨越当前 Session 的定期检查 | Exa Search Monitor 与 Firecrawl Site Monitor |
+| Skill | 用途 |
+| --- | --- |
+| [`web`](skills/web/SKILL.md) | 查找、读取、发现、抓取或提取公共 Web 与实现证据。 |
+| [`research`](skills/research/SKILL.md) | 综合多个公共来源，产出有边界、带引用的报告。 |
+| [`browser`](skills/browser/SKILL.md) | 在自有远程浏览器 Session 中读取或改变动态页面状态。 |
+| [`monitor`](skills/monitor/SKILL.md) | 管理跨越当前 Session 的周期搜索与站点变化检查。 |
 
-每个 Skill 负责激活、操作选择、安全和结果解释。具体分支放在链接的 Reference 中，使 Agent 只加载当前任务所需的说明。
+操作标识、Provider 覆盖、Fallback 行为和资源所有权见 [Skill、Capability 与 Provider 参考](docs/capabilities.md)。
 
 ## Runtime 提供什么
 
@@ -143,6 +143,7 @@ Protocol Schema 发布在 [`schemas/protocol/v1/`](schemas/protocol/v1/) 下。
 | 理解边界和执行模式 | [架构](docs/architecture.md) |
 | 查看迁移和切换门槛 | [迁移计划](docs/migration.md) |
 | 查看 0.1 证据与阻塞项 | [0.1 版本证据](docs/migration/v1-evidence.md) |
+| 记录实际使用中的阻力与优化证据 | [Field Testing Log](docs/field-testing.md) |
 | 新增或设计 Skill | [Adding Skills](docs/adding-skills.md) |
 | 配置 MCP stdio | [MCP Transport](docs/mcp.md) |
 | 查看目标 Host 与 OS 支持 | [Platform Support](docs/platform-support.md) |

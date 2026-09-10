@@ -5,6 +5,7 @@
 - `README.md` and `README.zh-CN.md` explain the user-facing project and must remain factually aligned.
 - `docs/architecture.md` owns the current system map and boundaries.
 - `docs/migration.md` owns migration phases, evidence, and cutover gates.
+- `docs/field-testing.md` owns observations from real use before they are accepted into a Roadmap, issue, or development plan.
 - Proposed ADRs own unimplemented decisions and alternatives.
 - `AGENTS.md` owns cross-agent repository rules; `CLAUDE.md` contains Claude-specific differences only.
 - `NOTICE.md` owns migrated-source attribution warnings and links to the project license.
