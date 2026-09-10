@@ -48,14 +48,14 @@ See [INSTALL.md](INSTALL.md) for host-specific installation, verification, updat
 
 ## Choose the Skill by outcome
 
-| Skill | Use it when the Agent needs to… | Main operations |
-| --- | --- | --- |
-| [`web`](skills/web/SKILL.md) | collect bounded public-web or implementation evidence | search, related pages, fetch, map, crawl, extract, Code Context |
-| [`research`](skills/research/SKILL.md) | produce a decision-ready synthesis with citations | bounded Exa or Tavily research runs |
-| [`browser`](skills/browser/SKILL.md) | inspect or change dynamic page state | open, snapshot, structured interaction, status, close |
-| [`monitor`](skills/monitor/SKILL.md) | own recurring checks beyond the current session | Exa search monitors and Firecrawl site monitors |
+| Skill | Use it to… |
+| --- | --- |
+| [`web`](skills/web/SKILL.md) | Find, retrieve, map, crawl, or extract public Web and implementation evidence. |
+| [`research`](skills/research/SKILL.md) | Produce a bounded, cited synthesis across public sources. |
+| [`browser`](skills/browser/SKILL.md) | Inspect or change dynamic page state in an owned remote browser session. |
+| [`monitor`](skills/monitor/SKILL.md) | Manage recurring searches and site-change checks beyond the current session. |
 
-Each Skill owns activation, operation choice, safety, and result interpretation. Detailed branches live in linked references so an Agent loads only the instructions required for the current task.
+See the [Skill, Capability, and Provider reference](docs/capabilities.md) for operation identifiers, Provider coverage, fallback behavior, and resource ownership.
 
 ## What the runtime adds
 
@@ -143,6 +143,7 @@ Current limits:
 | Understand boundaries and execution models | [Architecture](docs/architecture.md) |
 | Review migration and cutover gates | [Migration plan](docs/migration.md) |
 | Inspect 0.1 evidence and blockers | [Version 0.1 evidence](docs/migration/v1-evidence.md) |
+| Record real-use friction and improvement evidence | [Field Testing Log](docs/field-testing.md) |
 | Add or design a Skill | [Adding Skills](docs/adding-skills.md) |
 | Configure MCP stdio | [MCP transport](docs/mcp.md) |
 | Check intended host and OS support | [Platform Support](docs/platform-support.md) |

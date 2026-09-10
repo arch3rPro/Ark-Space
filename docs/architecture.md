@@ -122,20 +122,9 @@ Failures use the same envelope and include a stable error kind, retryability, an
 
 A capability handler owns provider-neutral request resolution, provider selection, fallback order, result normalization, and completion semantics. Defaults are resolved before provider execution.
 
-Initial capability vocabulary:
-
-- `web.search`
-- `web.related`
-- `web.fetch`
-- `web.map`
-- `web.crawl`
-- `web.extract`
-- `code.context`
-- `research.run`
-- `browser.open`, `browser.snapshot`, `browser.interact`, `browser.status`, `browser.close`
-- `monitor.create`, `monitor.list`, `monitor.status`, `monitor.update`, `monitor.pause`, `monitor.resume`, `monitor.trigger`, `monitor.delete`, `monitor.runs`, `monitor.run.get`
-
 Capability names are public protocol identifiers. Provider names and SDK types do not leak into provider-neutral request or result fields. Provider-specific options are carried only in an explicitly namespaced extension object.
+
+The [Skill, Capability, and Provider reference](capabilities.md) owns the current capability vocabulary, Skill mapping, Provider coverage, fallback behavior, and resource ownership constraints.
 
 ### Provider adapters
 
