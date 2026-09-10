@@ -1,138 +1,164 @@
 # ArkSpace
 
-[中文](README.zh-CN.md)
+<p>
+  <a href="README.zh-CN.md">中文</a> ·
+  <a href="INSTALL.md">Install</a> ·
+  <a href="docs/architecture.md">Architecture</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a>
+</p>
 
 ![ArkSpace as a futuristic ark-like workspace containing research, knowledge, workflow, toolbox, planning, and engineering capabilities.](./assets/readme/hero.png)
 
-**ArkSpace is a creative workspace for reusable Agent Skills and the tools that make them reliable.** It gives agents focused, installable guidance while allowing each capability to use the execution model that fits it: host tools, skill-local scripts, external applications, or shared ArkSpace services.
+[![npm](https://img.shields.io/npm/v/%40arkspace%2Fcli?label=%40arkspace%2Fcli)](https://www.npmjs.com/package/@arkspace/cli)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-339933?logo=nodedotjs&logoColor=white)](package.json)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> **Status:** Version 0.1.0 is the initial preview release. It provides Web retrieval, Code Context, cited Research, owned Firecrawl Browser sessions, separate Exa and Firecrawl monitoring, and MCP stdio. This release does not replace or retire the existing ArkSpace project; credentialed Provider and migration qualification continues after release.
+**Reusable Agent Skills for web evidence, cited research, browser work, and monitoring—backed by one secure local execution boundary when shared Provider access is required.**
 
-## What Stays Core
+ArkSpace gives coding Agents focused operating instructions instead of one oversized prompt. The first release includes four canonical Skills and the `arks` CLI, which coordinates Provider credentials, multiple-key rotation, fallback, owned remote resources, and machine-readable results.
 
-ArkSpace remains broader than its first implementation slice:
+## Start in two minutes
 
-- Skills are reusable product units, not wrappers around one runtime.
-- A Skill can remain pure guidance, carry scripts, declare an external dependency, or call a shared capability.
-- Shared execution is used when credentials, provider fallback, quotas, or durable state must be coordinated.
-- Native plugin installation is supported for hosts that benefit from it, without duplicating canonical Skill bodies.
-- Host-specific integration is added only when a supported host needs it.
-- Sources, licenses, private configuration, and side effects remain explicit.
+### Ask an Agent to install it
 
-## First Implementation Slice
+Paste this into your coding Agent:
 
-The first slice rebuilds the provider-backed capabilities that currently provide the clearest value:
+```text
+Install ArkSpace from https://github.com/arch3rPro/Ark-Space by following the repository's INSTALL.md. Ask before changing my global packages, Agent configuration, or MCP configuration. Never ask me to paste an API key into this conversation. When credentials are required, stop and ask me to run `arks setup` myself in a trusted local terminal. Verify the CLI, installed Skills, and Provider readiness before declaring success.
+```
 
-- public web search, related-page discovery, fetch, map, crawl, and structured extraction;
-- code and API context retrieval;
-- cited and long-running research;
-- browser interaction;
-- recurring monitoring with durable ownership and explicit lifecycle operations;
-- centralized multiple-API-key rotation, cooldown, fallback, and diagnostics.
-
-The implemented canonical Skill boundaries are `web`, `research`, `browser`, and `monitor`.
-
-## `arks` CLI
-
-ArkSpace's shared execution command is **`arks`**, implemented in Node.js and TypeScript. It requires Node.js 20 or newer. Install the published release from npm:
+### Or install it yourself
 
 ```bash
 npm install --global @arkspace/cli@0.1.0
-arks setup
-arks doctor
+npx skills@latest add arch3rPro/Ark-Space
 ```
 
-For a source checkout:
-
-```bash
-npm install
-npm run build
-npm link
-```
-
-The first slice implements:
+Then run the credential wizard yourself in a trusted local terminal:
 
 ```bash
 arks setup
-arks key add exa --env EXA_API_KEY_1
-arks key add firecrawl --env FIRECRAWL_API_KEY_1
 arks doctor
-arks provider list
 arks web search "agent skills"
-arks web related "https://example.com/reference"
+```
+
+> **Keep API keys out of Agent chats.** `arks setup` uses hidden terminal input and stores local credentials separately from configuration and state. Environment variables remain available for CI and externally managed secrets.
+
+See [INSTALL.md](INSTALL.md) for host-specific installation, verification, update, uninstall, MCP, and credential details.
+
+## Choose the Skill by outcome
+
+| Skill | Use it when the Agent needs to… | Main operations |
+| --- | --- | --- |
+| [`web`](skills/web/SKILL.md) | collect bounded public-web or implementation evidence | search, related pages, fetch, map, crawl, extract, Code Context |
+| [`research`](skills/research/SKILL.md) | produce a decision-ready synthesis with citations | bounded Exa or Tavily research runs |
+| [`browser`](skills/browser/SKILL.md) | inspect or change dynamic page state | open, snapshot, structured interaction, status, close |
+| [`monitor`](skills/monitor/SKILL.md) | own recurring checks beyond the current session | Exa search monitors and Firecrawl site monitors |
+
+Each Skill owns activation, operation choice, safety, and result interpretation. Detailed branches live in linked references so an Agent loads only the instructions required for the current task.
+
+## What the runtime adds
+
+A Skill can remain pure guidance, carry a self-contained script, use an external application, or call a shared ArkSpace capability. `arks` is required only for the last case.
+
+```text
+Agent host
+  └─ Agent Skill
+      ├─ host tools / Skill-local scripts / external tools
+      └─ arks invoke <capability> --input <file>
+          ├─ Provider-neutral capability handler
+          ├─ Exa / Tavily / Firecrawl adapter
+          └─ credentials, key pool, fallback, and owned state
+```
+
+The shared runtime provides:
+
+- **Stable machine output:** one Protocol v1 JSON envelope on stdout; diagnostics stay on stderr.
+- **Credential isolation:** setup happens in a human-controlled terminal, while config and state retain references and non-secret metadata.
+- **Multiple-key handling:** transactional round-robin selection, cooldown, disable states, and classified fallback.
+- **Honest remote lifecycle:** timeout, cancellation, uncertain acceptance, partial output, and cleanup remain distinct outcomes.
+- **Owned resources:** browser sessions and monitors stay bound to the credential that created them and require confirmation for material side effects.
+- **One MCP adapter:** `arks mcp serve` exposes the same dispatcher instead of duplicating Provider logic.
+
+## Human and machine entry points
+
+Human-facing commands optimize for discovery:
+
+```bash
+arks provider list
 arks web fetch "https://example.com/docs"
-arks web map "https://docs.example.com" --query "API reference"
 arks web crawl "https://docs.example.com" --max-pages 20 --max-depth 2
-arks web extract "https://example.com/pricing" --prompt "Extract plans" --schema schema.json
 arks code context "current TypeScript SDK usage"
 arks research run "compare current agent research APIs" --depth standard
 arks browser open "https://example.com"
-arks browser snapshot <session-id>
-arks browser close <session-id>
-arks monitor create --query "agent releases" --period 1d --webhook https://example.com/hook --secret-file ./monitor.secret --confirm
 arks monitor status <monitor-id>
-arks monitor pause <monitor-id> --confirm
-arks monitor delete <monitor-id> --confirm
-arks monitor site create --input ./site-monitor.json --confirm
-arks monitor site checks <site-monitor-id>
-arks monitor site delete <site-monitor-id> --confirm
-arks mcp serve
 ```
 
-Skills that need shared execution use a versioned machine interface instead of importing runtime code or resolving repository paths:
+Skills use the stable machine boundary:
 
 ```bash
 arks invoke web.search --input search-request.json
-arks invoke web.related --input related-request.json
-arks invoke web.fetch --input fetch-request.json
-arks invoke web.map --input map-request.json
-arks invoke web.crawl --input crawl-request.json
-arks invoke web.extract --input extract-request.json
-arks invoke code.context --input code-context-request.json
 arks invoke research.run --input research-request.json
 arks invoke browser.open --input browser-open-request.json
-arks invoke browser.interact --input browser-action-request.json
 arks invoke monitor.create --input monitor-create-request.json
-arks invoke monitor.runs --input monitor-runs-request.json
-arks invoke monitor.site.create --input site-monitor-create-request.json
-arks invoke monitor.site.checks --input site-monitor-checks-request.json
 ```
 
-`monitor.*` represents Exa recurring searches. `monitor.site.*` is a separate Firecrawl contract for typed scrape, crawl, and web-search targets, five-field cron or natural-language schedules, 1–365 day retention, optional goal judging, Provider credit estimates, and page-level check results.
+Protocol schemas are published under [`schemas/protocol/v1/`](schemas/protocol/v1/).
 
-`arks mcp serve` exposes the same Protocol v1 capability dispatcher through the official MCP TypeScript SDK over stdio. MCP does not duplicate Provider logic or lifecycle rules.
+## Installation surfaces
 
-## Plugin Installation
+- **Portable Skills:** compatible filesystem-based hosts can install the canonical `skills/` tree with the Agent Skills installer.
+- **Claude Code plugin:** the repository marketplace manifest references canonical Skills directly.
+- **Codex plugin metadata:** `.codex-plugin/plugin.json` points to the same canonical directory.
+- **MCP stdio:** Claude Code, Codex, and other MCP hosts can register `arks mcp serve` when tool discovery is useful.
 
-ArkSpace includes development manifests for native Claude Code and Codex plugin installation in addition to the portable canonical Skills. Canonical Skills remain in `skills/`; both hosts consume that directory directly.
+There are no generated plugin mirrors. Routine Skill changes update the canonical source; plugin version metadata changes only during an explicit release.
 
-The Codex marketplace points to the repository root, so the plugin does not need compilation or a mirrored package directory. Routine changes remain source changes. An explicit release updates plugin version metadata and validates installation from the tagged source; only the Node/TypeScript CLI has a software build step.
+## Security model
 
-## Project Map
+- Never enter API keys in an Agent question, chat message, command argument, fixture, or tracked file.
+- `arks setup` writes local keys to the user-level `credentials.json` file with restrictive permissions where supported.
+- Explicit environment variables override locally stored values.
+- `config.json` stores credential references; `state.json` stores anonymous key IDs and lifecycle metadata.
+- Browser and monitor mutations require explicit confirmation; cleanup and uncertain remote outcomes remain visible.
+
+The local credential file contains plaintext secrets and is not an operating-system keychain. Read [ADR 0009](docs/adr/accepted/0009-local-credential-setup.md) and [Security Policy](SECURITY.md) before choosing a credential strategy for a managed environment.
+
+## Release status and limits
+
+**0.1.0 is a preview release.** It implements the first Provider-backed slice: Web retrieval, Code Context, cited Research, owned Firecrawl Browser sessions, Exa recurring-search monitors, Firecrawl site monitors, and MCP stdio.
+
+Current limits:
+
+- Node.js 20 or newer and a local host with shell, network, and persistent user storage are required.
+- Provider operations require the applicable Exa, Tavily, or Firecrawl account and may incur Provider charges.
+- Hosted cross-platform and credentialed live-Provider qualification remains part of the [post-release backlog](docs/migration.md#post-release-01-qualification-backlog).
+- This release does not declare replacement cutover of the existing ArkSpace project.
+
+## Project guide
 
 | Need | Read |
 | --- | --- |
-| Understand the new system boundaries | [Architecture](docs/architecture.md) |
-| Review migration phases and cutover gates | [Migration plan](docs/migration.md) |
-| Inspect the version 0.1 scope, evidence, and release blockers | [Version 0.1 evidence](docs/migration/v1-evidence.md) |
+| Install, verify, update, or uninstall | [Installation](INSTALL.md) |
+| Understand boundaries and execution models | [Architecture](docs/architecture.md) |
+| Review migration and cutover gates | [Migration plan](docs/migration.md) |
+| Inspect 0.1 evidence and blockers | [Version 0.1 evidence](docs/migration/v1-evidence.md) |
 | Add or design a Skill | [Adding Skills](docs/adding-skills.md) |
-| Configure the MCP stdio transport | [MCP transport](docs/mcp.md) |
-| Check intended host and operating-system support | [Platform Support](docs/platform-support.md) |
-| Maintain design documents and future code | [Maintenance](docs/maintenance.md) |
-| Review the CLI boundary decision | [ADR 0001](docs/adr/proposed/0001-node-typescript-arks-cli.md) |
-| Review the proposed initial Skill boundaries | [ADR 0002](docs/adr/proposed/0002-initial-web-skill-boundaries.md) |
-| Review direct-source plugin distribution | [ADR 0004](docs/adr/proposed/0004-direct-source-plugin-distribution.md) |
-| Review Browser and Monitor ownership | [ADR 0007](docs/adr/proposed/0007-owned-browser-and-monitor-resources.md) |
-| Review MCP stdio transport | [ADR 0008](docs/adr/proposed/0008-mcp-stdio-transport.md) |
+| Configure MCP stdio | [MCP transport](docs/mcp.md) |
+| Check intended host and OS support | [Platform Support](docs/platform-support.md) |
+| Understand maintenance and release rules | [Maintenance](docs/maintenance.md) |
 
-## Repository Contract
+## Development
 
-- Canonical Skills live in `skills/<skill-name>/SKILL.md` when implementation begins.
-- Shared CLI code lives under `src/`; Skills never import it directly.
-- Skill-local scripts stay inside their owning Skill.
-- Private keys, endpoints, local state, and personal configuration are never committed.
-- External source use is recorded with its license and adaptation status before code is imported.
-- Plugin manifests reference canonical Skills directly; no generated plugin mirror is maintained.
-- The existing ArkSpace repository is behavioral evidence, not the architecture source for this project.
+```bash
+git clone https://github.com/arch3rPro/Ark-Space.git
+cd Ark-Space
+npm install
+npm run check
+```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) before changing the project.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) before changing the project. Security reports follow [SECURITY.md](SECURITY.md).
+
+## License
+
+ArkSpace is available under the [MIT License](LICENSE). External source and attribution notices are recorded in [NOTICE.md](NOTICE.md).
