@@ -11,8 +11,8 @@ Use the installed `arks` CLI or ArkSpace MCP tools. Prefer the `web` Skill when 
 ## Readiness
 
 1. Run `arks --version`. If unavailable, explain that ArkSpace CLI is required and ask before changing the user's environment.
-2. Run `arks doctor --json` when Firecrawl readiness is unknown. Ask before changing configuration or key references.
-3. Explain that an open Firecrawl browser session accrues credits until it is closed or expires.
+2. Run `arks doctor --json` when Firecrawl readiness is unknown. If credentials are missing, direct the human to run `arks setup` in a trusted local terminal. Never ask for an API key in conversation or place one in a command argument.
+3. Ask before changing configuration or the user's environment. Explain that an open Firecrawl browser session accrues credits until it is closed or expires.
 
 ## Session lifecycle
 

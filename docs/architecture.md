@@ -195,7 +195,7 @@ Provider configuration is not a skill. `arks setup`, `arks provider`, `arks key`
 
 ## Credentials and multiple API keys
 
-Configuration stores credential references, not secret values. Initial secret sources are environment variables; operating-system keychains may be added after cross-platform validation.
+Configuration stores credential references, not secret values. `arks setup` may store raw keys in the dedicated user-level `credentials.json` file after hidden terminal entry; explicit environment variables override that file for CI and externally managed credentials. State contains only key metadata. Operating-system keychains may replace local-file storage after cross-platform validation. See [ADR 0009](adr/accepted/0009-local-credential-setup.md).
 
 A provider key pool records:
 
@@ -235,14 +235,14 @@ ArkSpace supports two distribution surfaces:
 
 Both surfaces consume the same canonical `skills/` tree. Claude Code and Codex manifests live in the repository and point to those sources directly. A marketplace entry points to the repository root rather than to a generated package copy.
 
-Normal installation should install the CLI and selected skills together. Skills also include a missing-tool fallback:
+Normal installation installs the CLI and selected Skills together. Skills also include a missing-tool fallback:
 
-1. run `arks version --json`;
-2. verify the protocol version and required capability;
+1. run `arks --version`;
+2. verify the required capability;
 3. if unavailable, explain the dependency and request permission before modifying the environment;
-4. use the official pinned installation path;
-5. run `arks doctor --capability <id>`;
-6. resume the original task.
+4. use the documented installation path;
+5. direct the human to run `arks setup` in a trusted local terminal when credentials are missing; never request a key in conversation;
+6. run `arks doctor` and resume the original task.
 
 A Skill may guide installation, but cannot assume every host permits it. Local coding-agent hosts are the first supported environment. Hosted skill containers without shell, network, or package-install access require a future remote transport and are not claimed by the first release.
 

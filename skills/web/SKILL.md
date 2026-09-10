@@ -11,8 +11,8 @@ Use the installed `arks` CLI. This Skill never resolves scripts relative to the 
 ## Readiness
 
 1. Run `arks --version`. If unavailable, explain that ArkSpace CLI is required and ask before changing the user's environment.
-2. Run `arks doctor --json` when Provider readiness is unknown. Show reported corrections and ask before changing configuration or key references.
-3. Force a Provider only when the user requests one or the operation requires it. Otherwise preserve key rotation and fallback.
+2. Run `arks doctor --json` when Provider readiness is unknown. If credentials are missing, direct the human to run `arks setup` in a trusted local terminal. Never ask for an API key in conversation or place one in a command argument.
+3. Ask before changing configuration or the user's environment. Force a Provider only when the user requests one or the operation requires it; otherwise preserve key rotation and fallback.
 
 ## Route
 
