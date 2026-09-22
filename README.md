@@ -15,7 +15,7 @@
 
 **Reusable Agent Skills for web evidence, cited research, browser work, and monitoring—backed by one secure local execution boundary when shared Provider access is required.**
 
-ArkSpace gives coding Agents focused operating instructions instead of one oversized prompt. The first release includes four canonical Skills and the `arks` CLI, which coordinates Provider credentials, multiple-key rotation, fallback, owned remote resources, and machine-readable results.
+ArkSpace gives coding Agents focused operating instructions instead of one oversized prompt. The first release includes five canonical Skills and the `arks` CLI, which coordinates Provider credentials, multiple-key rotation, fallback, owned remote resources, and machine-readable results.
 
 ## Start in two minutes
 
@@ -54,6 +54,7 @@ See [INSTALL.md](INSTALL.md) for host-specific installation, verification, updat
 | [`research`](skills/research/SKILL.md) | Produce a bounded, cited synthesis across public sources. |
 | [`browser`](skills/browser/SKILL.md) | Inspect or change dynamic page state in an owned remote browser session. |
 | [`monitor`](skills/monitor/SKILL.md) | Manage recurring searches and site-change checks beyond the current session. |
+| [`weknora`](skills/weknora/SKILL.md) | Search, import, and answer questions over a WeKnora knowledge base through its REST API. |
 
 See the [Skill, Capability, and Provider reference](docs/capabilities.md) for operation identifiers, Provider coverage, fallback behavior, and resource ownership.
 

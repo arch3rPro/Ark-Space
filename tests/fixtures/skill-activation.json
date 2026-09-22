@@ -46,5 +46,19 @@
       "Research the topic now and write a cited synthesis.",
       "Open the page and click the load-more button."
     ]
+  },
+  "weknora": {
+    "positive": [
+      "List the documents in our WeKnora knowledge base and their parse status.",
+      "Import this Markdown release note into WeKnora and confirm it becomes searchable.",
+      "Ask our WeKnora knowledge base a question and stream back the cited answer.",
+      "Show the chunks WeKnora indexed for this document."
+    ],
+    "negative": [
+      "Fetch these three public documentation URLs and summarize how they differ.",
+      "Research this vendor landscape and write a cited recommendation.",
+      "Click the load-more button and verify the page state changed.",
+      "Create a recurring weekly search that posts new results to my webhook."
+    ]
   }
 }

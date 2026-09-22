@@ -23,7 +23,7 @@ try {
 }
 if (report) {
   const names = report.files.map((file) => file.path);
-  for (const required of ["dist/cli/main.js", "skills/web/SKILL.md", "skills/research/SKILL.md", "skills/browser/SKILL.md", "skills/monitor/SKILL.md", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "README.md", "LICENSE", "NOTICE.md"]) if (!names.includes(required)) failures.push(`Packed artifact is missing ${required}.`);
+  for (const required of ["dist/cli/main.js", "skills/web/SKILL.md", "skills/research/SKILL.md", "skills/browser/SKILL.md", "skills/monitor/SKILL.md", "skills/weknora/SKILL.md", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "README.md", "LICENSE", "NOTICE.md"]) if (!names.includes(required)) failures.push(`Packed artifact is missing ${required}.`);
   for (const name of names) if (/^(?:src|tests|scripts|docs\/research|overlays|node_modules|\.git)(?:\/|$)/.test(name) || /(?:^|\/)(?:\.env(?:\.|$)|.*\.state\.json$|.*\.(?:pem|key)$)/.test(name)) failures.push(`Forbidden packed path: ${name}.`);
   if (report.size > 5_000_000 || report.unpackedSize > 10_000_000) failures.push(`Packed artifact exceeds the release budget (${report.size}/${report.unpackedSize} bytes).`);
   for (const file of report.files) if (file.size > 1_000_000) failures.push(`Packed file ${file.path} exceeds 1 MB.`);

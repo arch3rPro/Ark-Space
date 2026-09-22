@@ -10,6 +10,9 @@ This reference maps each canonical Skill to its public `arks` capabilities and P
 | [`research`](../skills/research/SKILL.md) | Synthesize public evidence into a bounded, cited comparison, landscape, or decision-ready report. |
 | [`browser`](../skills/browser/SKILL.md) | Open an owned remote browser session, inspect page state, perform confirmed structured interactions, verify results, and close the session. |
 | [`monitor`](../skills/monitor/SKILL.md) | Create and manage persistent recurring searches or site-change checks, including lifecycle operations and run history. |
+| [`weknora`](../skills/weknora/SKILL.md) | Search, ingest, inspect, and answer questions over a user's own WeKnora knowledge base through its REST API. |
+
+`weknora` is an external-tool Skill: it calls a user-managed WeKnora instance directly and declares **no** `arks` capability or Provider dependency. It therefore does not appear in the operation tables below.
 
 ## Stateless operations and bounded jobs
 

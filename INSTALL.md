@@ -2,10 +2,10 @@
 
 ArkSpace has two installable surfaces:
 
-1. **Agent Skills** provide operation guidance for `web`, `research`, `browser`, and `monitor`.
+1. **Agent Skills** provide operation guidance for `web`, `research`, `browser`, `monitor`, and `weknora`.
 2. **`arks` CLI** provides shared Provider execution, credential handling, owned resources, and MCP stdio.
 
-Provider-backed Skills need both surfaces. Node.js 20 or newer is required.
+Provider-backed Skills need both surfaces. `weknora` is an external-tool Skill: it needs neither, and instead requires its own `WEKNORA_BASE_URL` and `WEKNORA_API_KEY`. Node.js 20 or newer is required.
 
 ## Give this to your Agent
 
@@ -47,10 +47,10 @@ Use the Agent Skills installer for Codex, Claude Code, Cursor, and other compati
 npx skills@latest add arch3rPro/Ark-Space
 ```
 
-Choose the target Agent and the `web`, `research`, `browser`, and `monitor` Skills. For a non-interactive installation, name the host explicitly:
+Choose the target Agent and the `web`, `research`, `browser`, `monitor`, and `weknora` Skills. For a non-interactive installation, name the host explicitly:
 
 ```bash
-npx skills@latest add arch3rPro/Ark-Space --agent <agent> --skill web research browser monitor -y
+npx skills@latest add arch3rPro/Ark-Space --agent <agent> --skill web research browser monitor weknora -y
 ```
 
 Use `-g` only after the user approves a user-wide installation.
