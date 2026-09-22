@@ -66,3 +66,13 @@ Prefer a narrow concrete module over a speculative framework. Introduce an exten
 - Follow `docs/maintenance.md#plugin-release-boundary`: plugins load canonical sources directly; only the Node/TypeScript CLI is built, while plugin versions change during an explicitly requested release.
 - Do not publish packages, create tags, push releases, or change versions unless explicitly requested.
 - Leave unrelated and user-created files untouched.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live as markdown files under `.scratch/<feature-slug>/`; there is no remote tracker. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: one root `CONTEXT.md` and status-split ADRs under `docs/adr/`. See `docs/agents/domain.md`.
