@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { addEnvironmentKey, initializeConfig } from "../src/config/store.js";
+import { ArkSpaceConfigSchema } from "../src/config/schema.js";
 
 const directories: string[] = [];
 
@@ -12,6 +13,24 @@ afterEach(async () => {
 });
 
 describe("configuration evolution", () => {
+  it("accepts per-capability enablement and distinct MCP/CLI names", () => {
+    const config = ArkSpaceConfigSchema.parse({
+      version: 1,
+      providerOrder: ["exa"],
+      providers: { exa: { baseUrl: "https://api.exa.ai", keyRefs: [] } },
+      tools: { "web.search": { enabled: false, mcpName: "search_web", cliName: "search" } },
+    });
+    expect(config.tools["web.search"]).toEqual({ enabled: false, mcpName: "search_web", cliName: "search" });
+  });
+
+  it("rejects invalid tool names", () => {
+    expect(() => ArkSpaceConfigSchema.parse({
+      version: 1,
+      providerOrder: ["exa"],
+      providers: { exa: { baseUrl: "https://api.exa.ai", keyRefs: [] } },
+      tools: { "web.search": { mcpName: "not valid" } },
+    })).toThrow();
+  });
   it("adds new Provider defaults without replacing existing key references", async () => {
     const path = await configPath();
     await writeFile(

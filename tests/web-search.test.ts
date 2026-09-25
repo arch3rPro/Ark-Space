@@ -80,6 +80,42 @@ describe("web.search capability", () => {
     expect(result.attempts).toHaveLength(2);
   });
 
+  it.each([
+    ["network", true],
+    ["quota", true],
+    ["invalid-request", false],
+    ["invalid-response", false],
+  ] as const)("uses explicit fallbackOn policy for %s", async (kind, shouldFallback) => {
+    const statePath = await temporaryStatePath();
+    const config = defaultConfig();
+    config.providers.exa!.fallbackOn = shouldFallback ? [kind] : ["network"];
+    let tavilyCalled = false;
+    const exa: WebSearchProvider = {
+      id: "exa",
+      async search() {
+        throw new ProviderError(`fixture ${kind}`, { kind });
+      },
+    };
+    const tavily: WebSearchProvider = {
+      id: "tavily",
+      async search(request) {
+        tavilyCalled = true;
+        return { query: request.input.query, results: [] };
+      },
+    };
+
+    const result = await executeWebSearch(resolveWebSearchInput({ query: "agent skills" }), {
+      config,
+      statePath,
+      providers: new Map([["exa", exa], ["tavily", tavily]]),
+      environment: { EXA_API_KEY: "exa-secret", TAVILY_API_KEY: "tavily-secret" },
+    });
+
+    expect(tavilyCalled).toBe(shouldFallback);
+    expect(result.ok).toBe(shouldFallback);
+    expect(result.attempts[0]).toMatchObject({ provider: "exa", errorKind: kind });
+  });
+
   it("does not fall back for an invalid request", async () => {
     const statePath = await temporaryStatePath();
     let tavilyCalled = false;
@@ -109,6 +145,35 @@ describe("web.search capability", () => {
 
     expect(result).toMatchObject({ ok: false, error: { kind: "invalid-request" } });
     expect(tavilyCalled).toBe(false);
+  });
+
+  it("strictly fails an explicitly selected provider", async () => {
+    const statePath = await temporaryStatePath();
+    let tavilyCalled = false;
+    const exa: WebSearchProvider = {
+      id: "exa",
+      async search() {
+        throw new ProviderError("Exa is unavailable.", { kind: "network" });
+      },
+    };
+    const tavily: WebSearchProvider = {
+      id: "tavily",
+      async search() {
+        tavilyCalled = true;
+        return { query: "agent skills", results: [] };
+      },
+    };
+
+    const result = await executeWebSearch(resolveWebSearchInput({ query: "agent skills", provider: "exa" }), {
+      config: defaultConfig(),
+      statePath,
+      providers: new Map([["exa", exa], ["tavily", tavily]]),
+      environment: { EXA_API_KEY: "exa-secret", TAVILY_API_KEY: "tavily-secret" },
+    });
+
+    expect(result).toMatchObject({ ok: false, error: { kind: "network" } });
+    expect(tavilyCalled).toBe(false);
+    expect(result.attempts).toHaveLength(1);
   });
 });
 

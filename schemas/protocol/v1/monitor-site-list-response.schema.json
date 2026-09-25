@@ -18,7 +18,8 @@
                 "enum": [
                   "exa",
                   "tavily",
-                  "firecrawl"
+                  "firecrawl",
+                  "local"
                 ]
               },
               "keyId": {
@@ -508,7 +509,8 @@
                 "enum": [
                   "exa",
                   "tavily",
-                  "firecrawl"
+                  "firecrawl",
+                  "local"
                 ]
               },
               "keyId": {

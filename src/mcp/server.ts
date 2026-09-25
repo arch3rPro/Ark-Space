@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod/v4";
 
+import { isToolEnabled, type ArkSpaceConfig } from "../config/schema.js";
 import { ResourceInputSchemas } from "../protocol/resource-schema.js";
 import { CodeContextRequestSchema, ResearchRequestSchema, WebCrawlRequestSchema, WebExtractRequestSchema, WebFetchRequestSchema, WebMapRequestSchema, WebRelatedRequestSchema, WebSearchRequestSchema } from "../protocol/schema.js";
 import { invokeCapability } from "../protocol/invoke.js";
@@ -59,10 +60,17 @@ const descriptions: Record<Capability, string> = {
 const readOnly = new Set<Capability>(["web.search", "web.fetch", "web.map", "web.related", "code.context", "browser.snapshot", "browser.status", "monitor.list", "monitor.status", "monitor.runs", "monitor.run.get", "monitor.site.list", "monitor.site.status", "monitor.site.checks", "monitor.site.check.get"]);
 const destructive = new Set<Capability>(["browser.close", "monitor.delete", "monitor.site.delete"]);
 
-export function createMcpServer(): McpServer {
+export function createMcpServer(config?: ArkSpaceConfig): McpServer {
   const server = new McpServer({ name: "arkspace", version: "0.1.1" });
   const activeRequests = new Map<string | number, AbortController>();
-  for (const capability of Object.keys(inputSchemas) as Capability[]) registerCapability(server, capability, inputSchemas[capability], activeRequests);
+  const names = new Set<string>();
+  for (const capability of Object.keys(inputSchemas) as Capability[]) {
+    if (config && !isToolEnabled(config, capability)) continue;
+    const name = config?.tools[capability]?.mcpName ?? capability.replaceAll(".", "_");
+    if (names.has(name)) throw new Error(`Duplicate MCP tool name: ${name}`);
+    names.add(name);
+    registerCapability(server, capability, name, inputSchemas[capability], activeRequests);
+  }
   server.server.setNotificationHandler("notifications/cancelled", (notification) => {
     const requestId = notification.params.requestId;
     const controller = requestId === undefined ? undefined : activeRequests.get(requestId);
@@ -71,9 +79,9 @@ export function createMcpServer(): McpServer {
   return server;
 }
 
-function registerCapability(server: McpServer, capability: Capability, schema: z.ZodObject<z.ZodRawShape>, activeRequests: Map<string | number, AbortController>): void {
+function registerCapability(server: McpServer, capability: Capability, name: string, schema: z.ZodObject<z.ZodRawShape>, activeRequests: Map<string | number, AbortController>): void {
   server.registerTool(
-    capability.replaceAll(".", "_"),
+    name,
     {
       description: descriptions[capability],
       inputSchema: schema,

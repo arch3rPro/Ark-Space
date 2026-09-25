@@ -27,8 +27,12 @@ const HttpUrlSchema = z
   .url()
   .max(4_096)
   .refine((value) => {
-    const url = new URL(value);
-    return (url.protocol === "http:" || url.protocol === "https:") && !url.username && !url.password;
+    try {
+      const url = new URL(value);
+      return (url.protocol === "http:" || url.protocol === "https:") && !url.username && !url.password;
+    } catch {
+      return false;
+    }
   }, "URLs must use HTTP(S) and must not contain credentials");
 
 export const WebSearchRequestSchema = z
@@ -57,6 +61,7 @@ export const WebFetchRequestSchema = z
         urls: z.array(HttpUrlSchema).min(1).max(20),
         timeoutMs: z.number().int().min(1_000).max(120_000).default(30_000),
         provider: z.enum(PROVIDER_IDS).optional(),
+        mode: z.enum(["raw", "readable"]).default("readable"),
         onlyMainContent: z.boolean().default(true),
         maxCharacters: z.number().int().min(1_000).max(100_000).default(20_000),
       })
@@ -340,6 +345,7 @@ function normalizeFetchInput(input: z.infer<typeof WebFetchRequestSchema.shape.i
     timeoutMs: input.timeoutMs,
     onlyMainContent: input.onlyMainContent,
     maxCharacters: input.maxCharacters,
+    mode: input.mode,
     ...(input.provider ? { provider: input.provider } : {}),
   };
 }

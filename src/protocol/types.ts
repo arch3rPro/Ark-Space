@@ -11,7 +11,7 @@ export type MonitorRunId = Brand<string, "MonitorRunId">;
 export type SiteMonitorId = Brand<string, "SiteMonitorId">;
 export type SiteMonitorCheckId = Brand<string, "SiteMonitorCheckId">;
 
-export const PROVIDER_IDS = ["exa", "tavily", "firecrawl"] as const;
+export const PROVIDER_IDS = ["exa", "tavily", "firecrawl", "local"] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 export const WEB_MAP_PROVIDER_IDS = ["tavily", "firecrawl"] as const;
 export type WebMapProviderId = (typeof WEB_MAP_PROVIDER_IDS)[number];
@@ -100,6 +100,7 @@ export interface WebFetchInput {
   urls: string[];
   timeoutMs: number;
   provider?: ProviderId;
+  mode: "raw" | "readable";
   onlyMainContent: boolean;
   maxCharacters: number;
 }

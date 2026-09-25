@@ -34,7 +34,16 @@
           "enum": [
             "exa",
             "tavily",
-            "firecrawl"
+            "firecrawl",
+            "local"
+          ]
+        },
+        "mode": {
+          "default": "readable",
+          "type": "string",
+          "enum": [
+            "raw",
+            "readable"
           ]
         },
         "onlyMainContent": {
@@ -51,6 +60,7 @@
       "required": [
         "urls",
         "timeoutMs",
+        "mode",
         "onlyMainContent",
         "maxCharacters"
       ],

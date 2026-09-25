@@ -1,5 +1,6 @@
 import type { ArkSpaceConfig } from "../config/schema.js";
 import { getProviderConfig } from "../config/schema.js";
+import { awaitWithAbort } from "./abortable.js";
 import { ProviderError } from "../errors/provider-error.js";
 import { recordKeyResult, selectCredential } from "../key-pool/key-pool.js";
 import type { AttemptEvidence, FailureKind, ProviderId } from "../protocol/types.js";
@@ -58,7 +59,11 @@ export async function executeWithProviders<Data, Provider extends ProviderId>(op
           lastError = new ProviderError(`Provider ${providerId} does not implement this capability.`, { kind: "config" });
           break;
         }
-        const data = await operation;
+        // A provider may pass the signal through to its transport without actually
+        // stopping its work. Do not let such a promise hold the invocation open;
+        // resource-aware providers still report their own cleanup evidence when
+        // they can confirm it.
+        const data = await awaitWithAbort(operation, operationSignal);
         await recordKeyResult(options.context.statePath, providerId, credential.keyId, providerConfig, { ok: true });
         attempts.push({ provider: providerId, keyId: credential.keyId, ok: true });
         return { ok: true, provider: providerId, data, attempts };

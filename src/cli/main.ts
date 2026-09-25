@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import process from "node:process";
 import { Command } from "commander";
 import { ZodError } from "zod";
@@ -33,9 +33,10 @@ import { executeWebMap } from "../capabilities/web-map.js";
 import { executeWebRelated } from "../capabilities/web-related.js";
 import { executeWebSearch } from "../capabilities/web-search.js";
 import { runSetup } from "./setup.js";
+import { buildDiagnosticPlan, renderDiagnostic } from "./diagnostics.js";
 import { loadCredentialEnvironment } from "../config/credentials.js";
 import { resolveArkSpacePaths } from "../config/paths.js";
-import { getProviderConfig } from "../config/schema.js";
+import { defaultConfig, getProviderConfig, isToolEnabled, type ArkSpaceConfig } from "../config/schema.js";
 import { addEnvironmentKey, loadConfig } from "../config/store.js";
 import { ProviderError, correctionFor } from "../errors/provider-error.js";
 import { serveArkSpaceStdio } from "../mcp/stdio.js";
@@ -358,6 +359,11 @@ program
       return;
     }
     try {
+      const config = await loadConfig(resolveArkSpacePaths().config);
+      if (!isToolEnabled(config, capability)) {
+        writeMachineFailure(capability, new ProviderError(`Capability is disabled by configuration: ${capability}`, { kind: "invalid-request" }));
+        return;
+      }
       const value = await readJsonInput(options.input);
       writeMachineResult(await invokeCapability(capability, value, { signal: operationController.signal }));
     } catch (error) {
@@ -456,7 +462,8 @@ webCommand
 webCommand
   .command("fetch")
   .argument("<urls...>", "HTTP(S) URLs to fetch")
-  .option("--provider <provider>", "Force exa, tavily, or firecrawl")
+  .option("--provider <provider>", "Force exa, tavily, firecrawl, or local")
+  .option("--mode <mode>", "Local fetch mode: raw or readable", "readable")
   .option("--timeout-ms <milliseconds>", "Request timeout", "30000")
   .option("--max-characters <count>", "Maximum content characters per URL", "20000")
   .option("--full-page", "Include navigation and other non-main content")
@@ -465,6 +472,7 @@ webCommand
     try {
       const input = resolveWebFetchInput({
         urls,
+        mode: options.mode === "raw" ? "raw" : options.mode === "readable" ? "readable" : (() => { throw new Error("--mode must be raw or readable"); })(),
         timeoutMs: parseIntegerOption(options.timeoutMs, "--timeout-ms"),
         maxCharacters: parseIntegerOption(options.maxCharacters, "--max-characters"),
         onlyMainContent: !options.fullPage,
@@ -553,11 +561,78 @@ try {
   for (const [name, value] of Object.entries(environment)) {
     if (value !== undefined && process.env[name] === undefined) process.env[name] = value;
   }
+  await configureCliCommands(program);
   await program.parseAsync(process.argv);
 } catch (error) {
   const normalized = publicError(error);
   process.stderr.write(`arks: ${normalized.message}\n`);
   process.exitCode = 1;
+}
+
+async function configureCliCommands(root: Command): Promise<void> {
+  let config: ArkSpaceConfig;
+  try {
+    await access(resolveArkSpacePaths().config);
+    config = await loadConfig(resolveArkSpacePaths().config);
+  } catch (error) {
+    // Bootstrap and help/version remain available before setup; invoke still loads config itself.
+    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+    config = defaultConfig();
+  }
+  const commandPaths: Array<[string[], Capability]> = [
+    [["web", "search"], "web.search"], [["web", "related"], "web.related"], [["web", "extract"], "web.extract"],
+    [["web", "fetch"], "web.fetch"], [["web", "map"], "web.map"], [["web", "crawl"], "web.crawl"],
+    [["code", "context"], "code.context"], [["research", "run"], "research.run"],
+    [["browser", "open"], "browser.open"], [["browser", "snapshot"], "browser.snapshot"], [["browser", "act"], "browser.interact"],
+    [["browser", "status"], "browser.status"], [["browser", "close"], "browser.close"],
+    [["monitor", "create"], "monitor.create"], [["monitor", "list"], "monitor.list"], [["monitor", "status"], "monitor.status"],
+    [["monitor", "update"], "monitor.update"], [["monitor", "pause"], "monitor.pause"], [["monitor", "resume"], "monitor.resume"],
+    [["monitor", "trigger"], "monitor.trigger"], [["monitor", "delete"], "monitor.delete"], [["monitor", "runs"], "monitor.runs"],
+    [["monitor", "run"], "monitor.run.get"], [["monitor", "site", "create"], "monitor.site.create"], [["monitor", "site", "list"], "monitor.site.list"],
+    [["monitor", "site", "status"], "monitor.site.status"], [["monitor", "site", "update"], "monitor.site.update"],
+    [["monitor", "site", "pause"], "monitor.site.pause"], [["monitor", "site", "resume"], "monitor.site.resume"],
+    [["monitor", "site", "trigger"], "monitor.site.trigger"], [["monitor", "site", "delete"], "monitor.site.delete"],
+    [["monitor", "site", "checks"], "monitor.site.checks"], [["monitor", "site", "check"], "monitor.site.check.get"],
+  ];
+  // CLI aliases replace only the final command segment (for example, `web search`
+  // becomes `web <cliName>`); parent groups keep their documented names.
+  // Resolve before renaming so a renamed sibling cannot change later path lookups.
+  const commands = commandPaths.map(([path, capability]) => ({ command: findCommand(root, path), capability }));
+  for (const { command, capability } of commands) {
+    if (command && !isToolEnabled(config, capability)) removeDisabledCommand(command);
+  }
+  for (const { command, capability } of commands) {
+    const alias = config.tools[capability]?.cliName;
+    if (command && isToolEnabled(config, capability) && alias) command.name(alias);
+  }
+  const checkNames = (parent: Command): void => {
+    const names = new Set<string>();
+    for (const command of parent.commands) {
+      if (names.has(command.name())) throw new Error(`Duplicate CLI command name under ${parent.name()}: ${command.name()}`);
+      names.add(command.name());
+      checkNames(command);
+    }
+  };
+  checkNames(root);
+}
+
+function removeDisabledCommand(command: Command): void {
+  const parent = command.parent;
+  if (!parent) return;
+  // Commander exposes commands as readonly; replace the collection rather than mutating it.
+  // SAFETY: Commander stores child commands in this mutable runtime collection.
+  const mutableParent = parent as unknown as { commands: Command[] };
+  mutableParent.commands = parent.commands.filter((candidate) => candidate !== command);
+  // Nested shapes such as `monitor site <subcommand>` must not leave an empty group visible.
+  if (parent !== program && parent.commands.length === 0) removeDisabledCommand(parent);
+}
+
+function findCommand(root: Command, path: string[]): Command | undefined {
+  let current: Command | undefined = root;
+  for (const segment of path) {
+    current = current?.commands.find((command) => command.name() === segment);
+  }
+  return current;
 }
 
 async function monitorContext() {
@@ -740,7 +815,13 @@ function writeMachineFailure(capability: Capability, error: unknown): void {
     warnings: [],
   };
   process.stdout.write(`${JSON.stringify(envelope)}\n`);
-  process.exitCode = 1;
+  writeDiagnostic(normalized.message);
+}
+
+function writeDiagnostic(message: string): void {
+  const plan = buildDiagnosticPlan(message);
+  process.stderr.write(renderDiagnostic(plan));
+  process.exitCode = plan.exitCode;
 }
 
 function writeHumanResearch(result: Extract<Awaited<ReturnType<typeof runResearch>>, { ok: true }>): void {

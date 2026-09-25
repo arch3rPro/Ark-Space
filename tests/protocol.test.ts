@@ -3,7 +3,8 @@ import { resolve } from "node:path";
 import { z } from "zod";
 import { describe, expect, it } from "vitest";
 
-import { classifyHttpFailure, correctionFor } from "../src/errors/provider-error.js";
+import { classifyHttpFailure, correctionFor, ProviderError } from "../src/errors/provider-error.js";
+import { FAILURE_KINDS } from "../src/protocol/types.js";
 import {
   CodeContextEnvelopeSchema,
   ResearchEnvelopeSchema,
@@ -63,6 +64,7 @@ describe("protocol v1", () => {
     expect(request.input).toEqual({
       urls: ["https://example.com/docs"],
       timeoutMs: 30_000,
+      mode: "readable",
       onlyMainContent: true,
       maxCharacters: 20_000,
     });
@@ -267,13 +269,20 @@ describe("provider error taxonomy", () => {
     [432, "", "quota"],
     [433, "", "quota"],
     [500, "", "transient"],
+    [400, "billing limit reached", "quota"],
     [422, "", "invalid-request"],
-  ] as const)("classifies HTTP %i as %s", (status, body, expected) => {
+    [200, "unexpected provider payload", "unknown"],
+  ] as const)("classifies status/body fixture %i %j as %s", (status, body, expected) => {
     expect(classifyHttpFailure(status, body)).toBe(expected);
+  });
+
+  it.each(FAILURE_KINDS)("retains provider-special-case kind %s", (kind) => {
+    expect(new ProviderError(`provider fixture for ${kind}`, { kind }).kind).toBe(kind);
   });
 
   it("gives actionable corrections for operator-resolvable failures", () => {
     expect(correctionFor("auth")).toMatch(/Replace/);
     expect(correctionFor("config")).toContain("arks setup");
+    expect(correctionFor("unknown")).toBeUndefined();
   });
 });

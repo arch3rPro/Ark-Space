@@ -1,10 +1,12 @@
 import process from "node:process";
 import { serveStdio, type StdioServerHandle } from "@modelcontextprotocol/server/stdio";
 
+import { resolveArkSpacePaths } from "../config/paths.js";
+import { loadConfig } from "../config/store.js";
 import { createMcpServer } from "./server.js";
 
 export function serveArkSpaceStdio(): StdioServerHandle {
-  const handle = serveStdio(createMcpServer, {
+  const handle = serveStdio(async () => createMcpServer(await loadConfig(resolveArkSpacePaths().config)), {
     onerror(error) {
       process.stderr.write(`arks mcp: ${error.message}\n`);
     },
