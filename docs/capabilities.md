@@ -20,7 +20,7 @@ This reference maps each canonical Skill to its public `arks` capabilities and P
 | --- | --- | --- | --- | --- |
 | `web` | `web.search` | Search the public Web for ranked sources. | Exa, Tavily, Firecrawl | Configured order, key rotation, and classified fallback. |
 | `web` | `web.related` | Find pages related to a known URL. | Exa | Single Provider. |
-| `web` | `web.fetch` | Retrieve content from exact URLs. | Exa, Tavily, Firecrawl | Configured order, key rotation, and classified fallback. |
+| `web` | `web.fetch` | Retrieve content from exact URLs. | Exa, Tavily, Firecrawl, Local (explicit and disabled by default) | Remote Providers use configured order, key rotation, and classified fallback. Local uses the guarded single-URL `raw`/`readable` path only when explicitly selected and enabled. |
 | `web` | `web.map` | Discover URLs within a site. | Tavily, Firecrawl | Configured order, key rotation, and classified fallback. |
 | `web` | `web.crawl` | Traverse and retrieve a bounded site area. | Tavily, Firecrawl | Fallback only after the prior remote outcome is safely settled. |
 | `web` | `web.extract` | Extract schema-bound structured data from pages. | Firecrawl | Single Provider; model-backed remote job. |
