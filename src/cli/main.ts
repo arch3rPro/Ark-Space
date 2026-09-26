@@ -96,7 +96,7 @@ import {
   createSearchProviderRegistry,
 } from "../providers/registry.js";
 
-const VERSION = "0.1.1";
+const VERSION = "0.1.2";
 const MAX_INPUT_BYTES = 1_048_576;
 const operationController = new AbortController();
 let receivedTerminationSignal = false;

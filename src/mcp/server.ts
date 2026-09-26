@@ -63,7 +63,7 @@ const readOnly = new Set<Capability>(["web.search", "web.fetch", "web.content.ge
 const destructive = new Set<Capability>(["browser.close", "monitor.delete", "monitor.site.delete"]);
 
 export function createMcpServer(config?: ArkSpaceConfig): McpServer {
-  const server = new McpServer({ name: "arkspace", version: "0.1.1" });
+  const server = new McpServer({ name: "arkspace", version: "0.1.2" });
   const activeRequests = new Map<string | number, AbortController>();
   const names = new Set<string>();
   for (const capability of Object.keys(inputSchemas) as Capability[]) {

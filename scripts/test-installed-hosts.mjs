@@ -17,7 +17,7 @@ try {
   const prefix = join(temporary, "install");
   run(npmCommand(), ["install", "--ignore-scripts", "--prefix", prefix, tarball]);
   const executable = process.platform === "win32" ? join(prefix, "node_modules", ".bin", "arks.cmd") : join(prefix, "node_modules", ".bin", "arks");
-  if (run(executable, ["--version"]).trim() !== "0.1.1") throw new Error("Packed arks version check failed.");
+  if (run(executable, ["--version"]).trim() !== "0.1.2") throw new Error("Packed arks version check failed.");
 
   await verifyInstalledMcp(executable);
   verifyClaude(executable);

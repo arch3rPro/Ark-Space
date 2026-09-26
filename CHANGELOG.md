@@ -2,6 +2,14 @@
 
 Notable released changes to ArkSpace will be recorded here.
 
+## 0.1.2 - 2026-09-26
+
+- Added bounded persistent `web.fetch` response IDs and `web.content.get` pagination/text lookup.
+- Added conservative source-level research evidence metadata without fabricated passage or claim evidence.
+- Hardened credential input validation for environment and local credential sources.
+- Added a read-only, bounded GitHub Issue/PR Skill using the local `gh` CLI.
+- Deferred unvalidated proxy, configuration discovery, concurrency, and PDF/video extensions until concrete consumers exist.
+
 ## 0.1.1 - 2026-09-10
 
 - Added `arks setup` as a human-controlled credential wizard with hidden terminal input, owner-only local storage where supported, and environment-variable precedence.

@@ -31,11 +31,11 @@ An Agent performing the installation must:
 Install the pinned release:
 
 ```bash
-npm install --global @arkspace/cli@0.1.1
+npm install --global @arkspace/cli@0.1.2
 arks --version
 ```
 
-Expected version: `0.1.1`.
+Expected version: `0.1.2`.
 
 ## Install the Skills
 
@@ -101,7 +101,7 @@ npx skills@latest list
 
 Installation is ready when:
 
-- `arks --version` reports `0.1.1`;
+- `arks --version` reports `0.1.2`;
 - at least one required Provider is ready in `arks doctor --json`;
 - the target Agent discovers the selected ArkSpace Skills.
 
@@ -119,7 +119,7 @@ Register MCP only for hosts that need it; Skills can execute `arks` directly.
 Update within the 0.1 release line only after reviewing the target version:
 
 ```bash
-npm install --global @arkspace/cli@0.1.1
+npm install --global @arkspace/cli@0.1.2
 npx skills@latest update
 ```
 

@@ -30,7 +30,7 @@ Install ArkSpace from https://github.com/arch3rPro/Ark-Space by following the re
 ### Or install it yourself
 
 ```bash
-npm install --global @arkspace/cli@0.1.1
+npm install --global @arkspace/cli@0.1.2
 npx skills@latest add arch3rPro/Ark-Space
 ```
 
@@ -127,7 +127,7 @@ The local credential file contains plaintext secrets and is not an operating-sys
 
 ## Release status and limits
 
-**0.1.1 is a preview update.** It retains the Provider-backed Web, Research, Browser, Monitor, and MCP capabilities from 0.1.0 while adding human-controlled local credential setup, clearer Skill routing and result handling, activation and isolation validation, and installation-first documentation.
+**0.1.2 is a preview update.** It retains the Provider-backed Web, Research, Browser, Monitor, and MCP capabilities from 0.1.0 while adding human-controlled local credential setup, clearer Skill routing and result handling, activation and isolation validation, and installation-first documentation.
 
 Current limits:
 
