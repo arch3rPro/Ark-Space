@@ -4,6 +4,9 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { hasStoredCredential, loadCredentialEnvironment, storeCredential } from "../src/config/credentials.js";
+import { ProviderError } from "../src/errors/provider-error.js";
+import { defaultConfig } from "../src/config/schema.js";
+import { selectCredential } from "../src/key-pool/key-pool.js";
 
 const directories: string[] = [];
 
@@ -30,6 +33,11 @@ describe("local credential store", () => {
     const environment = await loadCredentialEnvironment(path, { TAVILY_API_KEY: "environment-secret" });
 
     expect(environment.TAVILY_API_KEY).toBe("environment-secret");
+    const unsafeOverride = await loadCredentialEnvironment(path, { TAVILY_API_KEY: "placeholder" });
+    expect(unsafeOverride.TAVILY_API_KEY).toBe("placeholder");
+    await expect(
+      selectCredential(join(path, "..", "state.json"), "tavily", defaultConfig().providers.tavily!, unsafeOverride),
+    ).rejects.toMatchObject({ kind: "config" });
   });
 
   it("rejects malformed credential files at the untrusted file boundary", async () => {
@@ -38,6 +46,31 @@ describe("local credential store", () => {
 
     await expect(loadCredentialEnvironment(path, {})).rejects.toThrow(/Invalid ArkSpace credential store/);
   });
+
+  it.each(["  ", "change_me", "YOUR_API_KEY", "placeholder", "key_here", "secret\nheader", "\u007fsecret"]) (
+    "rejects unsafe input without persisting it: %j",
+    async (secret) => {
+      const path = await credentialPath();
+      await expect(storeCredential(path, "EXA_API_KEY", secret)).rejects.toMatchObject({ kind: "invalid-request" });
+      expect(await hasStoredCredential(path, "EXA_API_KEY")).toBe(false);
+    },
+  );
+
+  it.each(["  ", "placeholder", "secret\rheader", "\u0085secret"]) (
+    "rejects unsafe stored values as config without leaking them: %j",
+    async (secret) => {
+      const path = await credentialPath();
+      await writeFile(path, JSON.stringify({ version: 1, values: { EXA_API_KEY: secret } }));
+      try {
+        await loadCredentialEnvironment(path, {});
+        throw new Error("Expected invalid credential store");
+      } catch (error) {
+        expect(error).toBeInstanceOf(ProviderError);
+        expect(error).toMatchObject({ kind: "config" });
+        if (secret.trim()) expect(String(error)).not.toContain(secret);
+      }
+    },
+  );
 });
 
 async function credentialPath(): Promise<string> {

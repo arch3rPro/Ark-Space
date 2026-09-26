@@ -3,7 +3,7 @@ import { z } from "zod/v4";
 
 import { isToolEnabled, type ArkSpaceConfig } from "../config/schema.js";
 import { ResourceInputSchemas } from "../protocol/resource-schema.js";
-import { CodeContextRequestSchema, ResearchRequestSchema, WebCrawlRequestSchema, WebExtractRequestSchema, WebFetchRequestSchema, WebMapRequestSchema, WebRelatedRequestSchema, WebSearchRequestSchema } from "../protocol/schema.js";
+import { CodeContextRequestSchema, ResearchRequestSchema, WebCrawlRequestSchema, WebExtractRequestSchema, WebFetchRequestSchema, WebContentGetRequestSchema, WebMapRequestSchema, WebRelatedRequestSchema, WebSearchRequestSchema } from "../protocol/schema.js";
 import { invokeCapability } from "../protocol/invoke.js";
 import { SiteMonitorInputSchemas } from "../protocol/site-monitor-schema.js";
 import { PROTOCOL_VERSION, type Capability } from "../protocol/types.js";
@@ -11,6 +11,7 @@ import { PROTOCOL_VERSION, type Capability } from "../protocol/types.js";
 const inputSchemas = {
   "web.search": WebSearchRequestSchema.shape.input,
   "web.fetch": WebFetchRequestSchema.shape.input,
+  "web.content.get": WebContentGetRequestSchema.shape.input,
   "web.map": WebMapRequestSchema.shape.input,
   "web.crawl": WebCrawlRequestSchema.shape.input,
   "web.related": WebRelatedRequestSchema.shape.input,
@@ -24,6 +25,7 @@ const inputSchemas = {
 const descriptions: Record<Capability, string> = {
   "web.search": "Search the web through ArkSpace provider fallback and return a Protocol v1 evidence envelope.",
   "web.fetch": "Fetch bounded content from exact HTTP(S) URLs.",
+  "web.content.get": "Read bounded cached fetch content by response ID.",
   "web.map": "Discover a bounded set of links from one site.",
   "web.crawl": "Run a bounded attached crawl; remote cleanup and retry safety are reported explicitly.",
   "web.related": "Find pages related to an exact URL.",
@@ -57,7 +59,7 @@ const descriptions: Record<Capability, string> = {
   "monitor.site.check.get": "Get one Firecrawl check and bounded page-level change results.",
 };
 
-const readOnly = new Set<Capability>(["web.search", "web.fetch", "web.map", "web.related", "code.context", "browser.snapshot", "browser.status", "monitor.list", "monitor.status", "monitor.runs", "monitor.run.get", "monitor.site.list", "monitor.site.status", "monitor.site.checks", "monitor.site.check.get"]);
+const readOnly = new Set<Capability>(["web.search", "web.fetch", "web.content.get", "web.map", "web.related", "code.context", "browser.snapshot", "browser.status", "monitor.list", "monitor.status", "monitor.runs", "monitor.run.get", "monitor.site.list", "monitor.site.status", "monitor.site.checks", "monitor.site.check.get"]);
 const destructive = new Set<Capability>(["browser.close", "monitor.delete", "monitor.site.delete"]);
 
 export function createMcpServer(config?: ArkSpaceConfig): McpServer {

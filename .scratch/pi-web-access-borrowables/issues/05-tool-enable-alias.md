@@ -1,6 +1,6 @@
 # 05 — MCP/CLI 逐工具启用禁用与可选别名
 
-Status: ready
+Status: completed
 Type: task
 
 Source: 可借鉴项 W5（I1，可移植部分）— [调研笔记](../../../docs/research/pi-web-access-borrowable-patterns.md)

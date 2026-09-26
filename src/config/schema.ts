@@ -28,7 +28,7 @@ export const ExecutionConfigSchema = z
 
 // Keys are Protocol capability IDs; aliases affect discovery surfaces, never the invoke ID.
 const CapabilitySchema = z.enum([
-  "web.search", "web.fetch", "web.map", "web.crawl", "web.related", "web.extract",
+  "web.search", "web.fetch", "web.content.get", "web.map", "web.crawl", "web.related", "web.extract",
   "code.context", "research.run", "browser.open", "browser.snapshot", "browser.interact",
   "browser.status", "browser.close", "monitor.create", "monitor.list", "monitor.status",
   "monitor.update", "monitor.pause", "monitor.resume", "monitor.trigger", "monitor.delete",
@@ -39,6 +39,11 @@ const CapabilitySchema = z.enum([
 
 const ToolNameSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/);
 const CidrSchema = z.string().regex(/^[0-9a-fA-F:.]+\/\d{1,3}$/);
+export const WebResponseCacheConfigSchema = z.object({
+  ttlSeconds: z.number().int().min(1).max(86_400).default(3_600),
+  maxCount: z.number().int().min(1).max(10_000).default(100),
+  maxBytes: z.number().int().min(1_024).max(100_000_000).default(10_000_000),
+}).strict();
 export const LocalFetchConfigSchema = z.object({
   enabled: z.boolean().default(false),
   allowRanges: z.array(CidrSchema).default([]),
@@ -56,6 +61,7 @@ export const ArkSpaceConfigSchema = z
     providerOrder: z.array(z.enum(PROVIDER_IDS)).min(1),
     tools: z.partialRecord(CapabilitySchema, ToolConfigSchema).default({}),
     localFetch: LocalFetchConfigSchema.default({ enabled: false, allowRanges: [], trustEnvProxy: false }),
+    webResponseCache: WebResponseCacheConfigSchema.default({ ttlSeconds: 3_600, maxCount: 100, maxBytes: 10_000_000 }),
     execution: ExecutionConfigSchema.default({
       crawlPollIntervalMs: 1_000,
       extractPollIntervalMs: 1_000,
@@ -83,6 +89,7 @@ export function defaultConfig(): ArkSpaceConfig {
   return ArkSpaceConfigSchema.parse({
     version: 1,
     providerOrder: ["exa", "tavily", "firecrawl"],
+    webResponseCache: { ttlSeconds: 3_600, maxCount: 100, maxBytes: 10_000_000 },
     localFetch: {
       enabled: false,
       allowRanges: [],

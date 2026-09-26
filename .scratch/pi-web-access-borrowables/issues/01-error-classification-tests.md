@@ -1,6 +1,6 @@
 # 01 — 错误分类器完整性与表驱动回退测试
 
-Status: ready
+Status: completed
 Type: task
 
 Source: 可借鉴项 W1（H1, H2）— [调研笔记](../../../docs/research/pi-web-access-borrowable-patterns.md)

@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { rm } from "node:fs/promises";
 
 import { defaultConfig } from "../src/config/schema.js";
-import { readPublicState, recordKeyResult, selectCredential } from "../src/key-pool/key-pool.js";
+import { readPublicState, recordKeyResult, resolveOwnedCredential, selectCredential } from "../src/key-pool/key-pool.js";
 
 const directories: string[] = [];
 
@@ -46,6 +46,32 @@ describe("key pool", () => {
     expect(second.value).toBe("secret-two");
     const state = await readPublicState(statePath);
     expect(state.providers.exa?.keys[first.keyId]?.status).toBe("cooldown");
+  });
+
+  it("rejects unsafe values rather than silently rotating to another key", async () => {
+    const statePath = await temporaryStatePath();
+    const config = defaultConfig().providers.exa!;
+    config.keyRefs = ["env:BAD_KEY", "env:GOOD_KEY"];
+    const environment = { BAD_KEY: "secret\nInjected: header", GOOD_KEY: "real-key" };
+
+    await expect(selectCredential(statePath, "exa", config, environment)).rejects.toMatchObject({ kind: "config" });
+    const lease = await selectCredential(statePath, "exa", config, { BAD_KEY: "valid-key" });
+    expect(() => resolveOwnedCredential("exa", lease.keyId, config, environment)).toThrow(/Invalid credential value/);
+    await expect(readFile(statePath, "utf8")).resolves.not.toContain("valid-key");
+  });
+
+  it("rejects malformed references at the resolver boundary", async () => {
+    const config = defaultConfig().providers.exa!;
+    config.keyRefs = ["env:SAFE\nINJECTED"];
+    await expect(selectCredential(await temporaryStatePath(), "exa", config, { SAFE: "valid" })).rejects.toMatchObject({ kind: "config" });
+  });
+
+  it("preserves explicit environment precedence even when its value is unsafe", async () => {
+    const statePath = await temporaryStatePath();
+    const config = defaultConfig().providers.exa!;
+    await expect(selectCredential(statePath, "exa", config, { EXA_API_KEY: "placeholder" })).rejects.toMatchObject({ kind: "config" });
+    await expect(selectCredential(statePath, "exa", config, { EXA_API_KEY: "  " })).rejects.toMatchObject({ kind: "config" });
+    await expect(selectCredential(statePath, "exa", config, {})).rejects.toMatchObject({ kind: "config" });
   });
 
   it("disables an invalid key without storing its value", async () => {

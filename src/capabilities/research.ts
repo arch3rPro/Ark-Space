@@ -1,6 +1,7 @@
+import { createHash } from "node:crypto";
 import type { ArkSpaceConfig } from "../config/schema.js";
 import { correctionFor } from "../errors/provider-error.js";
-import { PROTOCOL_VERSION, type AttemptEvidence, type FailureEnvelope, type ResearchInput, type ResearchProviderId, type ResearchSuccessEnvelope } from "../protocol/types.js";
+import { PROTOCOL_VERSION, type AttemptEvidence, type FailureEnvelope, type ResearchInput, type ResearchProviderId, type ResearchSuccessEnvelope, type ResearchData, type ResearchEvidenceArtifact } from "../protocol/types.js";
 import type { ResearchProviderRegistry } from "../providers/registry.js";
 import { executeWithProviders } from "./provider-execution.js";
 
@@ -40,7 +41,10 @@ export async function executeResearch(
       ok: true,
       capability: "research.run",
       provider: result.provider,
-      data: result.data,
+      data: {
+        ...result.data,
+        evidenceArtifact: createSourceEvidenceArtifact(result.data.sources),
+      },
       attempts: result.attempts,
       warnings: [
         ...(result.data.sources.length === 0 ? ["Provider completed Research without source evidence."] : []),
@@ -74,6 +78,23 @@ export async function executeResearch(
     attempts: result.attempts,
     warnings: lifecycleWarnings,
   };
+}
+
+export function createSourceEvidenceArtifact(sources: ResearchData["sources"]): ResearchEvidenceArtifact {
+  return {
+    status: "source-level-only",
+    passageEvidenceAvailable: false,
+    sources: sources.map((source) => ({
+      id: createSourceId(source.url, source.title),
+      url: source.url,
+      ...(source.title ? { title: source.title } : {}),
+    })),
+  };
+}
+
+function createSourceId(url: string, title?: string): string {
+  // This identifies source metadata only; it is intentionally not a content hash.
+  return `src_${createHash("sha256").update(`url\0${url}\0${title ?? ""}`, "utf8").digest("hex").slice(0, 32)}`;
 }
 
 function researchProviderIds(input: ResearchInput, config: ArkSpaceConfig): ResearchProviderId[] {

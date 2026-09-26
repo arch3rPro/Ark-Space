@@ -359,6 +359,10 @@
                   "content": {
                     "type": "string"
                   },
+                  "responseId": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{32}$"
+                  },
                   "title": {
                     "type": "string"
                   },

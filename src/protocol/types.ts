@@ -26,6 +26,7 @@ export type ResearchProviderId = (typeof RESEARCH_PROVIDER_IDS)[number];
 export type Capability =
   | "web.search"
   | "web.fetch"
+  | "web.content.get"
   | "web.map"
   | "web.crawl"
   | "web.related"
@@ -107,6 +108,7 @@ export interface WebFetchInput {
 
 export interface WebFetchResult {
   url: string;
+  responseId?: string;
   content: string;
   title?: string;
   published?: string;
@@ -117,6 +119,23 @@ export interface WebFetchData {
   results: WebFetchResult[];
   failedUrls: string[];
   requestId?: string;
+}
+
+export interface WebContentGetInput {
+  responseId: string;
+  offset: number;
+  limit: number;
+  findText?: string;
+  caseSensitive: boolean;
+}
+
+export interface WebContentGetData {
+  responseId: string;
+  content: string;
+  offset: number;
+  limit: number;
+  totalLength: number;
+  matchIndex?: number;
 }
 
 export interface WebMapInput {
@@ -228,6 +247,21 @@ export interface ResearchSource {
   title?: string;
 }
 
+/** Source-level evidence only. This deliberately contains no fetched text, offsets, or claims. */
+export interface ResearchEvidenceSource {
+  id: string;
+  url: string;
+  title?: string;
+  /** Absent unless ArkSpace has actually fetched and hashed source content. */
+  contentHash?: string;
+}
+
+export interface ResearchEvidenceArtifact {
+  status: "source-level-only";
+  passageEvidenceAvailable: false;
+  sources: ResearchEvidenceSource[];
+}
+
 export interface ResearchGrounding {
   field: string;
   sourceUrls: string[];
@@ -245,6 +279,8 @@ export interface ResearchData {
   prompt: string;
   report: string;
   sources: ResearchSource[];
+  /** A conservative, source-level evidence artifact; it is not passage or claim evidence. */
+  evidenceArtifact?: ResearchEvidenceArtifact;
   status: "completed";
   jobId: ResearchJobId;
   grounding?: ResearchGrounding[];
@@ -611,6 +647,16 @@ export interface FailureEnvelope<C extends Capability = "web.search"> {
 
 export type WebSearchEnvelope = SuccessEnvelope | FailureEnvelope<"web.search">;
 export type WebFetchEnvelope = FetchSuccessEnvelope | FailureEnvelope<"web.fetch">;
+export interface ContentGetSuccessEnvelope {
+  protocolVersion: typeof PROTOCOL_VERSION;
+  ok: true;
+  capability: "web.content.get";
+  provider: "local";
+  data: WebContentGetData;
+  attempts: AttemptEvidence[];
+  warnings: string[];
+}
+export type WebContentGetEnvelope = ContentGetSuccessEnvelope | FailureEnvelope<"web.content.get">;
 export type WebMapEnvelope = MapSuccessEnvelope | FailureEnvelope<"web.map">;
 export type WebCrawlEnvelope = CrawlSuccessEnvelope | FailureEnvelope<"web.crawl">;
 export type WebRelatedEnvelope = RelatedSuccessEnvelope | FailureEnvelope<"web.related">;

@@ -1,6 +1,6 @@
 # 02 — 可取消等待与独立清理截止时间
 
-Status: ready
+Status: completed
 Type: task
 
 Source: 可借鉴项 W2（C2）— [调研笔记](../../../docs/research/pi-web-access-borrowable-patterns.md)

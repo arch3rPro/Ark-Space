@@ -1,6 +1,6 @@
 # 07 — 本地直连抓取与抽取降级链（W8）
 
-Status: ready
+Status: completed
 Type: task
 
 Source: 可借鉴项 W8（D1–D2）— [调研笔记](../../../docs/research/pi-web-access-borrowable-patterns.md)

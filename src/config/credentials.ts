@@ -3,10 +3,22 @@ import { z } from "zod";
 import { ProviderError } from "../errors/provider-error.js";
 import { readJsonFile, withFileLock, writeJsonAtomic } from "../io/json-store.js";
 
+export function validateCredentialValue(value: string): string | undefined {
+  const normalized = value.trim();
+  if (!normalized || /[\u0000-\u001f\u007f-\u009f]/.test(value)) return undefined;
+  if (/^(?:change[_-]?me|your[_-].*key|(?:api[_-]?)?key[_-]?(?:here|value)|example|placeholder|dummy|test)$/i.test(normalized)) {
+    return undefined;
+  }
+  return normalized;
+}
+
 const CredentialStoreSchema = z
   .object({
     version: z.literal(1),
-    values: z.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/), z.string().min(1)),
+    values: z.record(
+      z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/),
+      z.string().refine((value) => validateCredentialValue(value) !== undefined, "unsafe credential value"),
+    ),
   })
   .strict();
 
@@ -31,8 +43,12 @@ export async function storeCredential(path: string, variable: string, secret: st
       kind: "invalid-request",
     });
   }
-  const value = secret.trim();
-  if (!value) throw new ProviderError("Credential values cannot be empty.", { kind: "invalid-request" });
+  const value = validateCredentialValue(secret);
+  if (!value) {
+    throw new ProviderError("Credential values must be non-empty and must not contain controls or placeholders.", {
+      kind: "invalid-request",
+    });
+  }
 
   await withFileLock(path, async () => {
     const store = await loadCredentialStore(path);

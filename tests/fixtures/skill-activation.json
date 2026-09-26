@@ -47,6 +47,20 @@
       "Open the page and click the load-more button."
     ]
   },
+  "github": {
+    "positive": [
+      "Show me the structured details for issue 42 in acme/widgets.",
+      "Read pull request 17 from org/project without changing anything.",
+      "Inspect the labels and state of this GitHub issue.",
+      "Return the bounded GitHub issue record for this repository and number."
+    ],
+    "negative": [
+      "Search all GitHub repositories for issues mentioning this bug.",
+      "Merge pull request 17 after checking its status.",
+      "Edit the issue title and add a comment on GitHub.",
+      "Download and inspect the repository source files."
+    ]
+  },
   "weknora": {
     "positive": [
       "List the documents in our WeKnora knowledge base and their parse status.",

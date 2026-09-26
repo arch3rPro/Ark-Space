@@ -61,7 +61,7 @@ Status: scoped — 范围与优先级已于 2026-09-25 确认；首批工单见 
 - W7 依赖先建立持久化检索与缓存所有权语义。
 - W15 依赖 W6（并发只影响本地直连抓取时）或先扩展多 URL 协议输入；并依赖 key-pool 并发安全确认。
 - W10 依赖先定义文本口径。
-- W11 / W12 / W13 / W16 各自依赖先确认消费者与验证未验证项。
+- W11 / W13 / W16 各自依赖先确认消费者与验证未验证项；W12 已记录为暂缓决策：不新增凭据源/provider，ADC 等待 Google 消费者，DDG HTML 等待明确产品/法律批准（见 [`issues/08-w12-credential-source-keyless-provider-decision.md`](issues/08-w12-credential-source-keyless-provider-decision.md)）。
 
 ## 已决策（2026-09-25）
 
@@ -71,6 +71,7 @@ Status: scoped — 范围与优先级已于 2026-09-25 确认；首批工单见 
 | 2 | 是否接受持久化检索状态 | **接受** | W7（responseId/分页/findText）进入范围，需先定义缓存所有权与清理语义。 |
 | 3 | 是否接受引入新依赖 | **接受** | W8（readability/turndown）、W16（unpdf/ffmpeg）进入范围，但仍需逐项确认消费者与跨平台验证。 |
 | 4 | T1 的 W1–W5 是否作为首批实现项 | **是** | 已拆为本目录 `issues/01`–`05`。 |
+| 5 | W12 是否现在新增 ADC 或 DuckDuckGo HTML | **否** | 不新增凭据源/provider；ADC 等待 Google 消费者，DDG HTML 等待明确产品/法律批准；详见工单 08。 |
 
 **下一批（已解阻，已拆工单）：** W8（工单 07 先定义本地入口契约，不暴露真实直连）→ W6（工单 06 安全门）→ W8 完成安全纵向切片。W7、W15、W16 仍未拆工单。
 
@@ -78,6 +79,7 @@ Status: scoped — 范围与优先级已于 2026-09-25 确认；首批工单见 
 
 - [`issues/06-local-fetch-ssrf-boundary.md`](issues/06-local-fetch-ssrf-boundary.md)：本地直连抓取的 SSRF 信任边界，依赖 W8 的入口契约。
 - [`issues/07-local-fetch-extraction-fallback.md`](issues/07-local-fetch-extraction-fallback.md)：本地直连抓取与抽取降级链，先做最小真实消费者。
+- [`issues/08-w12-credential-source-keyless-provider-decision.md`](issues/08-w12-credential-source-keyless-provider-decision.md)：W12 决策记录；不新增凭据源/provider。
 
 工单拆分遵循 [issue-tracker 约定](../../docs/agents/issue-tracker.md)：一票一文件、从 `01` 编号、文件头带 `Status:`。
 

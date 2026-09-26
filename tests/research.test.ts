@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { executeResearch } from "../src/capabilities/research.js";
+import { createSourceEvidenceArtifact, executeResearch } from "../src/capabilities/research.js";
 import { defaultConfig } from "../src/config/schema.js";
 import { ProviderError } from "../src/errors/provider-error.js";
 import { resolveResearchInput } from "../src/protocol/schema.js";
@@ -15,6 +15,24 @@ const prompt = "Compare current API lifecycle contracts";
 
 afterEach(async () => {
   await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+});
+
+describe("research source evidence artifact", () => {
+  it("is deterministic and does not claim passage evidence", () => {
+    const first = createSourceEvidenceArtifact([
+      { url: "https://docs.example.com/api", title: "API" },
+      { url: "https://docs.example.com/other" },
+    ]);
+    const second = createSourceEvidenceArtifact([
+      { url: "https://docs.example.com/api", title: "API" },
+      { url: "https://docs.example.com/other" },
+    ]);
+
+    expect(first).toEqual(second);
+    expect(first).toMatchObject({ status: "source-level-only", passageEvidenceAvailable: false });
+    expect(first.sources[0]!).toMatchObject({ id: expect.stringMatching(/^src_[a-f0-9]{32}$/) });
+    expect(first.sources.every((source) => source.contentHash === undefined)).toBe(true);
+  });
 });
 
 describe("research.run capability", () => {

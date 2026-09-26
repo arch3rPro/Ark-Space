@@ -1,6 +1,6 @@
 # 04 — 表驱动契约证据与入口级测试形态
 
-Status: ready
+Status: completed
 Type: task
 
 Source: 可借鉴项 W4（K1, K2）— [调研笔记](../../../docs/research/pi-web-access-borrowable-patterns.md)

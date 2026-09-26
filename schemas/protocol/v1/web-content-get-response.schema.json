@@ -330,7 +330,7 @@
         },
         "capability": {
           "type": "string",
-          "const": "research.run"
+          "const": "web.content.get"
         },
         "ok": {
           "type": "boolean",
@@ -338,157 +338,45 @@
         },
         "provider": {
           "type": "string",
-          "enum": [
-            "exa",
-            "tavily"
-          ]
+          "const": "local"
         },
         "data": {
           "type": "object",
           "properties": {
-            "prompt": {
-              "type": "string"
-            },
-            "report": {
-              "type": "string"
-            },
-            "sources": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "url": {
-                    "type": "string",
-                    "format": "uri"
-                  },
-                  "title": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "url"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "evidenceArtifact": {
-              "type": "object",
-              "properties": {
-                "status": {
-                  "type": "string",
-                  "const": "source-level-only"
-                },
-                "passageEvidenceAvailable": {
-                  "type": "boolean",
-                  "const": false
-                },
-                "sources": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string",
-                        "pattern": "^src_[a-f0-9]{32}$"
-                      },
-                      "url": {
-                        "type": "string",
-                        "format": "uri"
-                      },
-                      "title": {
-                        "type": "string"
-                      },
-                      "contentHash": {
-                        "type": "string",
-                        "pattern": "^[a-f0-9]{64}$"
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "url"
-                    ],
-                    "additionalProperties": false
-                  }
-                }
-              },
-              "required": [
-                "status",
-                "passageEvidenceAvailable",
-                "sources"
-              ],
-              "additionalProperties": false
-            },
-            "status": {
+            "responseId": {
               "type": "string",
-              "const": "completed"
+              "pattern": "^[a-f0-9]{32}$"
             },
-            "jobId": {
+            "content": {
               "type": "string"
             },
-            "grounding": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "field": {
-                    "type": "string"
-                  },
-                  "sourceUrls": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "format": "uri"
-                    }
-                  },
-                  "confidence": {
-                    "type": "string",
-                    "enum": [
-                      "low",
-                      "medium",
-                      "high"
-                    ]
-                  }
-                },
-                "required": [
-                  "field",
-                  "sourceUrls"
-                ],
-                "additionalProperties": false
-              }
+            "offset": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
             },
-            "stopReason": {
-              "type": "string"
+            "limit": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
             },
-            "usage": {
-              "type": "object",
-              "properties": {
-                "credits": {
-                  "type": "number",
-                  "minimum": 0
-                },
-                "searches": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 9007199254740991
-                },
-                "agentComputeUnits": {
-                  "type": "number",
-                  "minimum": 0
-                },
-                "costDollars": {
-                  "type": "number",
-                  "minimum": 0
-                }
-              },
-              "additionalProperties": false
+            "totalLength": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "matchIndex": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
             }
           },
           "required": [
-            "prompt",
-            "report",
-            "sources",
-            "status",
-            "jobId"
+            "responseId",
+            "content",
+            "offset",
+            "limit",
+            "totalLength"
           ],
           "additionalProperties": false
         }
@@ -872,7 +760,7 @@
         },
         "capability": {
           "type": "string",
-          "const": "research.run"
+          "const": "web.content.get"
         }
       },
       "required": [

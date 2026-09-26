@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "protocolVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "capability": {
+      "type": "string",
+      "const": "web.content.get"
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "responseId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{32}$"
+        },
+        "offset": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000000
+        },
+        "limit": {
+          "default": 20000,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "findText": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10000
+        },
+        "caseSensitive": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "responseId",
+        "offset",
+        "limit",
+        "caseSensitive"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "protocolVersion",
+    "capability",
+    "input"
+  ],
+  "additionalProperties": false
+}

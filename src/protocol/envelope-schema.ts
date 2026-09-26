@@ -148,6 +148,7 @@ const FetchResultSchema = z
   .object({
     url: z.string(),
     content: z.string(),
+    responseId: z.string().regex(/^[a-f0-9]{32}$/).optional(),
     title: z.string().optional(),
     published: z.string().optional(),
     images: z.array(z.string()).optional(),
@@ -180,6 +181,11 @@ export const WebFetchFailureEnvelopeSchema = z
 export const WebFetchEnvelopeSchema = z.discriminatedUnion("ok", [
   WebFetchSuccessEnvelopeSchema,
   WebFetchFailureEnvelopeSchema,
+]);
+
+export const WebContentGetEnvelopeSchema = z.discriminatedUnion("ok", [
+  z.object({ ...CommonEnvelopeShape, capability: z.literal("web.content.get"), ok: z.literal(true), provider: z.literal("local"), data: z.object({ responseId: z.string().regex(/^[a-f0-9]{32}$/), content: z.string(), offset: z.number().int().nonnegative(), limit: z.number().int().positive(), totalLength: z.number().int().nonnegative(), matchIndex: z.number().int().nonnegative().optional() }).strict() }).strict(),
+  z.object({ ...FailureShape, capability: z.literal("web.content.get") }).strict(),
 ]);
 
 const MapLinkSchema = z
@@ -350,6 +356,17 @@ const ResearchSourceSchema = z
   })
   .strict();
 
+const ResearchEvidenceArtifactSchema = z.object({
+  status: z.literal("source-level-only"),
+  passageEvidenceAvailable: z.literal(false),
+  sources: z.array(z.object({
+    id: z.string().regex(/^src_[a-f0-9]{32}$/),
+    url: z.string().url(),
+    title: z.string().optional(),
+    contentHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  }).strict()),
+}).strict();
+
 export const ResearchSuccessEnvelopeSchema = z
   .object({
     ...CommonEnvelopeShape,
@@ -361,6 +378,7 @@ export const ResearchSuccessEnvelopeSchema = z
         prompt: z.string(),
         report: z.string(),
         sources: z.array(ResearchSourceSchema),
+        evidenceArtifact: ResearchEvidenceArtifactSchema.optional(),
         status: z.literal("completed"),
         jobId: z.string(),
         grounding: z

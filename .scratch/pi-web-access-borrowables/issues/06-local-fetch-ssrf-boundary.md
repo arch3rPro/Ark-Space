@@ -1,6 +1,6 @@
 # 06 — 本地直连抓取的 SSRF 信任边界
 
-Status: ready
+Status: completed
 Type: task
 
 Source: 可借鉴项 W6（A1–A3）— [调研笔记](../../../docs/research/pi-web-access-borrowable-patterns.md)

@@ -1,6 +1,6 @@
 # 03 — 诊断渲染与主结果分离（纯 plan 函数）
 
-Status: ready
+Status: completed
 Type: task
 
 Source: 可借鉴项 W3（H3）— [调研笔记](../../../docs/research/pi-web-access-borrowable-patterns.md)

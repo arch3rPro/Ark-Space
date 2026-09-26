@@ -14,6 +14,7 @@ import {
   type WebCrawlInput,
   type WebExtractInput,
   type WebFetchInput,
+  type WebContentGetInput,
   type WebMapInput,
   type WebRelatedInput,
   type WebSearchInput,
@@ -68,6 +69,16 @@ export const WebFetchRequestSchema = z
       .strict(),
   })
   .strict();
+
+export const WebContentGetRequestSchema = z.object({
+  protocolVersion: z.literal(PROTOCOL_VERSION), capability: z.literal("web.content.get"),
+  input: z.object({ responseId: z.string().regex(/^[a-f0-9]{32}$/), offset: z.number().int().min(0).max(100_000_000).default(0), limit: z.number().int().min(1).max(100_000).default(20_000), findText: z.string().min(1).max(10_000).optional(), caseSensitive: z.boolean().default(false) }).strict(),
+}).strict();
+
+export function parseWebContentGetRequest(value: unknown): { protocolVersion: typeof PROTOCOL_VERSION; capability: "web.content.get"; input: WebContentGetInput } {
+  const parsed = WebContentGetRequestSchema.parse(value);
+  return { protocolVersion: parsed.protocolVersion, capability: parsed.capability, input: { responseId: parsed.input.responseId, offset: parsed.input.offset, limit: parsed.input.limit, caseSensitive: parsed.input.caseSensitive, ...(parsed.input.findText === undefined ? {} : { findText: parsed.input.findText }) } };
+}
 
 export const WebMapRequestSchema = z
   .object({

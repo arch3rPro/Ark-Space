@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { validateCredentialValue } from "../config/credentials.js";
 import type { ProviderConfig } from "../config/schema.js";
 import { ProviderError } from "../errors/provider-error.js";
 import { readJsonFile, withFileLock, writeJsonAtomic } from "../io/json-store.js";
@@ -153,10 +154,16 @@ function reviveAfterCooldown(state: KeyState, now: number): void {
 }
 
 function resolveEnvironmentReference(reference: string, environment: NodeJS.ProcessEnv): string | undefined {
-  const variable = reference.slice("env:".length);
-  const value = environment[variable]?.trim();
-  if (!value || /^(change[_-]?me|your[_-].*key|example|placeholder)$/i.test(value)) return undefined;
-  return value;
+  if (!/^env:[A-Za-z_][A-Za-z0-9_]*$/.test(reference)) {
+    throw new ProviderError("Invalid environment credential reference.", { kind: "config" });
+  }
+  const value = environment[reference.slice("env:".length)];
+  if (value === undefined) return undefined;
+  const validated = validateCredentialValue(value);
+  if (!validated) {
+    throw new ProviderError(`Invalid credential value for ${reference}.`, { kind: "config" });
+  }
+  return validated;
 }
 
 function keyIdFor(provider: ProviderId, reference: string): KeyId {
