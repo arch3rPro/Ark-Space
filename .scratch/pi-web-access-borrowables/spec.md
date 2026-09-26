@@ -61,7 +61,7 @@ Status: scoped — 范围与优先级已于 2026-09-25 确认；首批工单见 
 - W7 依赖先建立持久化检索与缓存所有权语义。
 - W15 依赖 W6（并发只影响本地直连抓取时）或先扩展多 URL 协议输入；并依赖 key-pool 并发安全确认。
 - W10 依赖先定义文本口径。
-- W11 / W13 / W16 各自依赖先确认消费者与验证未验证项；W12 已记录为暂缓决策：不新增凭据源/provider，ADC 等待 Google 消费者，DDG HTML 等待明确产品/法律批准（见 [`issues/08-w12-credential-source-keyless-provider-decision.md`](issues/08-w12-credential-source-keyless-provider-decision.md)）。
+- W11 / W13 / W16 各自依赖先确认消费者与验证未验证项；W12 已记录为暂缓决策：不新增凭据源/provider，ADC 等待 Google 消费者，DDG HTML 等待明确产品/法律批准（见 [`issues/08-w12-credential-source-keyless-provider-decision.md`](issues/08-w12-credential-source-keyless-provider-decision.md)）。W13–W16 当前统一暂缓，见 [`issues/09-w13-w16-follow-up-triage.md`](issues/09-w13-w16-follow-up-triage.md)。
 
 ## 已决策（2026-09-25）
 
@@ -80,6 +80,7 @@ Status: scoped — 范围与优先级已于 2026-09-25 确认；首批工单见 
 - [`issues/06-local-fetch-ssrf-boundary.md`](issues/06-local-fetch-ssrf-boundary.md)：本地直连抓取的 SSRF 信任边界，依赖 W8 的入口契约。
 - [`issues/07-local-fetch-extraction-fallback.md`](issues/07-local-fetch-extraction-fallback.md)：本地直连抓取与抽取降级链，先做最小真实消费者。
 - [`issues/08-w12-credential-source-keyless-provider-decision.md`](issues/08-w12-credential-source-keyless-provider-decision.md)：W12 决策记录；不新增凭据源/provider。
+- [`issues/09-w13-w16-follow-up-triage.md`](issues/09-w13-w16-follow-up-triage.md)：W13–W16 后续能力准入复核；当前统一暂缓。
 
 工单拆分遵循 [issue-tracker 约定](../../docs/agents/issue-tracker.md)：一票一文件、从 `01` 编号、文件头带 `Status:`。
 
