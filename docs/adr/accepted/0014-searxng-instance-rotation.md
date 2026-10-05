@@ -1,6 +1,6 @@
 # SearXNG instance rotation and human setup
 
-- **Status:** accepted; implemented in the 0.1.3 release candidate
+- **Status:** accepted; implemented in 0.1.3
 - **Class:** security
 - **Extends:** [ADR 0013](../accepted/0013-searxng-keyless-self-hosted-search.md)
 
@@ -22,4 +22,4 @@ A process-local cursor would restart with every CLI invocation and race across p
 
 ## Evidence and limits
 
-`tests/setup.test.ts`, `tests/searxng.test.ts`, and `tests/searxng-pool.test.ts` cover legacy/environment configuration, additive setup, duplicate permission preservation, concurrent rotation, failover/cooldown/recovery, terminal safety failures, cancellation/time budgets, stale success/config snapshots, and built CLI entry. An isolated npm-installed `arks invoke` fixture check verified cross-process balancing and prompt exit during an aborted state-lock wait. Real-instance and hosted Windows/macOS qualification remain unclaimed. See [candidate release notes](../../../release/0.1.3.md) for final verification status and publication blockers.
+`tests/setup.test.ts`, `tests/searxng.test.ts`, and `tests/searxng-pool.test.ts` cover legacy/environment configuration, additive setup, duplicate permission preservation, concurrent rotation, failover/cooldown/recovery, terminal safety failures, cancellation/time budgets, stale success/config snapshots, and built CLI entry. An isolated npm-installed `arks invoke` fixture check verified cross-process balancing and prompt exit during an aborted state-lock wait. Real-instance and hosted Windows/macOS qualification remain unclaimed. See [release notes](../../../release/0.1.3.md) for verification evidence and qualification limits.

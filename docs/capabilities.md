@@ -30,7 +30,7 @@ This reference maps each canonical Skill to its public `arks` capabilities and P
 
 ## SearXNG search
 
-SearXNG and the rebuilt human Setup workbench are included in the [0.1.3 release candidate](../release/0.1.3.md); publication and final release verification remain pending. Keyless Exa MCP access and Tavily/Firecrawl OAuth are research topics only, not implemented Providers or authentication backends.
+SearXNG and the rebuilt human Setup workbench are included in [0.1.3](../release/0.1.3.md); the release notes record verification evidence and qualification limits. Keyless Exa MCP access and Tavily/Firecrawl OAuth are research topics only, not implemented Providers or authentication backends.
 
 Run `arks setup` in a trusted local terminal to append user-chosen instances and their individual CIDR exceptions. There is no public default endpoint. The earlier `arks provider configure searxng --base-url https://search.example.com` command explicitly replaces the list with a single instance. For private self-hosting, explicitly permit only the required IP CIDR (for example `127.0.0.1/32`); permissions belong to each `providers.searxng.instances` entry independently of `localFetch` and other instances. Legacy single-instance config remains readable.
 

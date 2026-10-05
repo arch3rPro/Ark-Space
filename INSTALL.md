@@ -28,16 +28,16 @@ An Agent performing the installation must:
 
 ## Install the CLI
 
-**0.1.3 is a release candidate, not yet published.** The npm authentication check returned E401; human authentication recovery and final release checks remain pending. See [candidate release notes](release/0.1.3.md). Until publication is confirmed, use [Source development](#source-development).
+See [0.1.3 release notes](release/0.1.3.md) for features, verification evidence, and qualification limits.
 
-After publication, install the pinned release:
+Install the pinned release:
 
 ```bash
 npm install --global @arkspace/cli@0.1.3
 arks --version
 ```
 
-Expected version after publication: `0.1.3`.
+Expected version: `0.1.3`.
 
 ## Install the Skills
 
@@ -76,7 +76,7 @@ The human runs this command directly in a trusted local terminal:
 arks setup
 ```
 
-### Terminal UI setup (0.1.3 release candidate)
+### Terminal UI setup (0.1.3)
 
 Build the checkout as described in [Source development](#source-development); use the built entry without replacing your global installation:
 
@@ -89,7 +89,7 @@ node dist/cli/main.js setup exa --lang en
 # Direct Provider menus also accept tavily, firecrawl, or searxng.
 ```
 
-The reference-driven Setup TUI rebuild is included in the 0.1.3 release candidate; earlier automated synthetic qualification passed, while final candidate verification and human UX acceptance remain pending. It has three primary focus regions: Top (Exa/Tavily/Firecrawl/SearXNG provider context), Menu (Providers/Configuration/Settings/Exit), and Content. Tab/Shift-Tab cycles the three regions. Top Left/Right switches provider; `[`/`]` remain advertised alternates, and Down/Enter enters Content. Menu Up/Down selects a function, Enter opens it, and Right enters Content; Content Left returns to Menu. A primary resource table/list drives page-local actions; non-focusable hints wrap below the table. There are no legacy stacked toolbars or nested button-bar subfocus. Enter/`e` edits, `a` adds, `i` shows details, `p` opens secure preview, and `d` removes. Editing a stored local key preloads it into a masked draft; Esc restores the field, and Ctrl-S validates before explicit overwrite consent. Add starts blank; unchanged saves close without a write or replacement consent. Space toggles selected-key enablement; `V`/`v` toggles provider enablement; `t` opens a Cancel-default choice between one normal round-robin pool test (five seconds total) and sequential tests of every configured local key reference (one request per reference, five seconds per key). The all-keys mode requires consent for possible fees and logging, uses isolated temporary state, skips missing/unusable values without requests, reports only references and classified outcomes, and does not mutate global cursor, health, or configuration or fall back to another key/provider. Esc stops it. SearXNG remains keyless and retains its instance-pool test. Global order and language are independent: `u`/`d` reorder, Delete removes, `I` includes with confirmation, Ctrl-S saves order; language is a plain list applied with Enter. Draft editing and guarded save behavior are retained. Selected-key details include source (local, environment, or environment override), disabled state, health-failure reason, and remaining cooldown snapshot (not a live countdown while the modal is open); shared-provider status is explicit. Resource summaries group counts by kind and provide actionable cleanup guidance without authority-bearing URLs or secrets. The all-keys diagnostic shows current reference details, completed count, and recent session-only results; each result has numeric timestamp and duration. Switching provider context retains results, but cached rows are historical and do not validate the currently effective credential. Read-only navigation, preview, and details refreshes retain history; removed references are pruned. An attempted managed write (including other configuration operations) or a normal pool test clears it conservatively, and editing/removing a credential invalidates its diagnostic. History is memory-only and is never global health, cursor, or configuration. No credential values or fingerprints are kept, so external credential changes cannot be detected or reliably invalidate history. Linux PTY qualification uses standard-library Python 3 as a development-only prerequisite, not an end-user CLI dependency. Qualification evidence and caveats are tracked in the [priority-one workbench report](.scratch/setup-priority-one/report.md); human usability, real-service behavior, and Windows/macOS terminal acceptance remain unclaimed. See [ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md) and reference provenance in [NOTICE.md](NOTICE.md).
+The reference-driven Setup TUI rebuild is included in 0.1.3. Automated Linux source and offline installed-entry PTY qualification passed; human UX acceptance remains pending. It has three primary focus regions: Top (Exa/Tavily/Firecrawl/SearXNG provider context), Menu (Providers/Configuration/Settings/Exit), and Content. Tab/Shift-Tab cycles the three regions. Top Left/Right switches provider; `[`/`]` remain advertised alternates, and Down/Enter enters Content. Menu Up/Down selects a function, Enter opens it, and Right enters Content; Content Left returns to Menu. A primary resource table/list drives page-local actions; non-focusable hints wrap below the table. There are no legacy stacked toolbars or nested button-bar subfocus. Enter/`e` edits, `a` adds, `i` shows details, `p` opens secure preview, and `d` removes. Editing a stored local key preloads it into a masked draft; Esc restores the field, and Ctrl-S validates before explicit overwrite consent. Add starts blank; unchanged saves close without a write or replacement consent. Space toggles selected-key enablement; `V`/`v` toggles provider enablement; `t` opens a Cancel-default choice between one normal round-robin pool test (five seconds total) and sequential tests of every configured local key reference (one request per reference, five seconds per key). The all-keys mode requires consent for possible fees and logging, uses isolated temporary state, skips missing/unusable values without requests, reports only references and classified outcomes, and does not mutate global cursor, health, or configuration or fall back to another key/provider. Esc stops it. SearXNG remains keyless and retains its instance-pool test. Global order and language are independent: `u`/`d` reorder, Delete removes, `I` includes with confirmation, Ctrl-S saves order; language is a plain list applied with Enter. Draft editing and guarded save behavior are retained. Selected-key details include source (local, environment, or environment override), disabled state, health-failure reason, and remaining cooldown snapshot (not a live countdown while the modal is open); shared-provider status is explicit. Resource summaries group counts by kind and provide actionable cleanup guidance without authority-bearing URLs or secrets. The all-keys diagnostic shows current reference details, completed count, and recent session-only results; each result has numeric timestamp and duration. Switching provider context retains results, but cached rows are historical and do not validate the currently effective credential. Read-only navigation, preview, and details refreshes retain history; removed references are pruned. An attempted managed write (including other configuration operations) or a normal pool test clears it conservatively, and editing/removing a credential invalidates its diagnostic. History is memory-only and is never global health, cursor, or configuration. No credential values or fingerprints are kept, so external credential changes cannot be detected or reliably invalidate history. Linux PTY qualification uses standard-library Python 3 as a development-only prerequisite, not an end-user CLI dependency. Qualification evidence and caveats are tracked in the [priority-one workbench report](.scratch/setup-priority-one/report.md); human usability, real-service behavior, and Windows/macOS terminal acceptance remain unclaimed. See [ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md) and reference provenance in [NOTICE.md](NOTICE.md).
 
 Existing contracts remain: session-only `--lang en|zh` overrides saved `setupLanguage`; environment keys cannot be replaced, and unlinking references never changes external values; ownership/shared-reference guards, independent SearXNG enablement/order, narrow per-instance CIDR consent, explicit live-test consent, cancellation, and terminal restoration are preserved. Preview remains read-only and ephemeral, distinguishing stored from effective environment values without network or file writes. No-color rendering is supported. Every provider label uses constant `[Name]` brackets, three-space gaps, classic centered placement, and a distinct provider accent; these are presentation changes, not new backends.
 
@@ -111,15 +111,15 @@ arks provider list
 
 `arks key add` stores references only. In the workbench, open a new right-pane **Add** form for each additional key to append without deleting or replacing existing entries. If reference registration fails after a key is saved, the credential remains stored and the diagnostic identifies its reference without displaying the key. Do not paste keys into an Agent chat.
 
-## SearXNG (0.1.3 release candidate)
+## SearXNG (0.1.3)
 
 SearXNG is keyless and connects only to user-chosen instances; ArkSpace does not deploy or discover public instances. The authorized setup contract keeps environment-only endpoints read-only and separate from locally added instances, requires explicit narrow per-instance CIDR authorization for private addresses, and separates backend enablement from automatic order. Local instances override rather than pool with the environment endpoint; automatic routing requires explicit inclusion in order. The redesigned setup interaction has fresh source and offline isolated-entry Linux synthetic verification; real-service and hosted cross-platform qualification are not claimed. Consult [ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md) for interaction details.
 
-The release-candidate source entry and search command are:
+The setup and search commands are:
 
 ```bash
-node dist/cli/main.js setup searxng
-node dist/cli/main.js web search "agent skills" --provider searxng --json
+arks setup searxng
+arks web search "agent skills" --provider searxng --json
 ```
 
 URL validation, private-network safeguards, and failover behavior remain in force.
@@ -161,7 +161,7 @@ npx skills@latest list
 
 Installation is ready when:
 
-- `arks --version` reports `0.1.3` after the release is published;
+- `arks --version` reports `0.1.3`;
 - at least one required Provider is ready in `arks doctor --json`;
 - the target Agent discovers the selected ArkSpace Skills.
 
@@ -176,7 +176,7 @@ Register MCP only for hosts that need it; Skills can execute `arks` directly.
 
 ## Update
 
-Update within the 0.1 release line only after reviewing the target version and confirming its publication; the 0.1.3 candidate is not yet available as a confirmed published release:
+Update within the 0.1 release line only after reviewing the target version:
 
 ```bash
 npm install --global @arkspace/cli@0.1.3
@@ -213,4 +213,4 @@ node dist/cli/main.js provider configure searxng --base-url "https://search.exam
 node dist/cli/main.js web search "agent skills" --provider searxng --json
 ```
 
-Terminal UI setup and keyless SearXNG are included in the 0.1.3 release candidate. They do not establish real-service or hosted Windows/macOS qualification; publication is pending final release checks and authorization. These commands use the normal user-level ArkSpace configuration and credential paths; set `ARKSPACE_HOME` to a separate directory if you want isolation. Earlier examples use `arks` as shorthand for this built entry when trying candidate features. Release and cross-platform qualification rules are documented in [Maintenance](docs/maintenance.md) and [Platform Support](docs/platform-support.md).
+Terminal UI setup and keyless SearXNG are included in 0.1.3. Automated verification does not establish human UX, real-service, or hosted Windows/macOS terminal qualification. These commands use the normal user-level ArkSpace configuration and credential paths; set `ARKSPACE_HOME` to a separate directory if you want isolation. When developing from source, substitute this built entry for `arks` in the earlier examples. Release and cross-platform qualification rules are documented in [Maintenance](docs/maintenance.md) and [Platform Support](docs/platform-support.md).
