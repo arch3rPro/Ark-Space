@@ -7,9 +7,9 @@ export async function executeWebContentGet(input: WebContentGetInput, statePath:
   if (content === undefined) return failure("Response not found or expired.", "invalid-request");
   let matchIndex: number | undefined;
   if (input.findText !== undefined) {
-    const haystack = input.caseSensitive ? content : content.toLocaleLowerCase();
-    const needle = input.caseSensitive ? input.findText : input.findText.toLocaleLowerCase();
-    matchIndex = haystack.indexOf(needle);
+    // Match on the original text: Unicode casing can change string length.
+    const literal = input.findText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    matchIndex = input.caseSensitive ? content.indexOf(input.findText) : new RegExp(literal, "iu").exec(content)?.index ?? -1;
     if (matchIndex < 0) return failure("Text was not found.", "invalid-request");
   }
   const offset = Math.min(input.offset, content.length);

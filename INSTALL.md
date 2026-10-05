@@ -28,14 +28,16 @@ An Agent performing the installation must:
 
 ## Install the CLI
 
-Install the pinned release:
+**0.1.3 is a release candidate, not yet published.** The npm authentication check returned E401; human authentication recovery and final release checks remain pending. See [candidate release notes](release/0.1.3.md). Until publication is confirmed, use [Source development](#source-development).
+
+After publication, install the pinned release:
 
 ```bash
-npm install --global @arkspace/cli@0.1.2
+npm install --global @arkspace/cli@0.1.3
 arks --version
 ```
 
-Expected version: `0.1.2`.
+Expected version after publication: `0.1.3`.
 
 ## Install the Skills
 
@@ -74,21 +76,79 @@ The human runs this command directly in a trusted local terminal:
 arks setup
 ```
 
-The wizard:
+### Terminal UI setup (0.1.3 release candidate)
 
-- links to the official Exa, Tavily, and Firecrawl key pages;
-- lets the human opt into each Provider;
-- accepts API keys through hidden terminal input;
-- stores them in the user-level ArkSpace credential file, separate from `config.json` and `state.json`;
-- preserves explicit environment variables as higher-priority overrides.
+Build the checkout as described in [Source development](#source-development); use the built entry without replacing your global installation:
 
-The credential file contains plaintext secrets protected by local filesystem access controls; it is not an operating-system keychain. Its default location is:
+```bash
+node dist/cli/main.js setup
+node dist/cli/main.js setup exa
+# Choose a language for this session only:
+node dist/cli/main.js setup --lang zh
+node dist/cli/main.js setup exa --lang en
+# Direct Provider menus also accept tavily, firecrawl, or searxng.
+```
+
+The reference-driven Setup TUI rebuild is included in the 0.1.3 release candidate; earlier automated synthetic qualification passed, while final candidate verification and human UX acceptance remain pending. It has three primary focus regions: Top (Exa/Tavily/Firecrawl/SearXNG provider context), Menu (Providers/Configuration/Settings/Exit), and Content. Tab/Shift-Tab cycles the three regions. Top Left/Right switches provider; `[`/`]` remain advertised alternates, and Down/Enter enters Content. Menu Up/Down selects a function, Enter opens it, and Right enters Content; Content Left returns to Menu. A primary resource table/list drives page-local actions; non-focusable hints wrap below the table. There are no legacy stacked toolbars or nested button-bar subfocus. Enter/`e` edits, `a` adds, `i` shows details, `p` opens secure preview, and `d` removes. Editing a stored local key preloads it into a masked draft; Esc restores the field, and Ctrl-S validates before explicit overwrite consent. Add starts blank; unchanged saves close without a write or replacement consent. Space toggles selected-key enablement; `V`/`v` toggles provider enablement; `t` opens a Cancel-default choice between one normal round-robin pool test (five seconds total) and sequential tests of every configured local key reference (one request per reference, five seconds per key). The all-keys mode requires consent for possible fees and logging, uses isolated temporary state, skips missing/unusable values without requests, reports only references and classified outcomes, and does not mutate global cursor, health, or configuration or fall back to another key/provider. Esc stops it. SearXNG remains keyless and retains its instance-pool test. Global order and language are independent: `u`/`d` reorder, Delete removes, `I` includes with confirmation, Ctrl-S saves order; language is a plain list applied with Enter. Draft editing and guarded save behavior are retained. Selected-key details include source (local, environment, or environment override), disabled state, health-failure reason, and remaining cooldown snapshot (not a live countdown while the modal is open); shared-provider status is explicit. Resource summaries group counts by kind and provide actionable cleanup guidance without authority-bearing URLs or secrets. The all-keys diagnostic shows current reference details, completed count, and recent session-only results; each result has numeric timestamp and duration. Switching provider context retains results, but cached rows are historical and do not validate the currently effective credential. Read-only navigation, preview, and details refreshes retain history; removed references are pruned. An attempted managed write (including other configuration operations) or a normal pool test clears it conservatively, and editing/removing a credential invalidates its diagnostic. History is memory-only and is never global health, cursor, or configuration. No credential values or fingerprints are kept, so external credential changes cannot be detected or reliably invalidate history. Linux PTY qualification uses standard-library Python 3 as a development-only prerequisite, not an end-user CLI dependency. Qualification evidence and caveats are tracked in the [priority-one workbench report](.scratch/setup-priority-one/report.md); human usability, real-service behavior, and Windows/macOS terminal acceptance remain unclaimed. See [ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md) and reference provenance in [NOTICE.md](NOTICE.md).
+
+Existing contracts remain: session-only `--lang en|zh` overrides saved `setupLanguage`; environment keys cannot be replaced, and unlinking references never changes external values; ownership/shared-reference guards, independent SearXNG enablement/order, narrow per-instance CIDR consent, explicit live-test consent, cancellation, and terminal restoration are preserved. Preview remains read-only and ephemeral, distinguishing stored from effective environment values without network or file writes. No-color rendering is supported. Every provider label uses constant `[Name]` brackets, three-space gaps, classic centered placement, and a distinct provider accent; these are presentation changes, not new backends.
+
+Keys are stored in the user-level credential file; `config.json` stores references and `state.json` stores non-secret health/lifecycle metadata. Original process environment values remain higher-priority overrides even when startup loads local credentials. [ADR 0015](docs/adr/accepted/0015-menu-based-provider-setup.md) remains historical, with security protections retained.
+
+The credential file contains plaintext secrets protected by local filesystem access controls; it is not an operating-system keychain. Restrictive POSIX modes apply where supported, but do not establish Windows ACL protection; hosted Windows/macOS qualification remains unclaimed. Its default location is:
 
 - macOS/Linux: `${XDG_CONFIG_HOME:-~/.config}/arkspace/credentials.json`
 - Windows: `%APPDATA%\ArkSpace\credentials.json`
 - override for isolated environments: `$ARKSPACE_HOME/credentials.json`
 
-CI and externally managed environments may continue to provide `EXA_API_KEY`, `TAVILY_API_KEY`, or `FIRECRAWL_API_KEY` without writing the local credential file.
+CI and externally managed environments may continue to provide `EXA_API_KEY`, `TAVILY_API_KEY`, or `FIRECRAWL_API_KEY` without writing the local credential file. For multiple externally managed keys, set the variables in your own trusted environment and register their names (not their values):
+
+```bash
+arks key add exa --env EXA_API_KEY_1
+arks key add exa --env EXA_API_KEY_2
+arks provider list
+```
+
+`arks key add` stores references only. In the workbench, open a new right-pane **Add** form for each additional key to append without deleting or replacing existing entries. If reference registration fails after a key is saved, the credential remains stored and the diagnostic identifies its reference without displaying the key. Do not paste keys into an Agent chat.
+
+## SearXNG (0.1.3 release candidate)
+
+SearXNG is keyless and connects only to user-chosen instances; ArkSpace does not deploy or discover public instances. The authorized setup contract keeps environment-only endpoints read-only and separate from locally added instances, requires explicit narrow per-instance CIDR authorization for private addresses, and separates backend enablement from automatic order. Local instances override rather than pool with the environment endpoint; automatic routing requires explicit inclusion in order. The redesigned setup interaction has fresh source and offline isolated-entry Linux synthetic verification; real-service and hosted cross-platform qualification are not claimed. Consult [ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md) for interaction details.
+
+The release-candidate source entry and search command are:
+
+```bash
+node dist/cli/main.js setup searxng
+node dist/cli/main.js web search "agent skills" --provider searxng --json
+```
+
+URL validation, private-network safeguards, and failover behavior remain in force.
+
+For a single endpoint, the earlier command remains available and explicitly replaces the SearXNG configuration:
+
+```bash
+arks provider configure searxng --base-url "https://search.example.org"
+# Append without replacing the existing list:
+arks provider configure searxng --base-url "https://another-search.example.org" --append
+```
+
+Alternatively, supply `SEARXNG_URL` or `SEARXNG_BASE_URL` in the process environment when no persisted SearXNG configuration exists. Persisted configuration takes precedence; `SEARXNG_URL` takes precedence over `SEARXNG_BASE_URL`. Setup treats an environment-only endpoint as external/read-only: it does not silently save, edit, or remove it. Add a local instance explicitly if you want locally managed configuration.
+
+Private and loopback addresses are blocked unless explicitly permitted with narrow CIDRs during configuration. For a local instance, for example:
+
+```bash
+arks provider configure searxng --base-url "http://127.0.0.1:8080" --allow-range 127.0.0.1/32
+```
+
+Use the smallest range that covers each instance, not an unrestricted network range. Exceptions belong to that instance and are never reused for another. Multiple instances rotate across CLI invocations; classified network, rate-limit, and server failures can try the next eligible instance, while failed instances cool down. Empty successful results do not trigger failover. Invalid requests/configuration, private-address denial, authentication/permission failures, and malformed responses remain terminal by default. Cancellation and the shared operation deadline stop further attempts.
+
+Configuring instances does not add SearXNG to the automatic Provider order; explicit `--provider searxng` permits switching among your configured SearXNG instances but does not fall back to a hosted Provider. Authentication headers, proxies, public-instance discovery, and deployment are not included.
+
+### Readiness and optional live tests
+
+Use `arks doctor --json` outside setup for local configuration evidence; it makes no live Provider request and does not prove valid API keys or instance reachability. The workbench has no local-check sidebar action. Opening setup alone does not authorize network activity.
+
+A Provider's **Test connection** action requires separate explicit consent covering possible fees and request logging. The chooser defaults to Cancel and offers two modes. **One pool test** sends the fixed public query `Agent Skills documentation` through the shared search dispatcher, with strict selected-Provider routing, at most one result, and a five-second total operation timeout. It retains normal shared round-robin key/instance selection, fallback within that Provider, and health/cooldown behavior; it does not try every key. **Test all keys individually** is available for keyed Providers: it tests each configured UI key reference sequentially, with one request per reference and a five-second timeout per key (up to N requests for N references). It never falls back to another key or Provider and does not mutate global cursor, health, or configuration. The Provider itself must be enabled, but disabled or cooling key references are included; missing or unusable values are skipped without an API request. This diagnostic uses isolated temporary state with restrictive directory permissions and cleanup. Progress is sequential; Esc stops the run and reports partial succeeded, failed, unavailable, cancelled, and not-tested outcomes using references and classified kinds only—not payloads or secrets. Ctrl-C retains its existing whole-setup exit behavior. SearXNG is keyless and continues to use the existing instance-pool test rather than this all-keys mode. Pool-test success is evidence only for actual attempts, not every configured key/instance. Neither mode prints returned snippets or raw Provider error bodies, nor qualifies Browser/Monitor capabilities.
 
 ## Verify
 
@@ -101,7 +161,7 @@ npx skills@latest list
 
 Installation is ready when:
 
-- `arks --version` reports `0.1.2`;
+- `arks --version` reports `0.1.3` after the release is published;
 - at least one required Provider is ready in `arks doctor --json`;
 - the target Agent discovers the selected ArkSpace Skills.
 
@@ -116,10 +176,10 @@ Register MCP only for hosts that need it; Skills can execute `arks` directly.
 
 ## Update
 
-Update within the 0.1 release line only after reviewing the target version:
+Update within the 0.1 release line only after reviewing the target version and confirming its publication; the 0.1.3 candidate is not yet available as a confirmed published release:
 
 ```bash
-npm install --global @arkspace/cli@0.1.2
+npm install --global @arkspace/cli@0.1.3
 npx skills@latest update
 ```
 
@@ -142,4 +202,15 @@ Uninstalling does not delete local credentials or owned remote browser/monitor r
 
 ## Source development
 
-Contributors should use the source workflow in [CONTRIBUTING.md](CONTRIBUTING.md). Release and cross-platform qualification rules are documented in [Maintenance](docs/maintenance.md) and [Platform Support](docs/platform-support.md).
+Contributors should use the source workflow in [CONTRIBUTING.md](CONTRIBUTING.md). To try the current source without replacing a global installation:
+
+```bash
+npm run build
+node dist/cli/main.js setup
+node dist/cli/main.js setup exa
+node dist/cli/main.js setup searxng
+node dist/cli/main.js provider configure searxng --base-url "https://search.example.org"
+node dist/cli/main.js web search "agent skills" --provider searxng --json
+```
+
+Terminal UI setup and keyless SearXNG are included in the 0.1.3 release candidate. They do not establish real-service or hosted Windows/macOS qualification; publication is pending final release checks and authorization. These commands use the normal user-level ArkSpace configuration and credential paths; set `ARKSPACE_HOME` to a separate directory if you want isolation. Earlier examples use `arks` as shorthand for this built entry when trying candidate features. Release and cross-platform qualification rules are documented in [Maintenance](docs/maintenance.md) and [Platform Support](docs/platform-support.md).

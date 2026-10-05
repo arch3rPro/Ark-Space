@@ -33,7 +33,7 @@ Before code scaffolding exists:
 
 Once `package.json` exists, define canonical formatting, type-checking, linting, unit, contract, real-entry, and isolated-Skill commands there. Documentation should point to those scripts instead of duplicating their command bodies.
 
-Changes touching installation, paths, subprocesses, persistence, or cancellation require Windows, macOS, and Linux evidence. Provider changes require fixture-based contract tests; the opt-in live procedure in `docs/provider-e2e.md` complements rather than replaces them.
+Changes touching installation, paths, subprocesses, persistence, or cancellation require Windows, macOS, and Linux evidence. Provider changes require fixture-based contract tests; the opt-in live procedure in `docs/provider-e2e.md` complements rather than replaces them. Setup workbench terminal qualification uses `npm run test:setup` (build plus source and isolated-installed-entry PTY checks). This development qualification is Linux-only and requires standard-library Python 3; it is not an end-user CLI dependency. Missing Python on Linux fails the check; unsupported platforms must be reported as skipped rather than qualified. Real-TTY Windows/macOS behavior remains unverified.
 
 ## Plugin release boundary
 

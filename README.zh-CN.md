@@ -29,8 +29,10 @@ ArkSpace 为 Coding Agent 提供聚焦的操作说明，而不是一个巨型 Pr
 
 ### 或者自行安装
 
+> **0.1.3 尚未发布。** 以下固定版本命令仅供发布后使用；此前请遵循[源码开发流程](INSTALL.md#source-development)。功能、验证状态与发布阻塞项见[候选版本说明](release/0.1.3.md)。
+
 ```bash
-npm install --global @arkspace/cli@0.1.2
+npm install --global @arkspace/cli@0.1.3
 npx skills@latest add arch3rPro/Ark-Space
 ```
 
@@ -68,7 +70,7 @@ Agent Host
       ├─ Host 工具 / Skill 自带脚本 / 外部工具
       └─ arks invoke <capability> --input <file>
           ├─ Provider-neutral Capability Handler
-          ├─ Exa / Tavily / Firecrawl Adapter
+          ├─ Exa / Tavily / Firecrawl / SearXNG Adapter
           └─ Credentials、Key Pool、Fallback 与 Owned State
 ```
 
@@ -127,12 +129,17 @@ Protocol Schema 发布在 [`schemas/protocol/v1/`](schemas/protocol/v1/) 下。
 
 ## 版本状态与限制
 
-**0.1.2 是 Preview Update。** 在保留 0.1.0 的 Provider-backed Web、Research、Browser、Monitor 与 MCP 能力基础上，新增由人控制的本地凭证配置、更清晰的 Skill 路由与结果处理、Activation 与 Isolation 验证，以及 Installation-first 文档。
+**0.1.3 是发布候选版本。** 在保留 Provider-backed Web、Research、Browser、Monitor 与 MCP 能力的基础上，新增免 Key 的 SearXNG 搜索、多实例轮换和重建后的 Setup TUI。目前尚未发布；发布前仍需完成最终检查、获得授权并恢复 npm 身份认证（认证检查返回 E401）。详见[候选版本说明](release/0.1.3.md)。
+
+0.1.3 发布候选版本包含免 Key 的 SearXNG 与重建后的 Setup TUI。界面有 Top、Menu、Content 三个焦点区域，Tab/Shift-Tab 在三者间循环。Top 左右键切换 Provider，方括号仍作为提示的替代操作；Down/Enter 进入 Content。Menu 上下键选择 Providers、Configuration、Settings、Exit；Enter 打开功能，Right 进入 Content。Content 中 Left 返回 Menu。主资源表格/列表驱动页面操作；不可聚焦的提示会换行显示在表格下方，不存在旧堆叠工具栏或嵌套按钮子焦点。Enter/`e` 编辑，`a` 添加，`i` 查看详情，`p` 安全预览，`d` 删除。编辑已有本地 Key 时，会将其预载入掩码草稿；Esc 恢复字段，Ctrl-S 验证后才进入显式覆盖确认。新增从空白开始；未更改的保存会直接关闭，不写入也不请求覆盖确认。Space 切换所选 Key 的启用状态；`V`/`v` 切换 Provider 启用状态；`t` 提供默认选中 Cancel 的选择：一次正常轮询 Provider 池测试（总计最多 5 秒），或按配置顺序逐个测试所有本地 Key 引用（每引用一次请求，每 Key 最多 5 秒）。后者需同意可能产生的费用与请求日志，使用隔离临时状态；缺失/不可用值跳过且不发请求，只报告引用与分类结果，不改变全局游标、健康状态或配置，也不会回退到其他 Key/Provider；Esc 可停止。SearXNG 仍使用原有无 Key 实例池测试。全局顺序与语言保持独立：`u`/`d` 调整顺序，Delete 删除，`I` 经确认后纳入，Ctrl-S 保存顺序；语言是以 Enter 应用的普通选项列表。表单保留安全的内存草稿和受保护的保存流程。所选密钥的剩余冷却时间是快照，不会在弹窗打开时实时倒数。诊断记录仅为当前会话中的历史结果：切换上下文会保留记录，尝试执行受管理写入或正常池测试会清除记录；记录不能验证外部变更后的凭证值。交互契约详见 [ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md)，参考来源详见 [NOTICE.md](NOTICE.md)。Linux PTY 自动验收将标准库 Python 3 作为开发环境前置条件，不是终端用户 CLI 依赖。验收证据与限制见[优先级一工作台报告](.scratch/setup-priority-one/report.md)；真人易用性、真实服务及托管 Windows/macOS 终端仍未验收。
+
+按照 [INSTALL.md](INSTALL.md#source-development) 构建当前源码，然后运行 `node dist/cli/main.js setup`（或附加 `exa`、`tavily`、`firecrawl`、`searxng`），无需替换全局安装。0.1.3 发布候选版本尚未发布。密钥预览、环境变量优先级、所有权保护、每实例窄 CIDR 授权、联网测试同意、取消与终端恢复等既有保障继续有效；真人易用性、真实服务和 Windows/macOS 终端仍未验收。
 
 当前限制：
 
 - 要求 Node.js 20 或更高版本，以及具备 Shell、网络和持久用户存储的本地 Host。
-- Provider 操作需要对应的 Exa、Tavily 或 Firecrawl 账号，并可能产生 Provider 费用。
+- Exa、Tavily、Firecrawl 操作需要对应账号，并可能产生 Provider 费用；SearXNG 搜索则需要显式配置实例。
+- 免 Key 的 Exa MCP 接入与 Tavily/Firecrawl OAuth 仅为研究主题，尚未实现为认证后端。
 - Hosted Cross-platform 与 Credentialed Live-provider Qualification 仍属于[发布后待办](docs/migration.md#post-release-01-qualification-backlog)。
 - 本版本不代表现有 ArkSpace 项目已经完成替换切换。
 

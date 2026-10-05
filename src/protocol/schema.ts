@@ -7,6 +7,7 @@ import {
   PROVIDER_IDS,
   RESEARCH_PROVIDER_IDS,
   WEB_CRAWL_PROVIDER_IDS,
+  WEB_FETCH_PROVIDER_IDS,
   WEB_MAP_PROVIDER_IDS,
   type CodeContextInput,
   type JsonObject,
@@ -48,8 +49,17 @@ export const WebSearchRequestSchema = z
         provider: z.enum(PROVIDER_IDS).optional(),
         includeDomains: z.array(DomainSchema).max(20).default([]),
         excludeDomains: z.array(DomainSchema).max(20).default([]),
+        options: z.object({ searxng: z.object({
+          categories: z.array(z.string().regex(/^[a-zA-Z0-9_ -]{1,50}$/)).min(1).max(20).optional(),
+          engines: z.array(z.string().regex(/^[a-zA-Z0-9_ -]{1,50}$/)).min(1).max(20).optional(),
+          language: z.string().regex(/^[a-zA-Z0-9_-]{1,30}$/).optional(),
+          page: z.number().int().min(1).max(100).optional(),
+          safesearch: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
+          timeRange: z.enum(["day", "month", "year"]).optional(),
+        }).strict().optional() }).strict().optional(),
       })
-      .strict(),
+      .strict()
+      .refine(input => !input.options?.searxng || input.provider === "searxng", "SearXNG options require explicit provider searxng"),
   })
   .strict();
 
@@ -61,7 +71,7 @@ export const WebFetchRequestSchema = z
       .object({
         urls: z.array(HttpUrlSchema).min(1).max(20),
         timeoutMs: z.number().int().min(1_000).max(120_000).default(30_000),
-        provider: z.enum(PROVIDER_IDS).optional(),
+        provider: z.enum(WEB_FETCH_PROVIDER_IDS).optional(),
         mode: z.enum(["raw", "readable"]).default("readable"),
         onlyMainContent: z.boolean().default(true),
         maxCharacters: z.number().int().min(1_000).max(100_000).default(20_000),
@@ -346,6 +356,7 @@ function normalizeSearchInput(input: z.infer<typeof WebSearchRequestSchema.shape
     timeoutMs: input.timeoutMs,
     includeDomains: input.includeDomains,
     excludeDomains: input.excludeDomains,
+    ...(input.options ? { options: input.options } : {}),
     ...(input.provider ? { provider: input.provider } : {}),
   };
 }

@@ -1,0 +1,42 @@
+{
+  "entry": "/root/Code/Ark-Space/dist/cli/main.js",
+  "cases": [
+    {
+      "focus": "menu",
+      "key": "V",
+      "disableEnable": "passed",
+      "order": "unchanged"
+    },
+    {
+      "focus": "menu",
+      "key": "v",
+      "disableEnable": "passed",
+      "order": "unchanged"
+    },
+    {
+      "focus": "top",
+      "key": "V",
+      "disableEnable": "passed",
+      "order": "unchanged"
+    },
+    {
+      "focus": "top",
+      "key": "v",
+      "disableEnable": "passed",
+      "order": "unchanged"
+    },
+    {
+      "focus": "content",
+      "key": "V",
+      "disableEnable": "passed",
+      "order": "unchanged"
+    },
+    {
+      "focus": "content",
+      "key": "v",
+      "disableEnable": "passed",
+      "order": "unchanged"
+    }
+  ],
+  "scope": "Linux PTY; owned homes; no credentials or network; processes/homes cleaned"
+}

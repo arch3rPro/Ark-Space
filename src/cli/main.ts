@@ -36,8 +36,8 @@ import { runSetup } from "./setup.js";
 import { buildDiagnosticPlan, renderDiagnostic } from "./diagnostics.js";
 import { loadCredentialEnvironment } from "../config/credentials.js";
 import { resolveArkSpacePaths } from "../config/paths.js";
-import { defaultConfig, getProviderConfig, isToolEnabled, type ArkSpaceConfig } from "../config/schema.js";
-import { addEnvironmentKey, loadConfig } from "../config/store.js";
+import { defaultConfig, getProviderConfig, getSearxngConfig, isToolEnabled, type ArkSpaceConfig } from "../config/schema.js";
+import { addEnvironmentKey, addSearxngInstance, configureSearxng, loadConfig } from "../config/store.js";
 import { ProviderError, correctionFor } from "../errors/provider-error.js";
 import { serveArkSpaceStdio } from "../mcp/stdio.js";
 import {
@@ -96,8 +96,10 @@ import {
   createSearchProviderRegistry,
 } from "../providers/registry.js";
 
-const VERSION = "0.1.2";
+const VERSION = "0.1.3";
 const MAX_INPUT_BYTES = 1_048_576;
+// Capture before credential bootstrap so setup can distinguish external overrides from local keys.
+const originalEnvironment = { ...process.env };
 const operationController = new AbortController();
 let receivedTerminationSignal = false;
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
@@ -113,28 +115,45 @@ const program = new Command()
   .description("ArkSpace provider execution CLI")
   .version(VERSION);
 
-program.command("setup").description("Configure Providers and securely collect API keys in an interactive terminal").action(async () => {
-  await runSetup(resolveArkSpacePaths());
-});
+program.command("setup").argument("[provider]", "exa, tavily, firecrawl or searxng")
+  .description("Manage Providers with numbered menus and hidden credential input")
+  .option("--lang <language>", "Setup language for this run: en or zh (English / 中文)")
+  .action(async (provider: string | undefined, options: { lang?: string }) => {
+    await runSetup(resolveArkSpacePaths(), undefined, {
+      ...(provider === undefined ? {} : { provider }), ...(options.lang === undefined ? {} : { language: options.lang }),
+      environment: originalEnvironment, signal: operationController.signal,
+    });
+  });
 
 const providerCommand = program.command("provider").description("Inspect configured providers");
+providerCommand.command("configure")
+  .argument("<provider>", "Provider ID (searxng)")
+  .requiredOption("--base-url <url>", "Explicit SearXNG instance base URL")
+  .option("--allow-range <cidr>", "Explicit private-network CIDR exception; repeatable", (value: string, previous: string[]) => [...previous, value], [])
+  .option("--append", "Append a user-chosen instance instead of replacing SearXNG configuration")
+  .action(async (provider: string, options: { baseUrl: string; allowRange?: string[]; append?: boolean }) => {
+    if (provider !== "searxng") throw new ProviderError("Endpoint configuration supports searxng only.", { kind: "invalid-request" });
+    await (options.append ? addSearxngInstance : configureSearxng)(resolveArkSpacePaths().config, options.baseUrl, options.allowRange ?? []);
+    process.stdout.write("Configured SearXNG; default fallback order unchanged.\n");
+  });
 providerCommand
   .command("list")
   .option("--json", "Write JSON")
   .action(async (options: { json?: boolean }) => {
     const paths = resolveArkSpacePaths();
     const config = await loadConfig(paths.config);
-    const rows = config.providerOrder.map((provider) => {
+    const rows = [...new Set([...config.providerOrder, ...PROVIDER_IDS.filter(id => getProviderConfig(config, id))])].map((provider) => {
       const entry = getProviderConfig(config, provider);
       return {
         provider,
         enabled: entry?.enabled ?? false,
         configuredKeys: entry?.keyRefs.length ?? 0,
         availableKeys: entry?.keyRefs.filter((reference) => hasEnvironmentKey(reference)).length ?? 0,
+        ...(provider === "searxng" ? { keyless: true, configuredInstances: getSearxngConfig(config)?.instances.length ?? 0, ready: Boolean(entry?.enabled) } : {}),
       };
     });
     if (options.json) process.stdout.write(`${JSON.stringify(rows, null, 2)}\n`);
-    else for (const row of rows) process.stdout.write(`${row.provider}\t${row.enabled ? "enabled" : "disabled"}\t${row.availableKeys}/${row.configuredKeys} keys available\n`);
+    else for (const row of rows) process.stdout.write(`${row.provider}\t${row.enabled ? "enabled" : "disabled"}\t${row.provider === "searxng" ? `${row.configuredInstances} keyless instances (not probed)` : `${row.availableKeys}/${row.configuredKeys} keys available`}\n`);
   });
 
 const keyCommand = program.command("key").description("Manage credential references");
@@ -158,13 +177,13 @@ program
     try {
       const config = await loadConfig(paths.config);
       checks.push({ name: "config", ok: true, detail: paths.config });
-      for (const provider of config.providerOrder) {
+      for (const provider of [...new Set([...config.providerOrder, ...PROVIDER_IDS.filter(id => getProviderConfig(config, id))])]) {
         const entry = getProviderConfig(config, provider);
         const available = entry?.keyRefs.filter((reference) => hasEnvironmentKey(reference)).length ?? 0;
         checks.push({
           name: `provider:${provider}`,
-          ok: Boolean(entry?.enabled && available > 0),
-          detail: entry ? `${available}/${entry.keyRefs.length} referenced keys available` : "not configured",
+          ok: Boolean(entry?.enabled && (provider === "searxng" || available > 0)),
+          detail: provider === "searxng" && entry ? `${getSearxngConfig(config)?.instances.length ?? 0} keyless instances configured (not probed)` : entry ? `${available}/${entry.keyRefs.length} referenced keys available` : "not configured",
         });
       }
     } catch (error) {
@@ -375,7 +394,7 @@ const webCommand = program.command("web").description("Web capabilities");
 webCommand
   .command("search")
   .argument("<query>", "Search query")
-  .option("--provider <provider>", "Force exa, tavily, or firecrawl")
+  .option("--provider <provider>", "Force exa, tavily, firecrawl, or searxng")
   .option("--max-results <count>", "Maximum results", "5")
   .option("--timeout-ms <milliseconds>", "Request timeout", "30000")
   .option("--include-domain <domain...>", "Allowed domains")
@@ -557,11 +576,15 @@ webCommand
 
 try {
   const paths = resolveArkSpacePaths();
-  const environment = await loadCredentialEnvironment(paths.credentials);
-  for (const [name, value] of Object.entries(environment)) {
-    if (value !== undefined && process.env[name] === undefined) process.env[name] = value;
+  // Setup resolves fresh credentials itself and renders only curated errors. Do not
+  // bootstrap secrets or parse dynamic capability aliases before its human boundary.
+  if (process.argv[2] !== "setup") {
+    const environment = await loadCredentialEnvironment(paths.credentials);
+    for (const [name, value] of Object.entries(environment)) {
+      if (value !== undefined && process.env[name] === undefined) process.env[name] = value;
+    }
+    await configureCliCommands(program);
   }
-  await configureCliCommands(program);
   await program.parseAsync(process.argv);
 } catch (error) {
   const normalized = publicError(error);
@@ -713,8 +736,9 @@ async function runWebSearch(input: ReturnType<typeof resolveWebSearchInput>) {
   return executeWebSearch(input, {
     config,
     statePath: paths.state,
-    providers: createSearchProviderRegistry(),
-  });
+providers: createSearchProviderRegistry(),
+signal: operationController.signal,
+});
 }
 
 async function runWebCrawl(input: WebCrawlInput) {

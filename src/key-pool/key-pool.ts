@@ -25,19 +25,22 @@ export async function selectCredential(
   environment: NodeJS.ProcessEnv = process.env,
   now = Date.now(),
 ): Promise<CredentialLease> {
-  const available = providerConfig.keyRefs.flatMap((reference) => {
-    const value = resolveEnvironmentReference(reference, environment);
-    return value ? [{ keyId: keyIdFor(provider, reference), value }] : [];
-  });
-  if (available.length === 0) {
-    throw new ProviderError(`Provider ${provider} has no available environment-variable API key.`, {
-      kind: "config",
-    });
-  }
-
   return withFileLock(statePath, async () => {
     const state = await loadState(statePath);
     const providerState = (state.providers[provider] ??= { cursor: 0, keys: {} });
+    const available = providerConfig.keyRefs.flatMap((reference) => {
+      const keyId = keyIdFor(provider, reference);
+      const metadata = providerState.keys[keyId];
+      // An explicitly excluded reference must not poison the remaining pool with an invalid override.
+      if (metadata?.status === "disabled" && metadata.lastFailure === "operator-disabled") return [];
+      const value = resolveEnvironmentReference(reference, environment);
+      return value ? [{ keyId, value }] : [];
+    });
+    if (available.length === 0) {
+      throw new ProviderError(`Provider ${provider} has no usable API key; all configured keys are unavailable.`, {
+        kind: "config",
+      });
+    }
     for (let offset = 0; offset < available.length; offset += 1) {
       const index = (providerState.cursor + offset) % available.length;
       const candidate = available[index];
@@ -84,6 +87,8 @@ export async function recordKeyResult(
     const state = await loadState(statePath);
     const providerState = (state.providers[provider] ??= { cursor: 0, keys: {} });
     const keyState = (providerState.keys[keyId] ??= enabledKeyState());
+    // Operator disable survives late results, including failures from in-flight leases.
+    if (keyState.status === "disabled" && keyState.lastFailure === "operator-disabled") return;
     if (result.ok) {
       providerState.keys[keyId] = enabledKeyState();
     } else if (result.kind) {
@@ -166,6 +171,6 @@ function resolveEnvironmentReference(reference: string, environment: NodeJS.Proc
   return validated;
 }
 
-function keyIdFor(provider: ProviderId, reference: string): KeyId {
+export function keyIdFor(provider: ProviderId, reference: string): KeyId {
   return createHash("sha256").update(`${provider}\0${reference}`).digest("hex").slice(0, 16) as KeyId;
 }

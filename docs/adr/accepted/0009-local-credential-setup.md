@@ -2,6 +2,7 @@
 
 - **Status:** accepted
 - **Class:** security
+- **Interaction extended by:** [ADR 0015](0015-menu-based-provider-setup.md) for numeric menus, selected-key and instance management, order controls, and consented verification
 
 ## Problem
 
@@ -10,6 +11,8 @@ Provider-backed Skills need API keys, but an Agent conversation is not a credent
 ## Decision
 
 `arks setup` is the human credential-onboarding boundary. In an interactive terminal it identifies each supported Provider, links to the Provider's key page, obtains explicit opt-in, and accepts the key through hidden terminal input. Non-interactive execution creates configuration but never requests a secret.
+
+The wizard supports multiple keys for each supported keyed Provider. It retains the default environment reference for the first key, allocates unused numbered references for additional keys, and requires explicit approval before replacing the default key. Repeated setup can append keys without discarding existing references. Allocation considers configured references, locally stored credentials, and environment variable names. Creation-only writes recheck the credential slot under its file lock after terminal entry; concurrent setup sessions cannot silently overwrite a newly stored key. No file lock is held while waiting for hidden input.
 
 The wizard writes raw keys only to the user-level `credentials.json` file under the resolved ArkSpace home. Atomic writes create the directory and file with owner-only modes where the operating system supports POSIX permissions. `config.json` continues to contain `env:` references, and `state.json` continues to contain anonymous key metadata rather than secret values.
 
@@ -29,4 +32,4 @@ Skills direct the human to run setup in a trusted local terminal. Agents never a
 
 ## Consequences
 
-The setup path is guided, repeatable, and usable without editing shell profiles. Environment variables still support CI, keychain wrappers, and operators who do not want local persistence. The local credential file contains plaintext secrets, so filesystem account security remains part of the trust boundary; the wizard discloses its location and does not claim keychain-grade protection. Windows ACL qualification remains part of platform evidence because POSIX mode bits do not establish Windows access control.
+The setup path is guided, repeatable, and usable without editing shell profiles. Each validated key is saved before its reference is registered; if registration fails, the key remains in the private credential file and the diagnostic supplies a reference-only recovery command. Cancellation does not roll back keys already saved. Environment variables still support CI, keychain wrappers, and operators who do not want local persistence. The local credential file contains plaintext secrets, so filesystem account security remains part of the trust boundary; the wizard discloses its location and does not claim keychain-grade protection. Windows ACL qualification remains part of platform evidence because POSIX mode bits do not establish Windows access control.

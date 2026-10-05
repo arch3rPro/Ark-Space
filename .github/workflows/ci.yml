@@ -49,6 +49,9 @@ jobs:
         run: npm ci --ignore-scripts --include=dev
       - name: Validate, typecheck, build, and test
         run: npm run check
+      - name: Linux real-entry Setup PTY regression (synthetic, offline installed)
+        if: runner.os == 'Linux'
+        run: npm run test:setup
 
   schemas:
     name: Committed Protocol schemas

@@ -18,13 +18,14 @@ import type {
 import { ExaProvider } from "./exa.js";
 import { FirecrawlProvider } from "./firecrawl.js";
 import { TavilyProvider } from "./tavily.js";
+import { SearxngProvider } from "./searxng.js";
 
 export type ResearchProviderRegistry = ReadonlyMap<ResearchProviderId, ResearchProvider>;
 export type CodeContextProviderRegistry = ReadonlyMap<ExaProviderId, CodeContextProvider>;
 export type RelatedProviderRegistry = ReadonlyMap<ExaProviderId, WebRelatedProvider>;
 export type ExtractProviderRegistry = ReadonlyMap<"firecrawl", WebExtractProvider>;
 export type CrawlProviderRegistry = ReadonlyMap<WebCrawlProviderId, WebCrawlProvider>;
-export type SearchProviderRegistry = ReadonlyMap<ProviderId, WebSearchProvider>;
+export type SearchProviderRegistry = ReadonlyMap<ProviderId, WebSearchProvider | SearxngProvider>;
 export type FetchProviderRegistry = ReadonlyMap<ProviderId, WebFetchProvider>;
 export type MapProviderRegistry = ReadonlyMap<WebMapProviderId, WebMapProvider>;
 
@@ -49,7 +50,7 @@ export function createRelatedProviderRegistry(): RelatedProviderRegistry {
 }
 
 export function createSearchProviderRegistry(): SearchProviderRegistry {
-  const providers: WebSearchProvider[] = [new ExaProvider(), new TavilyProvider(), new FirecrawlProvider()];
+  const providers: (WebSearchProvider | SearxngProvider)[] = [new ExaProvider(), new TavilyProvider(), new FirecrawlProvider(), new SearxngProvider()];
   return new Map(providers.map((provider) => [provider.id, provider]));
 }
 

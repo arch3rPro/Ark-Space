@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { executeWebFetch } from "../src/capabilities/web-fetch.js";
-import { defaultConfig } from "../src/config/schema.js";
+import { defaultConfig, SearxngConfigSchema } from "../src/config/schema.js";
 import { ProviderError } from "../src/errors/provider-error.js";
 import { resolveWebFetchInput } from "../src/protocol/schema.js";
 import type { WebFetchProvider } from "../src/providers/contracts.js";
@@ -16,6 +16,22 @@ afterEach(async () => {
 });
 
 describe("web.fetch capability", () => {
+  it("skips a search-only SearXNG entry in the automatic provider order", async () => {
+    const config = defaultConfig();
+    config.providerOrder = ["searxng", "tavily"];
+    config.providers.searxng = SearxngConfigSchema.parse({ baseUrl: "https://search.example.org" });
+    const tavily: WebFetchProvider = {
+      id: "tavily",
+      async fetch() { return { results: [{ url: "https://example.com", content: "content" }], failedUrls: [] }; },
+    };
+    const result = await executeWebFetch(resolveWebFetchInput({ urls: ["https://example.com"] }), {
+      config, statePath: await temporaryStatePath(), providers: new Map([["tavily", tavily]]),
+      environment: { TAVILY_API_KEY: "fixture-tavily-value" },
+    });
+    expect(result).toMatchObject({ ok: true, provider: "tavily" });
+    expect(result.attempts.map(attempt => attempt.provider)).toEqual(["tavily"]);
+  });
+
   it("falls back and reports failed URLs as warnings without discarding successful content", async () => {
     const statePath = await temporaryStatePath();
     const exa: WebFetchProvider = {

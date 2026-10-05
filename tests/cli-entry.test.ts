@@ -16,6 +16,22 @@ afterEach(async () => {
 });
 
 describe("built arks entry point", () => {
+  it("validates setup --lang before mutation and keeps override ephemeral", async () => {
+    const home = await mkdtemp(join(tmpdir(), "arks-language-cli-")); directories.push(home);
+    const invalid = await runCli(["setup", "exa", "--lang", "fr"], { ARKSPACE_HOME: home });
+    expect(invalid.code).toBe(1); expect(invalid.stderr).toContain("--lang must be en or zh");
+    await expect(readFile(join(home, "config.json"))).rejects.toMatchObject({ code: "ENOENT" });
+    const chinese = await runCli(["setup", "exa", "--lang", "zh"], { ARKSPACE_HOME: home });
+    expect(chinese.code).toBe(0); expect(chinese.stdout).toContain("当前不是交互终端");
+    expect(JSON.parse(await readFile(join(home, "config.json"), "utf8")).setupLanguage).toBeUndefined();
+    const config = defaultConfig(); config.setupLanguage = "zh";
+    const bytes = JSON.stringify(config); await writeFile(join(home, "config.json"), bytes);
+    const saved = await runCli(["setup"], { ARKSPACE_HOME: home, LANG: "en_US" });
+    expect(saved.stdout).toContain("当前不是交互终端");
+    const override = await runCli(["setup", "--lang", "en"], { ARKSPACE_HOME: home, LANG: "zh_CN" });
+    expect(override.stdout).toContain("API keys were not requested");
+    expect(await readFile(join(home, "config.json"), "utf8")).toBe(bytes);
+  });
   it("initializes configuration without requesting secrets from non-interactive input", async () => {
     const home = await mkdtemp(join(tmpdir(), "arkspace-setup-cli-"));
     directories.push(home);
@@ -26,6 +42,26 @@ describe("built arks entry point", () => {
     expect(result.stdout).toContain("API keys were not requested");
     expect(JSON.parse(await readFile(join(home, "config.json"), "utf8"))).toMatchObject({ version: 1 });
     await expect(readFile(join(home, "credentials.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("rejects unsupported setup provider before creating config or reading malformed credentials", async () => {
+    const home = await mkdtemp(join(tmpdir(), "arks-setup-unsupported-")); directories.push(home);
+    await writeFile(join(home, "credentials.json"), '{"values":{"KEY":"fake-private-secret"},broken');
+    const result = await runCli(["setup", "local"], { ARKSPACE_HOME: home });
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("Unsupported setup provider");
+    expect(result.stderr + result.stdout).not.toContain("fake-private-secret");
+    await expect(readFile(join(home, "config.json"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("opens positional setup noninteractively without rewriting existing order or secrets", async () => {
+    const home = await mkdtemp(join(tmpdir(), "arks-setup-existing-")); directories.push(home);
+    const config = defaultConfig(); config.providerOrder = ["firecrawl", "exa"];
+    const bytes = JSON.stringify(config); await writeFile(join(home, "config.json"), bytes);
+    const result = await runCli(["setup", "exa"], { ARKSPACE_HOME: home });
+    expect(result.code).toBe(0); expect(result.stdout).toContain("trusted local terminal");
+    expect(await readFile(join(home, "config.json"), "utf8")).toBe(bytes);
+    await expect(readFile(join(home, "credentials.json"))).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("loads setup credentials without exposing them in doctor output", async () => {
@@ -268,7 +304,7 @@ describe("built arks entry point", () => {
 function runCli(arguments_: string[], environment: Record<string, string>): Promise<{ code: number | null; stdout: string; stderr: string }> {
   return new Promise((resolveRun, reject) => {
     const child = spawn(process.execPath, [resolve("dist/cli/main.js"), ...arguments_], {
-      env: { ...process.env, ...environment },
+      env: { ...process.env, LC_ALL: "", LC_MESSAGES: "", LANG: "", ...environment },
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";

@@ -1,0 +1,27 @@
+# Menu-based Provider setup in the trusted local terminal
+
+- **Status:** accepted; interaction superseded by [ADR 0016](0016-tui-provider-setup.md)
+- **Class:** security
+- **Extends:** [ADR 0009](0009-local-credential-setup.md) for interaction and credential management, and [ADR 0014](0014-searxng-instance-rotation.md) for instance management
+
+The sequential onboarding wizard obscured append versus replacement and made users traverse unrelated Providers. Setup needs repeatable, targeted management without turning configuration changes into implicit network requests or breaking owned-resource cleanup.
+
+## Historical interaction decision
+
+The following records the original numeric-menu design, not the current interaction contract. The user rejected its verbose homepage status cards, extra **Manage selected key/instance** picker, and accumulating old pages. [ADR 0016](0016-tui-provider-setup.md) replaces those choices with a native terminal UI. The security, language, persistence, routing, and ownership protections below remain in force.
+
+`arks setup [provider]` uses numbered, standard-library terminal menus for Exa, Tavily, Firecrawl, and SearXNG. A dashboard shows configured counts, enable status, and automatic-order membership; details distinguish local, environment-managed, and missing credentials from live execution evidence. Direct Provider selection opens that Provider's menu. Each Provider uses a multiline list separating references, local availability, source, pool eligibility, and cached health from live verification; unfilled default references do not count as available keys. Expired key cooldowns and singleton instance behavior follow runtime selection without rewriting state. This decision originally rejected arrow-key and fullscreen interaction as unnecessary. That judgment was reversed by ADR 0016; avoiding new terminal dependencies remains a constraint.
+
+Setup supports English and Chinese through two static message catalogs. `--lang en|zh` overrides this session only; choosing **Language / 语言** in a menu explicitly saves optional `config.json` field `setupLanguage` while preserving other settings. Initial precedence is flag, saved preference, the first nonempty `LC_ALL`/`LC_MESSAGES`/`LANG` (`zh` selects Chinese), then English. Prompts, confirmations, safety notices and allowlisted setup errors are translated; unknown error bodies remain hidden and partial persistence remains explicit. Confirmation accepts English or Chinese affirmative words and defaults to no. This preference affects only human setup, not Protocol v1, other CLI commands, query language, credentials, or pool state.
+
+API-key addition is continuous hidden input: one key per entry, with blank input finishing. Selected local keys can be replaced, manually disabled/re-enabled, or removed/unlinked. Replacement and removal require explicit confirmation; environment overrides are never edited and shared credential references cannot be replaced. Original process-environment precedence is preserved even when CLI bootstrap loads local credentials. Tracked Browser, Monitor, and Site Monitor ownership blocks replacement/removal of the owning credential and disabling its whole Provider. Manual per-key disabling stops pooled selection without preventing owned-resource cleanup.
+
+SearXNG supports adding, editing, and explicitly confirmed removal of selected instances. URLs and permissions are validated; private-network access needs explicit narrow, per-instance CIDR consent. Public-instance setup does not repeatedly ask about CIDRs; manual CIDRs remain an advanced action. Environment-only SearXNG is external/read-only rather than silently persisted. Adding an instance does not join automatic Provider order or re-enable an existing disabled Provider; enabling is a separate action. Enable status and automatic order are separate controls; privacy-sensitive order changes involving SearXNG and hosted fallback require consent.
+
+Opening setup or running it without a TTY does not rewrite existing configuration or reconcile `providerOrder`. Missing configuration initializes compatibly. Invalid menu input retries; `0` or blank returns or finishes a menu, and Ctrl-C/EOF exits. Saved entries persist after cancellation: this is not an all-or-nothing transaction, and partial-write diagnostics must not imply rollback. No lock spans terminal input or a network request.
+
+Local checks make no network request and cannot verify credentials or reachability. An optional live test requires consent for fees and request logging. It uses the shared search dispatcher with strict selected-Provider routing, the fixed public query `Agent Skills documentation`, at most one result, and a bounded timeout. Only actually attempted keys or instances gain execution evidence; success never validates every configured entry.
+
+## Consequences and limits
+
+This extends human setup, not Protocol v1 or Provider adapters. Existing key rotation and instance failover remain in place; selection and late health updates respect explicit operator disables. Credentials remain plaintext in the private local file, not an OS keychain; POSIX modes do not establish Windows ACL protection. These changes are unreleased source features accessed through the built `node dist/cli/main.js` entry; the pinned `0.1.2` release is unchanged. Real-service and hosted Windows/macOS qualification are not claimed by this decision.

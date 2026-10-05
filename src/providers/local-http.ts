@@ -7,7 +7,7 @@ import { TextDecoder } from "node:util";
 /** Internal transport only. Not registered with the public provider registry. */
 export type LocalHttpErrorKind = "invalid-url" | "blocked-address" | "dns" | "redirect" | "timeout" | "cancelled" | "network" | "headers" | "body" | "content-type" | "encoding" | "http-status" | "configuration";
 export class LocalHttpError extends Error {
-  constructor(readonly kind: LocalHttpErrorKind) {
+  constructor(readonly kind: LocalHttpErrorKind, readonly status?: number) {
     super(`Local HTTP request failed (${kind}).`);
     this.name = "LocalHttpError";
   }
@@ -151,7 +151,7 @@ export async function localHttpGet(input: string, options: LocalHttpOptions = {}
     if (remaining <= 0) throw new LocalHttpError("timeout");
     const result = await new Promise<{ status: number; location?: string; contentType: string; text: string }>((resolveResult, reject) => {
       let settled = false;
-      const fail = (kind: LocalHttpErrorKind) => { if (!settled) { settled = true; reject(new LocalHttpError(kind)); request.destroy(); } };
+      const fail = (kind: LocalHttpErrorKind, status?: number) => { if (!settled) { settled = true; reject(new LocalHttpError(kind, status)); request.destroy(); } };
       const request = (url.protocol === "https:" ? httpsRequest : httpRequest)(url, {
         method: "GET", agent: false, maxHeaderSize: headerLimit,
         headers: { accept: "text/*, application/json, application/xml", "accept-encoding": "identity" },
@@ -171,7 +171,7 @@ export async function localHttpGet(input: string, options: LocalHttpOptions = {}
           response.destroy();
           return;
         }
-        if (status < 200 || status >= 300) { fail("http-status"); return; }
+        if (status < 200 || status >= 300) { fail("http-status", status); return; }
         const contentType = response.headers["content-type"];
         const match = typeof contentType === "string" && /^\s*(text\/[a-z0-9!#$&^_.+-]+|application\/(?:json|xml|[a-z0-9!#$&^_.+-]+\+(?:json|xml)))(?:\s*;\s*charset\s*=\s*"?utf-8"?)?\s*$/i.exec(contentType);
         if (!match || response.headers["content-encoding"] && response.headers["content-encoding"] !== "identity") { fail("content-type"); return; }

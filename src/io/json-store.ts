@@ -71,7 +71,7 @@ export async function writeJsonAtomic(path: string, value: unknown): Promise<voi
 export async function withFileLock<T>(
   path: string,
   action: () => Promise<T>,
-  options: { timeoutMs?: number; staleMs?: number } = {},
+  options: { timeoutMs?: number; staleMs?: number; signal?: AbortSignal } = {},
 ): Promise<T> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS;
   const staleMs = options.staleMs ?? DEFAULT_STALE_LOCK_MS;
@@ -79,14 +79,19 @@ export async function withFileLock<T>(
   const token = randomUUID();
   const deadline = Date.now() + timeoutMs;
 
+  options.signal?.throwIfAborted();
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  while (!(await tryAcquire(lockPath, token))) {
+  for (;;) {
+    options.signal?.throwIfAborted();
+    if (await tryAcquire(lockPath, token)) break;
+    options.signal?.throwIfAborted();
     await removeStaleLock(lockPath, staleMs);
     if (Date.now() >= deadline) throw new Error(`timed out waiting for state lock: ${lockPath}`);
     await sleep(RETRY_DELAY_MS);
   }
 
   try {
+    options.signal?.throwIfAborted();
     return await action();
   } finally {
     await releaseLock(lockPath, token);

@@ -21,6 +21,15 @@ The first implementation slice is expected to consult or adapt material from:
 
 This list is an implementation warning, not a claim that source code has already been imported. Before migration, record the upstream URL, exact revision or documentation date, license, imported surface, and local modifications. Reference-only research does not grant permission to copy source.
 
+## Setup TUI design reference
+
+- Upstream: <https://github.com/SaladDay/cc-switch-cli>
+- Inspected revision: `b563ce17fdcc5316701ee8ba00368bdeb24b929a`
+- License: MIT; copyright 2025 Jason Young and 2025 saladday (CLI fork contributions).
+- Consulted surface: `src-tauri/src/cli/tui/` navigation, page frames, Provider tables, forms, contextual help, and repository screenshots.
+- Imported surface: none. ArkSpace independently implements the interaction and visual patterns in Node/TypeScript; no Rust source, assets, dependencies, configuration handling, or Provider-switching behavior is copied.
+- Adaptation: retains ArkSpace's six setup destinations, axis-specific navigation, default-Cancel action confirmations, masked input, explicit saved-key disclosure, and existing backend/security guards. Reference-only source inspection and screenshots are not evidence of running or qualifying the reference application.
+
 ## Existing ArkSpace Lineage
 
 The existing project records additional lineage including `kepano/obsidian-skills`, `kepano/defuddle-cli`, and `obra/superpowers`. Carry those notices into this repository only when the corresponding material is migrated.

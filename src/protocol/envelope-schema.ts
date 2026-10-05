@@ -18,6 +18,7 @@ const ResultSchema = z
     snippet: z.string(),
     score: z.number().optional(),
     published: z.string().optional(),
+    source: z.object({ engine: z.string().optional(), category: z.string().optional() }).strict().optional(),
   })
   .strict();
 
@@ -25,6 +26,7 @@ const AttemptSchema = z
   .object({
     provider: z.enum(PROVIDER_IDS),
     keyId: z.string().regex(/^[a-f0-9]{16}$/).optional(),
+    instanceId: z.string().regex(/^[a-f0-9]{16}$/).optional(),
     ok: z.boolean(),
     errorKind: z.enum(FAILURE_KINDS).optional(),
     status: z.number().int().optional(),

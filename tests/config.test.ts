@@ -31,7 +31,7 @@ describe("configuration evolution", () => {
       tools: { "web.search": { mcpName: "not valid" } },
     })).toThrow();
   });
-  it("adds new Provider defaults without replacing existing key references", async () => {
+  it("reads existing configuration without adding Provider defaults or rewriting it", async () => {
     const path = await configPath();
     await writeFile(
       path,
@@ -45,11 +45,13 @@ describe("configuration evolution", () => {
       }),
     );
 
+    const before = await readFile(path, "utf8");
     const config = await initializeConfig(path);
 
     expect(config.providers.exa?.keyRefs).toEqual(["env:EXA_CUSTOM"]);
-    expect(config.providers.firecrawl?.keyRefs).toEqual(["env:FIRECRAWL_API_KEY"]);
-    expect(config.providerOrder).toEqual(["exa", "tavily", "firecrawl"]);
+    expect(config.providers.firecrawl).toBeUndefined();
+    expect(config.providerOrder).toEqual(["exa", "tavily"]);
+    expect(await readFile(path, "utf8")).toBe(before);
     expect(config.execution).toEqual({
       crawlPollIntervalMs: 1_000,
       extractPollIntervalMs: 1_000,
@@ -73,6 +75,8 @@ describe("configuration evolution", () => {
     const config = await addEnvironmentKey(path, "firecrawl", "FIRECRAWL_API_KEY_2");
 
     expect(config.providers.firecrawl?.keyRefs).toEqual(["env:FIRECRAWL_API_KEY", "env:FIRECRAWL_API_KEY_2"]);
+    expect(config.providerOrder).toEqual(["exa"]);
+    expect(config.providers.tavily).toBeUndefined();
   });
 });
 

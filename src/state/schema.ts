@@ -54,6 +54,13 @@ export const ArkSpaceStateSchema = z
   .object({
     version: z.literal(1),
     providers: z.record(z.string(), ProviderStateSchema),
+    searxng: z.object({
+      cursor: z.number().int().nonnegative(),
+      instances: z.record(z.string().regex(/^[a-f0-9]{16}$/), z.object({
+        cooldownUntil: z.number().int().nonnegative().optional(),
+        lastFailure: z.enum(["rate-limit", "network", "transient"]).optional(),
+      }).strict()),
+    }).strict().optional(),
     resources: OwnedResourcesSchema.default({ browserSessions: {}, monitors: {}, siteMonitors: {} }),
   })
   .strict();

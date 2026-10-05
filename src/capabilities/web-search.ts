@@ -1,5 +1,6 @@
 import type { ArkSpaceConfig } from "../config/schema.js";
-import { correctionFor } from "../errors/provider-error.js";
+import { SearxngProvider } from "../providers/searxng.js";
+import { ProviderError, correctionFor } from "../errors/provider-error.js";
 import type { FailureEnvelope, ProviderId, SuccessEnvelope, WebSearchInput } from "../protocol/types.js";
 import { PROTOCOL_VERSION } from "../protocol/types.js";
 import type { SearchProviderRegistry } from "../providers/registry.js";
@@ -10,6 +11,7 @@ export interface WebSearchContext {
   statePath: string;
   providers: SearchProviderRegistry;
   environment?: NodeJS.ProcessEnv;
+  signal?: AbortSignal;
 }
 
 export async function executeWebSearch(
@@ -23,7 +25,14 @@ export async function executeWebSearch(
     context,
     invoke: (providerId, apiKey, baseUrl, signal) => {
       const provider = context.providers.get(providerId);
+      if (provider instanceof SearxngProvider) return undefined;
+      if (input.options?.searxng) throw new ProviderError("SearXNG options require provider searxng.", { kind: "invalid-request" });
       return provider?.search({ input, apiKey, baseUrl, signal });
+    },
+    invokeKeyless: (providerId, baseUrl, signal, allowRanges, timeoutMs) => {
+      const provider = context.providers.get(providerId);
+      if (!(provider instanceof SearxngProvider)) return undefined;
+      return provider.search({ input: { ...input, timeoutMs }, baseUrl, signal, allowRanges });
     },
   });
 

@@ -29,8 +29,10 @@ Install ArkSpace from https://github.com/arch3rPro/Ark-Space by following the re
 
 ### Or install it yourself
 
+> **0.1.3 is not published yet.** The pinned command below is for use after publication. Until then, follow [source development](INSTALL.md#source-development). See the [candidate release notes](release/0.1.3.md) for features, verification status, and publication blockers.
+
 ```bash
-npm install --global @arkspace/cli@0.1.2
+npm install --global @arkspace/cli@0.1.3
 npx skills@latest add arch3rPro/Ark-Space
 ```
 
@@ -68,7 +70,7 @@ Agent host
       ├─ host tools / Skill-local scripts / external tools
       └─ arks invoke <capability> --input <file>
           ├─ Provider-neutral capability handler
-          ├─ Exa / Tavily / Firecrawl adapter
+          ├─ Exa / Tavily / Firecrawl / SearXNG adapter
           └─ credentials, key pool, fallback, and owned state
 ```
 
@@ -127,12 +129,17 @@ The local credential file contains plaintext secrets and is not an operating-sys
 
 ## Release status and limits
 
-**0.1.2 is a preview update.** It retains the Provider-backed Web, Research, Browser, Monitor, and MCP capabilities from 0.1.0 while adding human-controlled local credential setup, clearer Skill routing and result handling, activation and isolation validation, and installation-first documentation.
+**0.1.3 is a release candidate.** It retains the Provider-backed Web, Research, Browser, Monitor, and MCP capabilities while adding keyless SearXNG search, multi-instance rotation, and the rebuilt Setup TUI. It is not published yet; publication awaits final release checks, authorization, and restored npm authentication (the authentication check returned E401). See [candidate release notes](release/0.1.3.md).
+
+The 0.1.3 release candidate includes keyless SearXNG and a rebuilt Setup TUI. The UI has three focus regions—Top, Menu, Content—cycled with Tab/Shift-Tab. Top Left/Right switches provider; brackets remain an advertised alternate, and Down/Enter enters Content. Menu Up/Down selects Providers, Configuration, Settings, or Exit; Enter opens the function and Right enters Content. Content Left returns to Menu. A primary resource table/list drives page-local actions, with non-focusable hints wrapped below the table; there are no legacy stacked toolbars or nested button subfocus. Enter/`e` edits, `a` adds, `i` shows details, `p` opens secure preview, and `d` removes. Editing a stored local key preloads it into a masked draft; Esc restores the field, and Ctrl-S validates before explicit overwrite consent. Adding starts blank; unchanged saves close without writing or replacement consent. Space toggles selected-key enablement; `V`/`v` toggles provider enablement; `t` offers a Cancel-default choice between one normal round-robin pool test (five seconds total) and sequential tests of each configured local key reference (one request per reference, five seconds per key). The latter requires consent for possible fees and logging, uses isolated temporary state, skips missing/unusable values without requests, and reports only reference/classified outcomes. It does not change global cursor, health, or configuration, and does not fall back to other keys/providers; Esc stops it. SearXNG retains its keyless instance-pool test. Global order and language remain independent: `u`/`d` reorder, Delete removes, `I` includes with confirmation, and Ctrl-S saves order; language is a plain option list applied with Enter. Forms retain safe in-memory drafts and guarded saves. Selected-key cooldown is a snapshot, not a live countdown. Diagnostic rows are session-only historical results: context switching retains them, while attempted managed writes and normal pool tests clear them; they do not validate externally changed credential values. See [ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md) for the current interaction contract and [NOTICE.md](NOTICE.md) for reference provenance. Automated Linux PTY qualification uses standard-library Python 3 as a development-only prerequisite, not an end-user CLI dependency. Qualification evidence and caveats are tracked in the [priority-one workbench report](.scratch/setup-priority-one/report.md); human usability, real services, and hosted Windows/macOS terminals remain unqualified.
+
+Build the checkout as described in [INSTALL.md](INSTALL.md#source-development), then run `node dist/cli/main.js setup` (or append `exa`, `tavily`, `firecrawl`, or `searxng`) without replacing your global installation. The 0.1.3 release candidate has not yet been published. Existing credential preview, environment precedence, ownership guards, narrow per-instance CIDR consent, live-test consent, cancellation, and terminal restoration remain as specified in the setup contract.
 
 Current limits:
 
 - Node.js 20 or newer and a local host with shell, network, and persistent user storage are required.
-- Provider operations require the applicable Exa, Tavily, or Firecrawl account and may incur Provider charges.
+- Exa, Tavily, and Firecrawl operations require the applicable account and may incur Provider charges; SearXNG search instead requires an explicitly configured instance.
+- Keyless Exa MCP access and Tavily/Firecrawl OAuth are research topics, not implemented authentication backends.
 - Hosted cross-platform and credentialed live-Provider qualification remains part of the [post-release backlog](docs/migration.md#post-release-01-qualification-backlog).
 - This release does not declare replacement cutover of the existing ArkSpace project.
 

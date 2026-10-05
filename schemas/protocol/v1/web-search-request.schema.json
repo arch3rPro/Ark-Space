@@ -36,7 +36,8 @@
             "exa",
             "tavily",
             "firecrawl",
-            "local"
+            "local",
+            "searxng"
           ]
         },
         "includeDomains": {
@@ -58,6 +59,69 @@
             "minLength": 1,
             "maxLength": 253
           }
+        },
+        "options": {
+          "type": "object",
+          "properties": {
+            "searxng": {
+              "type": "object",
+              "properties": {
+                "categories": {
+                  "minItems": 1,
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_ -]{1,50}$"
+                  }
+                },
+                "engines": {
+                  "minItems": 1,
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_ -]{1,50}$"
+                  }
+                },
+                "language": {
+                  "type": "string",
+                  "pattern": "^[a-zA-Z0-9_-]{1,30}$"
+                },
+                "page": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100
+                },
+                "safesearch": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "const": 0
+                    },
+                    {
+                      "type": "number",
+                      "const": 1
+                    },
+                    {
+                      "type": "number",
+                      "const": 2
+                    }
+                  ]
+                },
+                "timeRange": {
+                  "type": "string",
+                  "enum": [
+                    "day",
+                    "month",
+                    "year"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "required": [

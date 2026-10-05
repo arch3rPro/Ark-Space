@@ -1,8 +1,11 @@
 import { z } from "zod";
+import { BlockList, isIP } from "node:net";
 
 import { FAILURE_KINDS, PROVIDER_IDS, type Capability, type ProviderId } from "../protocol/types.js";
 
 const KeyReferenceSchema = z.string().regex(/^env:[A-Za-z_][A-Za-z0-9_]*$/);
+const mappedIpv6 = new BlockList();
+mappedIpv6.addSubnet("::ffff:0:0", 96, "ipv6");
 
 export const ProviderConfigSchema = z
   .object({
@@ -16,6 +19,38 @@ export const ProviderConfigSchema = z
     quotaCooldownSeconds: z.number().int().positive().default(86_400),
   })
   .strict();
+
+export const SearxngInstanceSchema = z.object({
+  baseUrl: z.string().max(4_096).refine((value) => {
+    try {
+      const url = new URL(value);
+      return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash && !/[\\\\\u0000-\u0020\u007f]/.test(value);
+    } catch { return false; }
+  }, "SearXNG requires a credential-free HTTP(S) base URL without query or fragment"),
+  allowRanges: z.array(z.string().refine((value) => {
+    const match = /^([^/]+)\/(\d{1,3})$/.exec(value);
+    if (!match) return false;
+    const family = isIP(match[1]!); const prefix = Number(match[2]);
+    if (!family || prefix > (family === 4 ? 32 : 128) || (family === 6 && mappedIpv6.check(match[1]!, "ipv6"))) return false;
+    try { new BlockList().addSubnet(match[1]!, prefix, family === 4 ? "ipv4" : "ipv6"); return true; } catch { return false; }
+  }, "Expected an IP CIDR" )).max(20).default([]),
+}).strict().transform((instance, context) => {
+  try { return { ...instance, baseUrl: new URL(instance.baseUrl).href.replace(/\/+$/, "") }; }
+  catch { context.addIssue({ code: "custom", message: "Invalid SearXNG base URL" }); return z.NEVER; }
+});
+
+const SearxngPolicySchema = ProviderConfigSchema.omit({ baseUrl: true }).extend({
+  keyRefs: z.array(z.never()).default([]),
+});
+export const SearxngConfigSchema = z.union([
+  SearxngPolicySchema.extend({ instances: z.array(SearxngInstanceSchema).min(1).max(100) }).strict(),
+  SearxngPolicySchema.extend(SearxngInstanceSchema.in.shape).strict().transform(({ baseUrl, allowRanges, ...policy }) => ({
+    ...policy, instances: [SearxngInstanceSchema.parse({ baseUrl, allowRanges })],
+  })),
+]).refine(config => new Set(config.instances.map(instance => instance.baseUrl)).size === config.instances.length,
+  "Duplicate SearXNG instances are not allowed");
+export type SearxngConfig = z.infer<typeof SearxngConfigSchema>;
+export type SearxngInstance = z.infer<typeof SearxngInstanceSchema>;
 
 export const ExecutionConfigSchema = z
   .object({
@@ -58,6 +93,7 @@ export const ToolConfigSchema = z.object({
 export const ArkSpaceConfigSchema = z
   .object({
     version: z.literal(1),
+    setupLanguage: z.enum(["en", "zh"]).optional(),
     providerOrder: z.array(z.enum(PROVIDER_IDS)).min(1),
     tools: z.partialRecord(CapabilitySchema, ToolConfigSchema).default({}),
     localFetch: LocalFetchConfigSchema.default({ enabled: false, allowRanges: [], trustEnvProxy: false }),
@@ -73,6 +109,7 @@ export const ArkSpaceConfigSchema = z
       tavily: ProviderConfigSchema.optional(),
       firecrawl: ProviderConfigSchema.optional(),
       local: ProviderConfigSchema.optional(),
+      searxng: SearxngConfigSchema.optional(),
     }),
   })
   .strict();
@@ -80,6 +117,7 @@ export const ArkSpaceConfigSchema = z
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 export type ExecutionConfig = z.infer<typeof ExecutionConfigSchema>;
 export type ArkSpaceConfig = z.infer<typeof ArkSpaceConfigSchema>;
+export type SetupLanguage = NonNullable<ArkSpaceConfig["setupLanguage"]>;
 
 export function isToolEnabled(config: ArkSpaceConfig, capability: Capability): boolean {
   return config.tools[capability]?.enabled !== false;
@@ -118,6 +156,16 @@ export function defaultConfig(): ArkSpaceConfig {
   });
 }
 
-export function getProviderConfig(config: ArkSpaceConfig, provider: ProviderId): ProviderConfig | undefined {
-  return config.providers[provider];
+export function getProviderConfig(config: ArkSpaceConfig, provider: ProviderId, environment: NodeJS.ProcessEnv = process.env): ProviderConfig | undefined {
+  if (provider !== "searxng") return config.providers[provider];
+  const entry = getSearxngConfig(config, environment);
+  return entry ? { ...entry, baseUrl: entry.instances[0]!.baseUrl } : undefined;
+}
+
+export function getSearxngConfig(config: ArkSpaceConfig, environment: NodeJS.ProcessEnv = process.env): SearxngConfig | undefined {
+  if (config.providers.searxng) return config.providers.searxng;
+  const baseUrl = environment.SEARXNG_URL || environment.SEARXNG_BASE_URL;
+  if (!baseUrl) return undefined;
+  const parsed = SearxngConfigSchema.safeParse({ baseUrl });
+  return parsed.success ? parsed.data : undefined;
 }

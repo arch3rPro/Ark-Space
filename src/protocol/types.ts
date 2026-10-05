@@ -11,7 +11,8 @@ export type MonitorRunId = Brand<string, "MonitorRunId">;
 export type SiteMonitorId = Brand<string, "SiteMonitorId">;
 export type SiteMonitorCheckId = Brand<string, "SiteMonitorCheckId">;
 
-export const PROVIDER_IDS = ["exa", "tavily", "firecrawl", "local"] as const;
+export const PROVIDER_IDS = ["exa", "tavily", "firecrawl", "local", "searxng"] as const;
+export const WEB_FETCH_PROVIDER_IDS = ["exa", "tavily", "firecrawl", "local"] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 export const WEB_MAP_PROVIDER_IDS = ["tavily", "firecrawl"] as const;
 export type WebMapProviderId = (typeof WEB_MAP_PROVIDER_IDS)[number];
@@ -80,6 +81,7 @@ export interface WebSearchInput {
   provider?: ProviderId;
   includeDomains: string[];
   excludeDomains: string[];
+  options?: { searxng?: { categories?: string[] | undefined; engines?: string[] | undefined; language?: string | undefined; page?: number | undefined; safesearch?: 0 | 1 | 2 | undefined; timeRange?: "day" | "month" | "year" | undefined } | undefined };
 }
 
 export interface WebSearchResult {
@@ -88,6 +90,7 @@ export interface WebSearchResult {
   snippet: string;
   score?: number;
   published?: string;
+  source?: { engine?: string; category?: string };
 }
 
 export interface WebSearchData {
@@ -541,6 +544,7 @@ export type RemoteJobEvidence =
 export interface AttemptEvidence {
   provider: ProviderId;
   keyId?: KeyId;
+  instanceId?: string;
   ok: boolean;
   errorKind?: FailureKind;
   status?: number;

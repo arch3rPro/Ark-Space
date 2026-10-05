@@ -1,0 +1,5 @@
+temporary_root=/tmp/ark-setup-browser.lStQzi
+removed=true
+tracked_diff_unchanged=true
+prototype_hashes_unchanged=true
+exit_code=1

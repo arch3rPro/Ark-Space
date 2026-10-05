@@ -104,6 +104,8 @@ async function walk(directory: string): Promise<string[]> {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     if ([".git", "dist", "node_modules"].includes(entry.name)) continue;
     const path = resolve(directory, entry.name);
+    // Reference checkouts are evidence, not maintained ArkSpace package content.
+    if (path === resolve(root, "reference")) continue;
     if (entry.isDirectory()) paths.push(...(await walk(path)));
     else if (entry.isFile()) paths.push(path);
   }

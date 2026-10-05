@@ -19,10 +19,15 @@
                   "exa",
                   "tavily",
                   "firecrawl",
-                  "local"
+                  "local",
+                  "searxng"
                 ]
               },
               "keyId": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{16}$"
+              },
+              "instanceId": {
                 "type": "string",
                 "pattern": "^[a-f0-9]{16}$"
               },
@@ -342,7 +347,8 @@
             "exa",
             "tavily",
             "firecrawl",
-            "local"
+            "local",
+            "searxng"
           ]
         },
         "data": {
@@ -370,6 +376,18 @@
                   },
                   "published": {
                     "type": "string"
+                  },
+                  "source": {
+                    "type": "object",
+                    "properties": {
+                      "engine": {
+                        "type": "string"
+                      },
+                      "category": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -423,10 +441,15 @@
                   "exa",
                   "tavily",
                   "firecrawl",
-                  "local"
+                  "local",
+                  "searxng"
                 ]
               },
               "keyId": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{16}$"
+              },
+              "instanceId": {
                 "type": "string",
                 "pattern": "^[a-f0-9]{16}$"
               },

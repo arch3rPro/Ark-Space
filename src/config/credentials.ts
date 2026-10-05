@@ -37,7 +37,13 @@ export async function hasStoredCredential(path: string, variable: string): Promi
   return Boolean(store.values[variable]);
 }
 
-export async function storeCredential(path: string, variable: string, secret: string): Promise<void> {
+// Returns false on a creation-only collision; the check and write share the file lock.
+export async function storeCredential(
+  path: string,
+  variable: string,
+  secret: string,
+  options: { overwrite?: boolean } = {},
+): Promise<boolean> {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(variable)) {
     throw new ProviderError("Credential names must contain only letters, digits, and underscores.", {
       kind: "invalid-request",
@@ -50,19 +56,23 @@ export async function storeCredential(path: string, variable: string, secret: st
     });
   }
 
-  await withFileLock(path, async () => {
+  return withFileLock(path, async () => {
     const store = await loadCredentialStore(path);
+    if (options.overwrite === false && Object.hasOwn(store.values, variable)) return false;
     store.values[variable] = value;
     await writeJsonAtomic(path, store);
+    return true;
   });
 }
 
-async function loadCredentialStore(path: string): Promise<CredentialStore> {
-  const value = await readJsonFile(path);
+export async function loadCredentialStore(path: string): Promise<CredentialStore> {
+  let value: unknown;
+  try { value = await readJsonFile(path); }
+  catch { throw new ProviderError("Unable to read ArkSpace credential store safely.", { kind: "config" }); }
   if (value === undefined) return { version: 1, values: {} };
   const parsed = CredentialStoreSchema.safeParse(value);
   if (!parsed.success) {
-    throw new ProviderError(`Invalid ArkSpace credential store at ${path}: ${parsed.error.message}`, {
+    throw new ProviderError("Invalid ArkSpace credential store; repair it before managing credentials.", {
       kind: "config",
     });
   }

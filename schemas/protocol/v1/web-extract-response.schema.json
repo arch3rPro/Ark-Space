@@ -19,10 +19,15 @@
                   "exa",
                   "tavily",
                   "firecrawl",
-                  "local"
+                  "local",
+                  "searxng"
                 ]
               },
               "keyId": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{16}$"
+              },
+              "instanceId": {
                 "type": "string",
                 "pattern": "^[a-f0-9]{16}$"
               },
@@ -402,10 +407,15 @@
                   "exa",
                   "tavily",
                   "firecrawl",
-                  "local"
+                  "local",
+                  "searxng"
                 ]
               },
               "keyId": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{16}$"
+              },
+              "instanceId": {
                 "type": "string",
                 "pattern": "^[a-f0-9]{16}$"
               },

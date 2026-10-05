@@ -1,0 +1,9 @@
+{
+  "version": "1.63.0",
+  "repository": {
+    "url": "git+https://github.com/microsoft/playwright.git",
+    "type": "git"
+  },
+  "license": "Apache-2.0",
+  "dist.integrity": "sha512-+7ziBLidS4NaNCdt57SUDT+wYmmd5fmiQejUic/kb+YsYSCPyOOE9sebzMjNmQrsnNpDJqd4WHvV/8lfKfUDUg=="
+}

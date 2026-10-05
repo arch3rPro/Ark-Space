@@ -1,0 +1,10 @@
+registry-metadata
+registry-metadata: passed
+registry-metadata
+registry-metadata: passed
+npm-install
+npm-install: passed
+chromium-install
+chromium-install: passed
+browser-check
+browser-check: failed exit 1
