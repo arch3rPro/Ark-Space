@@ -19,6 +19,8 @@ Routes not listed here are out of scope — see [Out of scope](#out-of-scope).
 
 ## Knowledge bases and knowledge
 
+For file/URL/Markdown import bodies, tag encodings, `custom_metadata`, `description`, and per-import `summary_enabled`, read [Ingest](ingest.md). Creation is asynchronous; a saved entry is not yet proof of searchable content.
+
 | Method | Path | Cap |
 | --- | --- | --- |
 | GET | `/knowledge-bases` | `retrieve` |

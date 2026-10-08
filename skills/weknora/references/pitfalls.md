@@ -25,7 +25,7 @@ The same applies to `PUT /knowledge/manual/:id` when updating.
 | Symptom | Wrong | Right | Why |
 | --- | --- | --- | --- |
 | Entry never becomes searchable | omit `status` | `status: "publish"` | Empty and `"draft"` both mean draft. |
-| Tags silently dropped | `tag_id` | `tag_ids`, an **array** in the JSON body; a comma-separated string in query parameters | The field is `TagIDs []string` with a `tag_ids` JSON tag. There is no singular form. |
+| Tags silently dropped | `tag_id` | `tag_ids`: array for URL/Markdown JSON, comma-separated string for file multipart and list queries | Use actual tag IDs from the target knowledge base. |
 | Building on a compatibility path | `GET …/hybrid-search` | `POST …/hybrid-search` | `GET` exists only for backwards compatibility; `POST` is the documented and recommended form. |
 | `404` when reading chunks | `GET /knowledge/:id/chunks` | `GET /chunks/:knowledge_id` | The chunks prefix is `/chunks`, not nested under `/knowledge`. |
 | Wrong status judgement | `pending → processing → completed \| failed` | `pending → processing → finalizing → completed \| failed`, plus `draft` and `deleting` | The enum has more members than the common summary suggests. `finalizing` is normal, not a stall. |
@@ -35,7 +35,10 @@ The same applies to `PUT /knowledge/manual/:id` when updating.
 | `403` on public link rewriting | `?resource_urls=public` with a knowledge-base-scoped key | stay in the default `handle` mode | Such a key is barred from the `/files` proxy, so anonymous links would bypass the same restriction. |
 | Answer truncated or reported incomplete | stop reading on connection close | stop on `complete` or `error` | A `session_title` event can follow `complete`; connection close is not the terminal signal. |
 | Consumer crashes after a server upgrade | throw on an unknown `response_type` | ignore unknown types | The documented type list is incomplete; the server emits types it does not document. |
-| "Uploaded" reported as done | report success after the upload call | report after `parse_status == "completed"` and `enable_status == "enabled"` | Parsing is asynchronous and takes up to about a minute for a small document. |
+| Every import waits for slow enhancements | poll until parsed for an ordinary upload | return after entry/decorations are saved, with observed status | Writing and searchability are different completion criteria; wait only when requested. |
+| Saved upload claimed searchable | treat creation success as retrieval readiness | require `parse_status == "completed"` and `enable_status == "enabled"` for that claim | Parsing and enhancements are asynchronous. |
+| Custom fields missing from document details | send file-upload `metadata` | save `custom_metadata` via `PUT /knowledge/:id` | Internal metadata and user-editable custom metadata are separate. |
+| Short summary overwritten | save description during automatic generation, or with changed metadata | choose the summary strategy and metadata-first sequence in [Ingest](ingest.md) | Metadata changes can queue an automatic summary refresh. |
 | Duplicate upload retried | retry on `409` | report the existing entry from `data` | A duplicate file or URL returns `409` with the existing Knowledge attached. |
 
 ## Shapes that vary

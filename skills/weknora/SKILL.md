@@ -47,7 +47,8 @@ Search and list payloads may carry `data: null` as well as `data: []`. Both mean
 
 Load exactly the reference matching the requested outcome:
 
-- Any endpoint, its required capability, or a request shape: [Endpoints](references/endpoints.md)
+- Importing files, URLs, or Markdown; assigning tags or metadata; writing a short summary: [Ingest](references/ingest.md)
+- Any other endpoint or its required capability: [Endpoints](references/endpoints.md)
 - A question over a knowledge base that returns a streamed answer: [SSE chat](references/sse.md)
 - A non-2xx response, an unexpected `data` shape, or `403`: [Errors and pagination](references/errors.md)
 - An import that never becomes searchable, or a surprising field name: [Pitfalls](references/pitfalls.md)
@@ -56,14 +57,17 @@ Do not guess a route from a REST convention. Chunks live at `/chunks/:knowledge_
 
 ## Workflows
 
-### Import a document and confirm it is searchable
+### Import a document — return after writing by default
 
-1. Identify the target knowledge base and confirm it with the user.
-2. Choose the operation: `POST /knowledge-bases/:id/knowledge/file` for an upload, `.../knowledge/url` for a page, `.../knowledge/manual` for Markdown written here.
-3. For `manual`, send `status: "publish"`. Omitting it creates a permanent draft. Send tags as `tag_ids`, an **array**.
-4. Read the returned entry id and poll `GET /knowledge/:id` until `parse_status` is `completed` or `failed`. Expect `pending → processing → finalizing → completed`. Parsing takes up to about a minute for a small document; `finalizing` is normal and is not a stall.
-5. Report completion only when `parse_status == "completed"` and `enable_status == "enabled"`. On `failed`, report the failure; do not re-upload blindly.
-6. A `409` on upload means the file or URL already exists and `data` carries the existing entry. Tell the user that instead of creating a duplicate.
+1. Identify and confirm the target knowledge base. Read [Ingest](references/ingest.md) before constructing requests.
+2. Read existing tags; reuse 1–3 clearly relevant tags where available. Prepare source-backed custom metadata and a short summary when the source text is available.
+3. Import the file, URL, or Markdown with `tag_ids`; for Markdown send `status: "publish"`. Preserve Wiki, graph, and other processing settings. A `409` returns an existing entry: report it without re-uploading or modifying it automatically.
+4. Using the new entry ID, save metadata and, when supported and prepared, the short summary. These writes do **not** require parsing to finish. Read the entry once to verify saved fields and capture current status.
+5. Return the ID, knowledge base, saved tags/metadata, summary strategy, and observed `parse_status`. Report background processing as pending, not searchable. Do not poll or wait for Wiki, graph, or parsing on an ordinary import; partial decoration failures do not justify re-uploading.
+
+### Confirm an import is searchable — only when requested
+
+For an explicit verification request or import-and-answer task, poll `GET /knowledge/:id` within an agreed time budget, requiring `parse_status == "completed"` and `enable_status == "enabled"`. On `failed`, report the failure. On deadline or cancellation, return the ID and last observed status; leave processing running unless cancellation was requested. `finalizing` can include long-running enhancement tasks and is not by itself a stall.
 
 ### Answer a question over a knowledge base
 
@@ -108,4 +112,4 @@ Do not guess a route from a REST convention. Chunks live at `/chunks/:knowledge_
 - Read the single JSON body. Treat `success: false` as failure and branch on the HTTP status and the numeric `error.code`; see [Errors and pagination](references/errors.md) for the two error shapes.
 - Never paste a raw envelope, a session dump, or an entire chunk listing into the conversation. Answer the question, cite the documents, or write the requested artifact.
 - Quote a citation as the source document plus knowledge base. WeKnora's `knowledge_references` identify documents, not passage offsets — do not imply passage-level grounding the API did not return.
-- On an ingest, report the terminal `parse_status` explicitly. "Uploaded" is not "searchable".
+- On an ingest, distinguish **written**, **decoration incomplete**, and **searchable**. Report the observed `parse_status`, not an invented terminal status. A successful write does not prove searchable content.

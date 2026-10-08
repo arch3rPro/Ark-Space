@@ -1,7 +1,7 @@
 ---
 name: web
 description: Retrieve bounded public-web evidence through ArkSpace. Use for Web Search, pages related to a known URL, URL fetching, site mapping or crawling, schema-bound structured extraction, and implementation-oriented Code Context. Use a research workflow when the requested outcome is a synthesized report.
-compatibility: Requires a local filesystem-based host with shell and network access, Node.js 20+, the arks CLI, and applicable Exa, Tavily, or Firecrawl credentials; intended for Claude Code and Codex CLI on macOS, Linux, and Windows.
+compatibility: Requires a local filesystem-based host with shell and network access, Node.js 20+, and the arks CLI. Hosted operations require applicable Exa, Tavily, or Firecrawl credentials; SearXNG search requires a configured JSON-enabled instance and no API key. Intended for Claude Code and Codex CLI on macOS, Linux, and Windows.
 ---
 
 # Web
@@ -11,7 +11,7 @@ Use the installed `arks` CLI. This Skill never resolves scripts relative to the 
 ## Readiness
 
 1. Run `arks --version`. If unavailable, explain that ArkSpace CLI is required and ask before changing the user's environment.
-2. Run `arks doctor --json` when Provider readiness is unknown. If credentials are missing, direct the human to run `arks setup` in a trusted local terminal. Never ask for an API key in conversation or place one in a command argument.
+2. Run `arks doctor --json` when Provider readiness is unknown; it checks configuration, not live connectivity. If credentials or SearXNG instances are missing, direct the human to run `arks setup` in a trusted local terminal. SearXNG search needs a chosen JSON-enabled instance, not an API key; load [Search and Related](references/search.md) for instance configuration and safety rules. Never ask for an API key in conversation or place one in a command argument.
 3. Ask before changing configuration or the user's environment. Force a Provider only when the user requests one or the operation requires it; otherwise preserve key rotation and fallback.
 
 ## Route
