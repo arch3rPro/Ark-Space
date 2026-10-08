@@ -12,6 +12,8 @@ This reference maps each canonical Skill to its public `arks` capabilities and P
 | [`monitor`](../skills/monitor/SKILL.md) | Create and manage persistent recurring searches or site-change checks, including lifecycle operations and run history. |
 | [`weknora`](../skills/weknora/SKILL.md) | Search, ingest, inspect, and answer questions over a user's own WeKnora knowledge base through its REST API. |
 
+`gh-repo` is an unreleased checkout addition for revision-pinned GitHub project analysis and supporting issue/PR inspection. It uses host tools and native GitHub CLI/API reads, not an `arks` capability or Provider. See its [canonical instructions](../skills/gh-repo/SKILL.md).
+
 `weknora` is an external-tool Skill: it calls a user-managed WeKnora instance directly and declares **no** `arks` capability or Provider dependency. It therefore does not appear in the operation tables below.
 
 ## Stateless operations and bounded jobs

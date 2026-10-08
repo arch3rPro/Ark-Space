@@ -1,10 +1,10 @@
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, cp, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
-const script = resolve("skills/github/scripts/view-issue-pr.mjs");
+const script = resolve("skills/gh-repo/scripts/view-issue-pr.mjs");
 
 describe("GitHub Skill issue/PR viewer", () => {
   it.skipIf(process.platform === "win32")("returns a bounded structured view using an injected gh", async () => {
@@ -16,7 +16,10 @@ console.log(JSON.stringify({number:42,title:"Fix it",state:"open",html_url:"http
 `);
     await chmod(fake, 0o700);
     try {
-      const result = await run(["--repo", "acme/widgets", "--number", "42"], { GH_BIN: fake });
+      // Exercise the documented entry from an isolated installed Skill copy.
+      const isolatedSkill = join(dir, "gh-repo");
+      await cp(resolve("skills/gh-repo"), isolatedSkill, { recursive: true });
+      const result = await run(["--repo", "acme/widgets", "--number", "42"], { GH_BIN: fake }, join(isolatedSkill, "scripts/view-issue-pr.mjs"), isolatedSkill);
       expect(result.code).toBe(0);
       expect(JSON.parse(result.stdout)).toEqual({ ok: true, data: expect.objectContaining({ kind: "pull_request", repository: "acme/widgets", number: 42, title: "Fix it", labels: ["bug"] }) });
       expect(result.stderr).toBe("");
@@ -44,9 +47,9 @@ console.log(JSON.stringify({number:42,title:"Fix it",state:"open",html_url:"http
   });
 });
 
-function run(args: string[], environment: Record<string, string> = {}) {
+function run(args: string[], environment: Record<string, string> = {}, entry = script, cwd?: string) {
   return new Promise<{ code: number | null; stdout: string; stderr: string }>((resolveRun, reject) => {
-    const child = spawn(process.execPath, [script, ...args], { env: { ...process.env, ...environment }, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(process.execPath, [entry, ...args], { cwd, env: { ...process.env, ...environment }, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk) => { stdout += chunk; });

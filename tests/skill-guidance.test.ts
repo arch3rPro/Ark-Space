@@ -49,6 +49,15 @@ describe("canonical Skill guidance", () => {
     }
   });
 
+  it("keeps gh-repo acquisition/discussion triggers and report evidence explicit", async () => {
+    const content = await readFile(resolve(skillsRoot, "gh-repo/SKILL.md"), "utf8");
+    expect(content).toMatch(/READ \[remote acquisition\]\(references\/acquisition\.md\)/);
+    expect(content).toMatch(/READ \[discussion evidence\]\(references\/discussions\.md\)/);
+    const report = content.split("## Report contract")[1] ?? "";
+    for (const requirement of ["source URL", "full commit SHA", "selected paths", "current metadata", "entry-to-module-to-tests", "tests inspected versus executed", "cleanup status"])
+      expect(report, requirement).toContain(requirement);
+  });
+
   it("keeps every published Skill self-contained when copied without siblings", async () => {
     const temporary = await mkdtemp(
       join(tmpdir(), "arkspace-isolated-skills-"),

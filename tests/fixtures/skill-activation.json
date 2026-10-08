@@ -47,8 +47,11 @@
       "Open the page and click the load-more button."
     ]
   },
-  "github": {
+  "gh-repo": {
     "positive": [
+      "Analyze acme/widgets architecture and maturity at a pinned revision.",
+      "Trace org/project CLI entry through implementation and tests.",
+      "Evaluate which patterns from this GitHub repository we should borrow and their tradeoffs.",
       "Show me the structured details for issue 42 in acme/widgets.",
       "Read pull request 17 from org/project without changing anything.",
       "Inspect the labels and state of this GitHub issue.",
@@ -58,7 +61,7 @@
       "Search all GitHub repositories for issues mentioning this bug.",
       "Merge pull request 17 after checking its status.",
       "Edit the issue title and add a comment on GitHub.",
-      "Download and inspect the repository source files."
+      "Compare this vendor market across public sources, not a repository."
     ]
   },
   "weknora": {
