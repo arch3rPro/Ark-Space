@@ -57,7 +57,7 @@ Host 安装、验证、更新、卸载、MCP 和凭证细节见 [INSTALL.md](INS
 | [`browser`](skills/browser/SKILL.md) | 在自有远程浏览器 Session 中读取或改变动态页面状态。 |
 | [`monitor`](skills/monitor/SKILL.md) | 管理跨越当前 Session 的周期搜索与站点变化检查。 |
 | [`weknora`](skills/weknora/SKILL.md) | 通过 REST API 检索、导入 WeKnora 知识库并基于其文档回答问题。 |
-| [`gh-repo`](skills/gh-repo/SKILL.md)（当前源码新增，尚未发布） | 基于固定 revision 的源码证据分析 GitHub 项目架构、成熟度与借鉴取舍，并读取相关 issue/PR。 |
+| [`gh-repo`](skills/gh-repo/SKILL.md) | 基于固定 revision 的源码证据分析 GitHub 项目架构、成熟度与借鉴取舍，并读取相关 issue/PR。 |
 
 操作标识、Provider 覆盖、Fallback 行为和资源所有权见 [Skill、Capability 与 Provider 参考](docs/capabilities.md)。
 

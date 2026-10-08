@@ -13,7 +13,7 @@ Canonical guidance lives at `skills/gh-repo/SKILL.md`. It owns GitHub project ov
 
 Use host tools and native read-only GitHub CLI/API operations. Keep the existing bounded issue/PR helper unchanged. No new `arks` capability, shared credentials, dependency, or analysis framework is introduced. Anonymous bounded public API reads remain possible when `gh` lacks authentication. Tool installation, authentication changes, cloning, and repository execution are separate consent boundaries. Clone ownership and cleanup must be explicit.
 
-Remote acquisition and discussion details load through conditional references. Canonical plugin directories discover the renamed Skill directly; no manifest mirrors or version changes are needed. This is an unreleased checkout addition, not a claim about the 0.1.3 artifact.
+Remote acquisition and discussion details load through conditional references. Canonical plugin directories discover the renamed Skill directly; no manifest mirrors or version changes are needed. The Skill is installable from the repository independently of the npm CLI release cycle; it does not require `arks`.
 
 ## Alternatives and consequences
 

@@ -57,7 +57,7 @@ See [INSTALL.md](INSTALL.md) for host-specific installation, verification, updat
 | [`browser`](skills/browser/SKILL.md) | Inspect or change dynamic page state in an owned remote browser session. |
 | [`monitor`](skills/monitor/SKILL.md) | Manage recurring searches and site-change checks beyond the current session. |
 | [`weknora`](skills/weknora/SKILL.md) | Search, import, and answer questions over a WeKnora knowledge base through its REST API. |
-| [`gh-repo`](skills/gh-repo/SKILL.md) (unreleased checkout addition) | Analyze GitHub project architecture, maturity, and borrowing tradeoffs with revision-pinned source evidence; inspect supporting issues/PRs. |
+| [`gh-repo`](skills/gh-repo/SKILL.md) | Analyze GitHub project architecture, maturity, and borrowing tradeoffs with revision-pinned source evidence; inspect supporting issues/PRs. |
 
 See the [Skill, Capability, and Provider reference](docs/capabilities.md) for operation identifiers, Provider coverage, fallback behavior, and resource ownership.
 
