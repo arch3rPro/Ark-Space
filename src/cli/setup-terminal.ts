@@ -42,6 +42,7 @@ const palette: Record<SetupTone, string> = { neutral: "", success: "32", danger:
 const providerAccents: Record<string, { foreground: number; background: number; text: number }> = {
   Exa: { foreground: 34, background: 44, text: 37 }, Tavily: { foreground: 35, background: 45, text: 30 },
   Firecrawl: { foreground: 33, background: 43, text: 30 }, SearXNG: { foreground: 32, background: 42, text: 30 },
+  WeKnora: { foreground: 36, background: 46, text: 30 },
 };
 export type SetupFocus = "top" | "menu" | "content";
 export type SetupRoute = "providers" | "order" | "language";
@@ -143,19 +144,28 @@ export class SetupTerminal {
         return this.border((bottom ? "└" : "┌") + title + "─".repeat(Math.max(0, size - 2 - cellWidth(title))) + (bottom ? "┘" : "┐"), focused);
       };
       const paneRow = (text: string, size: number, focused: boolean) => this.border("│", focused) + " " + pad(text, size - 4) + " " + this.border("│", focused);
-      const tabs = view.providers.map((name, n) => {
+      const tabLabels = view.providers.map((name, n) => {
         const selected = n === view.providerIndex; const focused = selected && active("top");
         const label = `[${name}]`;
         if (!this.colors) return `${selected ? "*" : " "}${label}`;
         const accent = providerAccents[name];
         if (!accent) return label;
         return `\u001b[${selected ? `${accent.text};${accent.background};1${focused ? ";4" : ""}` : accent.foreground}m${label}\u001b[0m`;
-      }).join("   ") + (this.colors ? "  " : "");
+      });
+      const trailing = this.colors ? "  " : "";
       const brand = this.border("ArkSpace", active("top"));
-      // Keep the original header location, reserving its longest localized provider badge.
+      // Preserve the existing summary/body positions; extra services use only the
+      // available header space, rather than pushing another pane down.
       const summaryWidth = Math.max(cellWidth(view.summary), cellWidth(view.language === "zh" ? "供应商 关 · 仅显式" : "Provider Off · explicit only"));
-      const headerSummary = !compact && view.route === "providers" && cellWidth(tabs) + summaryWidth + 12 <= width;
+      const baselineTabs = tabLabels.slice(0, 4).join("   ") + trailing;
+      const headerSummary = !compact && view.route === "providers" && cellWidth(baselineTabs) + summaryWidth + 12 <= width;
       const headerWidth = width - (headerSummary ? summaryWidth + 2 : 0);
+      let startTab = 0; let endTab = tabLabels.length;
+      let tabs = tabLabels.join("   ") + trailing;
+      while (cellWidth(brand) + 2 + cellWidth(tabs) > headerWidth && endTab - startTab > 1) {
+        if (view.providerIndex >= endTab - 1) startTab++; else endTab--;
+        tabs = tabLabels.slice(startTab, endTab).join("   ") + trailing;
+      }
       const gap = Math.max(2, Math.floor((headerWidth - cellWidth(brand) - cellWidth(tabs)) / 2));
       lines = [pad(brand + " ".repeat(gap) + tabs, headerWidth) + (headerSummary ? "  " + pad(this.tone(view.summary, view.summaryTone), summaryWidth) : ""),
         edge(view.language === "zh" ? "菜单" : "Menu", leftWidth, active("menu")) + " " + edge(modal?.page ? clean(modal.title) : view.title, mainWidth, paneActive)];
@@ -171,12 +181,22 @@ export class SetupTerminal {
       const listHeight = Math.max(1, bodyHeight - hintLines.length - 1 - (headerSummary ? 0 : 1));
       const start = Math.max(0, view.selected - listHeight + 1);
       // Selection and lifecycle state are independent, including in monochrome.
-      const columnWidths = view.columns.length === 3 ? [contentWidth - (compact ? 22 : 28), compact ? 8 : 12, compact ? 10 : 12]
-        : view.columns.length === 2 ? [contentWidth - 17, 14] : [contentWidth - 2];
+      const columnCount = Math.max(1, view.columns.length);
+      const tableWidth = contentWidth - 2 - 2 * (columnCount - 1);
+      const dataWidth = (n: number) => Math.max(cellWidth(view.columns[n] ?? ""), ...view.cells.map(row => cellWidth(row[n] ?? "")));
+      let columnWidths = [tableWidth];
+      if (columnCount === 3) {
+        const principalWidth = Math.floor(tableWidth / 2);
+        const sourceWidth = Math.floor((tableWidth - principalWidth) / 2);
+        columnWidths = [principalWidth, sourceWidth, tableWidth - principalWidth - sourceWidth];
+      } else if (columnCount === 2) {
+        const labelWidth = Math.min(dataWidth(0), Math.floor(tableWidth / 2));
+        columnWidths = [labelWidth, tableWidth - labelWidth];
+      }
       const tableRow = (cells: string[], tone?: SetupTone) => cells.map((cell, n) => {
         const text = pad(cell, columnWidths[n] ?? 0);
         return n === cells.length - 1 ? this.tone(text, tone) : text;
-      }).join(" ");
+      }).join("  ");
       let main = [this.tone("  " + tableRow(view.columns), "muted"),
         ...Array.from({ length: listHeight }, (_, n) => {
           const index = start + n; const cells = view.cells[index];
@@ -186,7 +206,7 @@ export class SetupTerminal {
           let text = tableRow(cells, view.rowTones?.[index]);
           if (focused && this.colors && cells.length > 1) {
             const last = pad(cells.at(-1) ?? "", columnWidths.at(-1)!);
-            text = tableRow(cells.slice(0, -1)) + " " + `\u001b[40m${this.tone(last, view.rowTones?.[index])}`;
+            text = tableRow(cells.slice(0, -1)) + "  " + `\u001b[40m${this.tone(last, view.rowTones?.[index])}`;
           }
           return this.selection(pad(marker + text, contentWidth), focused);
         }), ...(headerSummary ? [] : [this.tone(view.summary, view.summaryTone)]), ...hintLines];
@@ -198,7 +218,7 @@ export class SetupTerminal {
         main.push(modal.footer);
       }
       for (let n = 0; n < bodyHeight; n++) {
-        const label = view.menu[n] ?? (modal?.page && n === view.menu.length ? view.language === "zh" ? "（已锁定）" : "(locked)" : "");
+        const label = view.menu[n] ?? (modal?.page && n === view.menu.length ? view.language === "zh" ? "已锁定" : "(locked)" : "");
         const focused = n === view.menuCursor && active("menu");
         const nav = label ? this.selection(pad(`${focused ? ">" : " "}${n === view.openedMenu ? "*" : " "}${label}`, leftWidth - 4), focused) : "";
         lines.push(paneRow(nav, leftWidth, active("menu")) + " " + paneRow(main[n] ?? "", mainWidth, paneActive));

@@ -235,7 +235,7 @@ it("rotates through concurrent built CLI invoke processes and reports config-onl
   const persisted = JSON.parse(await readFile(join(h, "config.json"), "utf8"));
   expect(persisted.providers.searxng.instances).toHaveLength(3);
   expect(persisted.providers.searxng.instances[2].allowRanges).toEqual(["127.0.0.1/32", "::1/128"]);
-});
+}, 20_000); // Nine CLI startups need a test budget beyond one provider request.
 function cli(args: string[], env: NodeJS.ProcessEnv) {
   return new Promise<{ code: number | null; stdout: string; stderr: string }>(resolve => {
     const child = spawn(process.execPath, ["dist/cli/main.js", ...args], { env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "pipe"] });

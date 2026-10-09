@@ -68,6 +68,8 @@ import {
   parseMonitorUpdateRequest,
 } from "../protocol/resource-schema.js";
 import { invokeCapability, isCapability } from "../protocol/invoke.js";
+import { weknoraVerifyFailure } from "../protocol/weknora-schema.js";
+import { WeknoraRetrievalEnvelopeSchemas } from "../protocol/weknora-retrieval-schema.js";
 import {
   PROTOCOL_VERSION,
   PROVIDER_IDS,
@@ -96,7 +98,7 @@ import {
   createSearchProviderRegistry,
 } from "../providers/registry.js";
 
-const VERSION = "0.1.3";
+const VERSION = "0.1.4";
 const MAX_INPUT_BYTES = 1_048_576;
 // Capture before credential bootstrap so setup can distinguish external overrides from local keys.
 const originalEnvironment = { ...process.env };
@@ -115,8 +117,8 @@ const program = new Command()
   .description("ArkSpace provider execution CLI")
   .version(VERSION);
 
-program.command("setup").argument("[provider]", "exa, tavily, firecrawl or searxng")
-  .description("Manage Providers with numbered menus and hidden credential input")
+program.command("setup").argument("[service]", "exa, tavily, firecrawl, searxng or weknora")
+  .description("Manage service connections and credentials in a trusted terminal")
   .option("--lang <language>", "Setup language for this run: en or zh (English / 中文)")
   .action(async (provider: string | undefined, options: { lang?: string }) => {
     await runSetup(resolveArkSpacePaths(), undefined, {
@@ -248,7 +250,7 @@ researchCommand
   });
 
 program.command("mcp").description("Model Context Protocol transport").command("serve").description("Serve ArkSpace tools over stdio").action(() => {
-  serveArkSpaceStdio();
+  serveArkSpaceStdio({ originalEnvironment });
 });
 
 const browserCommand = program.command("browser").description("Owned Firecrawl Browser Sandbox sessions");
@@ -378,13 +380,20 @@ program
       return;
     }
     try {
-      const config = await loadConfig(resolveArkSpacePaths().config);
-      if (!isToolEnabled(config, capability)) {
-        writeMachineFailure(capability, new ProviderError(`Capability is disabled by configuration: ${capability}`, { kind: "invalid-request" }));
-        return;
+      // WeKnora resolves its connection inside the bounded operation. Web invocation
+      // still loads local credentials, but bootstrap failures stay in its JSON envelope.
+      let environment: NodeJS.ProcessEnv | undefined;
+      if (!capability.startsWith("weknora.")) {
+        const paths = resolveArkSpacePaths(originalEnvironment);
+        const config = await loadConfig(paths.config);
+        if (!isToolEnabled(config, capability)) {
+          writeMachineFailure(capability, new ProviderError(`Capability is disabled by configuration: ${capability}`, { kind: "invalid-request" }));
+          return;
+        }
+        environment = await loadCredentialEnvironment(paths.credentials, originalEnvironment);
       }
       const value = await readJsonInput(options.input);
-      writeMachineResult(await invokeCapability(capability, value, { signal: operationController.signal }));
+      writeMachineResult(await invokeCapability(capability, value, { originalEnvironment, ...(environment ? { environment } : {}), signal: operationController.signal }));
     } catch (error) {
       writeMachineFailure(capability, error);
     }
@@ -576,9 +585,9 @@ webCommand
 
 try {
   const paths = resolveArkSpacePaths();
-  // Setup resolves fresh credentials itself and renders only curated errors. Do not
-  // bootstrap secrets or parse dynamic capability aliases before its human boundary.
-  if (process.argv[2] !== "setup") {
+  // Setup and machine invocation resolve credentials inside their own boundaries.
+  // Invoke has fixed capability IDs, so it needs no human-command alias bootstrap.
+  if (process.argv[2] !== "setup" && process.argv[2] !== "invoke") {
     const environment = await loadCredentialEnvironment(paths.credentials);
     for (const [name, value] of Object.entries(environment)) {
       if (value !== undefined && process.env[name] === undefined) process.env[name] = value;
@@ -823,6 +832,16 @@ function writeMachineResult(result: { ok: boolean }): void {
 }
 
 function writeMachineFailure(capability: Capability, error: unknown): void {
+  if (capability === "weknora.connection.verify") {
+    writeMachineResult(weknoraVerifyFailure(error instanceof ProviderError && error.kind === "config" ? "config" : "invalid-request"));
+    return;
+  }
+  if (capability === "weknora.knowledge-bases.list" || capability === "weknora.knowledge-bases.get" || capability === "weknora.search") {
+    writeMachineResult(WeknoraRetrievalEnvelopeSchemas[capability].parse({
+      ...weknoraVerifyFailure(error instanceof ProviderError && error.kind === "config" ? "config" : "invalid-request"), capability,
+    }));
+    return;
+  }
   const normalized = publicError(error);
   const correction = correctionFor(normalized.kind);
   const envelope: FailureEnvelope<Capability> = {

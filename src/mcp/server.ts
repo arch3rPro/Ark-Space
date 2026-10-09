@@ -4,11 +4,17 @@ import { z } from "zod/v4";
 import { isToolEnabled, type ArkSpaceConfig } from "../config/schema.js";
 import { ResourceInputSchemas } from "../protocol/resource-schema.js";
 import { CodeContextRequestSchema, ResearchRequestSchema, WebCrawlRequestSchema, WebExtractRequestSchema, WebFetchRequestSchema, WebContentGetRequestSchema, WebMapRequestSchema, WebRelatedRequestSchema, WebSearchRequestSchema } from "../protocol/schema.js";
-import { invokeCapability } from "../protocol/invoke.js";
+import { invokeCapability, type InvokeOptions } from "../protocol/invoke.js";
+import { WeknoraRetrievalRequestSchemas, WeknoraRetrievalEnvelopeSchemas } from "../protocol/weknora-retrieval-schema.js";
+import { WeknoraVerifyRequestSchema, WeknoraVerifyEnvelopeSchema } from "../protocol/weknora-schema.js";
 import { SiteMonitorInputSchemas } from "../protocol/site-monitor-schema.js";
 import { PROTOCOL_VERSION, type Capability } from "../protocol/types.js";
 
 const inputSchemas = {
+  "weknora.knowledge-bases.list": WeknoraRetrievalRequestSchemas["weknora.knowledge-bases.list"].shape.input,
+  "weknora.knowledge-bases.get": WeknoraRetrievalRequestSchemas["weknora.knowledge-bases.get"].shape.input,
+  "weknora.search": WeknoraRetrievalRequestSchemas["weknora.search"].shape.input,
+  "weknora.connection.verify": WeknoraVerifyRequestSchema.shape.input,
   "web.search": WebSearchRequestSchema.shape.input,
   "web.fetch": WebFetchRequestSchema.shape.input,
   "web.content.get": WebContentGetRequestSchema.shape.input,
@@ -23,6 +29,10 @@ const inputSchemas = {
 } as const;
 
 const descriptions: Record<Capability, string> = {
+  "weknora.knowledge-bases.list": "List bounded WeKnora knowledge bases. Requires network consent. No fallback or credential disclosure.",
+  "weknora.knowledge-bases.get": "Read WeKnora knowledge-base details and retrieval capabilities; an omitted ID uses the managed default preference.",
+  "weknora.search": "Search one WeKnora knowledge base after a mandatory detail/index preflight. Returns bounded document/chunk references, not a generated answer or proof of document parse status. Requires consent to send the query; no fallback or retry.",
+  "weknora.connection.verify": "Verify the configured WeKnora connection with one GET /auth/me (at most five seconds). Requires user network consent. Returns classified acceptance only, never identity or retrieval permission.",
   "web.search": "Search the web through ArkSpace provider fallback and return a Protocol v1 evidence envelope.",
   "web.fetch": "Fetch bounded content from exact HTTP(S) URLs.",
   "web.content.get": "Read bounded cached fetch content by response ID.",
@@ -59,11 +69,11 @@ const descriptions: Record<Capability, string> = {
   "monitor.site.check.get": "Get one Firecrawl check and bounded page-level change results.",
 };
 
-const readOnly = new Set<Capability>(["web.search", "web.fetch", "web.content.get", "web.map", "web.related", "code.context", "browser.snapshot", "browser.status", "monitor.list", "monitor.status", "monitor.runs", "monitor.run.get", "monitor.site.list", "monitor.site.status", "monitor.site.checks", "monitor.site.check.get"]);
+const readOnly = new Set<Capability>(["weknora.knowledge-bases.list", "weknora.knowledge-bases.get", "weknora.search", "weknora.connection.verify", "web.search", "web.fetch", "web.content.get", "web.map", "web.related", "code.context", "browser.snapshot", "browser.status", "monitor.list", "monitor.status", "monitor.runs", "monitor.run.get", "monitor.site.list", "monitor.site.status", "monitor.site.checks", "monitor.site.check.get"]);
 const destructive = new Set<Capability>(["browser.close", "monitor.delete", "monitor.site.delete"]);
 
-export function createMcpServer(config?: ArkSpaceConfig): McpServer {
-  const server = new McpServer({ name: "arkspace", version: "0.1.3" });
+export function createMcpServer(config?: ArkSpaceConfig, options: InvokeOptions = {}): McpServer {
+  const server = new McpServer({ name: "arkspace", version: "0.1.4" });
   const activeRequests = new Map<string | number, AbortController>();
   const names = new Set<string>();
   for (const capability of Object.keys(inputSchemas) as Capability[]) {
@@ -71,7 +81,7 @@ export function createMcpServer(config?: ArkSpaceConfig): McpServer {
     const name = config?.tools[capability]?.mcpName ?? capability.replaceAll(".", "_");
     if (names.has(name)) throw new Error(`Duplicate MCP tool name: ${name}`);
     names.add(name);
-    registerCapability(server, capability, name, inputSchemas[capability], activeRequests);
+    registerCapability(server, capability, name, inputSchemas[capability], activeRequests, options);
   }
   server.server.setNotificationHandler("notifications/cancelled", (notification) => {
     const requestId = notification.params.requestId;
@@ -81,7 +91,7 @@ export function createMcpServer(config?: ArkSpaceConfig): McpServer {
   return server;
 }
 
-function registerCapability(server: McpServer, capability: Capability, name: string, schema: z.ZodObject<z.ZodRawShape>, activeRequests: Map<string | number, AbortController>): void {
+function registerCapability(server: McpServer, capability: Capability, name: string, schema: z.ZodObject<z.ZodRawShape>, activeRequests: Map<string | number, AbortController>, options: InvokeOptions): void {
   server.registerTool(
     name,
     {
@@ -100,7 +110,9 @@ function registerCapability(server: McpServer, capability: Capability, name: str
       activeRequests.set(context.mcpReq.id, controller);
       const signal = AbortSignal.any([context.mcpReq.signal, controller.signal]);
       try {
-        const result = await invokeCapability(capability, { protocolVersion: PROTOCOL_VERSION, capability, input }, { signal });
+        const result = await invokeCapability(capability, { protocolVersion: PROTOCOL_VERSION, capability, input }, { ...options, signal });
+        if (capability === "weknora.connection.verify") WeknoraVerifyEnvelopeSchema.parse(result);
+        if (capability === "weknora.knowledge-bases.list" || capability === "weknora.knowledge-bases.get" || capability === "weknora.search") WeknoraRetrievalEnvelopeSchemas[capability].parse(result);
         // SAFETY: Capability results are JSON object envelopes; MCP structuredContent requires the equivalent string-keyed record type.
         const structured = result as unknown as Record<string, unknown>;
         return {

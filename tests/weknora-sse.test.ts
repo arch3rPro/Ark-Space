@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 import { createServer, type Server } from "node:http";
-import { resolve } from "node:path";
+import { cp, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 const script = resolve("skills/weknora/scripts/consume-sse.mjs");
@@ -66,9 +68,12 @@ async function startInstance(
 function runScript(
   arguments_: string[],
   environment: Record<string, string>,
+  entry = script,
+  cwd?: string,
 ): Promise<{ code: number | null; stdout: string; stderr: string }> {
   return new Promise((resolved, rejected) => {
-    const child = spawn(process.execPath, [script, ...arguments_], {
+    const child = spawn(process.execPath, [entry, ...arguments_], {
+      ...(cwd ? { cwd } : {}),
       env: { ...process.env, ...environment },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -92,6 +97,19 @@ function envelope(stdout: string): Record<string, unknown> {
 }
 
 describe("weknora Skill streamed chat entry point", () => {
+  it("uses a copied standalone Skill with environment variables and no arks or repository siblings", async () => {
+    const isolated = await mkdtemp(join(tmpdir(), "arks-independent-weknora-"));
+    try {
+      await cp(resolve("skills/weknora"), join(isolated, "weknora"), { recursive: true });
+      const base = await startInstance(() => frame({ response_type: "answer", content: "Standalone answer" }) + frame({ response_type: "complete", done: true }));
+      const result = await runScript(["--session", "standalone", "--query", "q"], {
+        WEKNORA_BASE_URL: base, WEKNORA_API_KEY: secret, PATH: "", ARKSPACE_HOME: join(isolated, "missing-config"),
+      }, join(isolated, "weknora/scripts/consume-sse.mjs"), isolated);
+      expect(result.code).toBe(0);
+      expect(envelope(result.stdout)).toMatchObject({ ok: true, answer: "Standalone answer", terminated_by: "complete" });
+      expect(result.stdout + result.stderr).not.toContain(secret);
+    } finally { await rm(isolated, { recursive: true, force: true }); }
+  });
   it("passes its own self-test through the documented entry path", async () => {
     const result = await runScript(["--self-test"], {});
 

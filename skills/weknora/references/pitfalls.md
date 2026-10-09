@@ -50,5 +50,5 @@ The same applies to `PUT /knowledge/manual/:id` when updating.
 
 - Do not create a knowledge base or entry to test the connection. Use `GET /auth/me` to check credentials and `POST /chunker/preview` to check chunking.
 - Do not infer a route from REST convention. If a route is not in [Endpoints](endpoints.md), it is out of scope.
-- Do not put the API key in a shell profile, a file, or a command argument. Read it from the environment.
+- Independent requests read the key from the environment, not ad-hoc key files, shell profiles, or literal command arguments. Optional managed credentials stay inside human-controlled `arks setup weknora` storage; the Skill never reads or exports them.
 - Do not treat `finalizing` as hung. It is the phase between a finished parse and a completed one.

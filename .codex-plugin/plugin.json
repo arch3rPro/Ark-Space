@@ -1,6 +1,6 @@
 {
   "name": "arkspace",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Provider-aware Web retrieval, structured extraction, cited Research, Code Context, and reusable agent skills.",
   "author": {
     "name": "arch3rPro"

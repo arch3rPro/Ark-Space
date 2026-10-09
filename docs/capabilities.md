@@ -14,7 +14,35 @@ This reference maps each canonical Skill to its public `arks` capabilities and P
 
 `gh-repo` is an independent Skill for revision-pinned GitHub project analysis and supporting issue/PR inspection. It uses host tools and native GitHub CLI/API reads, not an `arks` capability or Provider. See its [canonical instructions](../skills/gh-repo/SKILL.md).
 
-`weknora` is an external-tool Skill: it calls a user-managed WeKnora instance directly and declares **no** `arks` capability or Provider dependency. It therefore does not appear in the operation tables below.
+`weknora` remains independently usable with its environment variables and has no mandatory CLI or Provider dependency. The prepared 0.1.4 release candidate implements optional managed configuration and the verification/list/detail/search capabilities below; it is not yet published. The canonical Skill selects the independent environment path or supported managed path without a mandatory CLI dependency.
+
+## Optional WeKnora connection verification
+
+`arks invoke weknora.connection.verify --input request.json` sends one `GET /auth/me` to the selected connection after explicit consent. Its strict request is:
+
+```json
+{"protocolVersion":1,"capability":"weknora.connection.verify","input":{"confirmed":true,"timeoutMs":5000}}
+```
+
+An explicit user request to read the configured instance authorizes contacting it; `confirmed: true` records that authorization, including for request logging. HTTP is supported; its plaintext credential warning is informational, and no separate permission is required. A complete external `WEKNORA_BASE_URL` / `WEKNORA_API_KEY` pair takes precedence; an incomplete pair fails without mixing sources. Otherwise the runtime resolves `connections.weknora` and its dedicated stored credential. The human configures the managed connection with `arks setup weknora` in a trusted terminal.
+
+This capability is not a Web Provider: it does not join search order, rotation, or fallback. Its additive Protocol v1 response uses `connection: "weknora"`, not `provider` or `attempts`. Success reports only `source` and `data: {outcome: "accepted", status: 200}` (or another accepted 2xx status), never identity details. Failure reports a classified non-secret error with `retryable: false`; 403 is ambiguous permission/scope/policy evidence, not proof of an invalid key. Consumers must dispatch by capability and use its [request](../schemas/protocol/v1/weknora-connection-verify-request.schema.json) and [response](../schemas/protocol/v1/weknora-connection-verify-response.schema.json) schemas.
+
+Configuration resolution and network execution share a maximum five-second deadline. Authenticated requests support valid localhost, private, and public destinations without CIDR exceptions, using validated DNS with a pinned address, verified TLS, 16 KiB response headers, and a 64 KiB response body. Redirects are refused and ambient proxies are not used. Cancellation aborts in-flight requests. Verification creates no content, session, persistent health, or key-pool state, and does not establish retrieval, ingestion, or chat permission. The optional execution boundary is recorded in [ADR 0019](adr/accepted/0019-optional-weknora-managed-connection.md).
+
+## Optional WeKnora retrieval
+
+| Capability | Input beyond common consent/transport/deadline | Data |
+| --- | --- | --- |
+| `weknora.knowledge-bases.list` | `page`, `pageSize` | `knowledgeBases`, optional pagination metadata |
+| `weknora.knowledge-bases.get` | optional `knowledgeBaseId` | `knowledgeBase` with retrieval capability flags |
+| `weknora.search` | `query`, optional `knowledgeBaseId`, `limit` | selected knowledge-base ID, query, bounded results with document/chunk references |
+
+Use the same `arks invoke <capability> --input request.json` boundary and `confirmed: true` after network consent. Retrieval defaults to five seconds with a maximum of thirty seconds for the whole operation; headers are bounded to 16 KiB and the response body to 2 MiB. Common source selection, informational plaintext-HTTP warning, DNS pinning, redirect refusal, TLS validation, and no-fallback rules are unchanged. Legacy `allowHttp` request fields are accepted but ignored; omit them from new requests. Query content leaves the local host when searching; obtain consent before the first such submission.
+
+Detail/search use the managed default knowledge-base ID only when no explicit ID is supplied. A missing selection fails before network activity. Search reads the target's detail first, requires vector or keyword retrieval, then submits documented `query_text` and `match_count` fields to its hybrid-search route with `resource_urls=handle`. No usable index is `no-index`, distinct from empty success. Null list/search results normalize to empty arrays. Responses are validated and projected; no parsing-state or passage-offset claims are fabricated.
+
+All operations return the non-Web `connection: "weknora"` envelope. Request/response schemas are in [`schemas/protocol/v1/`](../schemas/protocol/v1/); supported bounds and examples are in the self-contained [managed Skill guide](../skills/weknora/references/managed.md). Imports, document/chunk operations, multi-base search, and chat remain independent REST/script operations using manually supplied environment credentials; the runtime never exports a stored key for them.
 
 ## Stateless operations and bounded jobs
 

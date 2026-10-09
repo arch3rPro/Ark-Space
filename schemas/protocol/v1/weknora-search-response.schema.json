@@ -1,0 +1,258 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "connection": {
+          "type": "string",
+          "const": "weknora"
+        },
+        "warnings": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "capability": {
+          "type": "string",
+          "const": "weknora.search"
+        },
+        "ok": {
+          "type": "boolean",
+          "const": true
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "managed",
+            "environment"
+          ]
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "knowledgeBaseId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+            },
+            "query": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "results": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+                  },
+                  "knowledge_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+                  },
+                  "knowledge_title": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "content": {
+                    "type": "string",
+                    "maxLength": 100000
+                  },
+                  "score": {
+                    "type": "number"
+                  },
+                  "knowledge_base_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+                  },
+                  "chunk_index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000
+                  },
+                  "match_type": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9
+                  },
+                  "metadata": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "maxLength": 256
+                        },
+                        "additionalProperties": {
+                          "type": "string",
+                          "maxLength": 4000
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "knowledge_filename": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "knowledge_source": {
+                    "type": "string",
+                    "maxLength": 4000
+                  },
+                  "knowledge_description": {
+                    "type": "string",
+                    "maxLength": 16000
+                  },
+                  "knowledge_custom_metadata": {
+                    "type": "string",
+                    "maxLength": 16000
+                  }
+                },
+                "required": [
+                  "id",
+                  "knowledge_id",
+                  "knowledge_title",
+                  "content"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "knowledgeBaseId",
+            "query",
+            "results"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "connection",
+        "warnings",
+        "capability",
+        "ok",
+        "source",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "connection": {
+          "type": "string",
+          "const": "weknora"
+        },
+        "warnings": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "capability": {
+          "type": "string",
+          "const": "weknora.search"
+        },
+        "ok": {
+          "type": "boolean",
+          "const": false
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "managed",
+            "environment"
+          ]
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "invalid-request",
+                "config",
+                "http-consent",
+                "auth",
+                "permission",
+                "rate-limit",
+                "http-status",
+                "business-failure",
+                "invalid-response",
+                "blocked-address",
+                "dns",
+                "redirect",
+                "timeout",
+                "cancelled",
+                "network",
+                "headers",
+                "body",
+                "content-type",
+                "encoding",
+                "invalid-url",
+                "configuration",
+                "no-index",
+                "knowledge-base-required"
+              ]
+            },
+            "message": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "retryable": {
+              "type": "boolean",
+              "const": false
+            },
+            "status": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 599
+            }
+          },
+          "required": [
+            "kind",
+            "message",
+            "retryable"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "connection",
+        "warnings",
+        "capability",
+        "ok",
+        "error"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

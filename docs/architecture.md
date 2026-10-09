@@ -45,6 +45,14 @@ A future ArkSpace skill may use one of four execution models:
 | ArkSpace capability | Credentials, provider fallback, quotas, or durable state are shared | Yes |
 | External tool | A domain application already owns the operation | No; the external dependency is declared |
 
+### Optional managed WeKnora connection
+
+WeKnora has two execution paths. A complete manually supplied `WEKNORA_BASE_URL` / `WEKNORA_API_KEY` pair supports independent REST/script use without the CLI. Otherwise the canonical Skill can use explicitly supported `arks` operations with the managed `connections.weknora` configuration. Partial/empty external pairs stop; the runtime never pairs an external address with a stored key, exports a key, or silently switches connection source.
+
+Unreleased source adds a WeKnora context to the same Setup workbench. It owns connection-specific editing and consent, not Provider enablement, key rotation, or search order. `arks setup weknora` accepts an exact API root, masked key, and optional default knowledge-base ID; saving is offline; an explicit request to read the configured instance authorizes network access. Authenticated managed requests may reach valid localhost, private, or public destinations without CIDR exceptions, while address validation, DNS pinning, TLS verification, redirect refusal, no-proxy transport, deadlines, and response bounds remain enforced. Existing Web contexts and global order/language remain independent.
+
+Managed operations cover verification, knowledge-base list/detail, and single-base search through additive non-Web Protocol v1 envelopes with `connection: "weknora"`, not a fabricated `ProviderId` or Web attempt. Authenticated transport reuses the pinned/DNS-validated mechanism with fixed operation routes, an informational plaintext-transport warning for HTTP, verified TLS, response bounds, no redirects/proxies, and a whole-operation cancellation/deadline. Search requires knowledge-base index preflight. No persistent health, cross-instance fallback, upload, or chat adapter is added. Other operations remain available through the independent environment path. See [ADR 0019](adr/accepted/0019-optional-weknora-managed-connection.md) and [capabilities](capabilities.md#optional-weknora-retrieval).
+
 ### `arks` CLI
 
 `arks` is both a human-facing CLI and a machine-facing execution boundary.

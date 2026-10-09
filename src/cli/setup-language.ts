@@ -52,11 +52,14 @@ const en = {
   local: "local", environment: "environment", missing: "missing", available: "available", unavailable: "unavailable", unknown: "unknown",
   yesNo: " [y/N] ",
   auth: "auth", permission: "permission", "rate-limit": "rate-limit", quota: "quota", transient: "transient", network: "network", "invalid-request": "invalid-request", "invalid-response": "invalid-response", config: "config",
-  unsupportedProvider: "Unsupported setup provider. Choose exa, tavily, firecrawl or searxng.",
+  unsupportedProvider: "Unsupported setup provider. Choose exa, tavily, firecrawl, searxng or weknora.",
   readFiles: "Setup: Unable to read or update local setup files safely; inspect their permissions and format.", readCredentials: "Setup: Unable to read the credential store safely; inspect its permissions and format.",
   owned: "Setup: Tracked owned resources require this credential and enabled provider for cleanup; clean them up first.",
   staleKey: "Setup: The selected key reference is no longer configured; refresh setup.", invalidSecret: "Setup: Credential values must be non-empty and must not contain controls or placeholders.",
   environmentRef: "Setup: The selected reference is environment-managed; change it externally or add a new local key.", sharedRef: "Setup: The selected reference is shared; unlink it or add a new local key instead.", noLocalKey: "Setup: The selected key has no local credential to replace.",
+  weknoraPartialSave: "Setup: Local credential remains stored as env:ARKSPACE_WEKNORA_API_KEY, but connection save failed; inspect local configuration before retrying.",
+  weknoraPartialRemove: "Setup: WeKnora reference was unlinked, but its local credential remains stored; inspect the orphaned credential before retrying.",
+  weknoraShared: "Setup: The WeKnora reference is shared; unlink other uses before replacing its credential.",
   partialAdd: "Setup: Local credential remains stored as {reference}, but registration failed; recover with arks key add {provider} --env {variable}.",
   partialReplace: "Setup: Local credential was replaced, but key health reset failed; inspect state before retrying.", partialRemove: "Setup: Reference was unlinked, but its local credential remains stored; remove the orphaned credential after inspecting the store.",
   noLocalInstance: "Setup: SearXNG has no local entry; environment endpoints are external. Add a local instance explicitly first.", noProvider: "Setup: Provider has no local configuration; add a key explicitly first.", invalidOrder: "Setup: Automatic provider order must be nonempty and contain no duplicates.", unknownProvider: "Setup: Unknown provider in automatic order.", invalidIdentity: "Setup: Invalid SearXNG instance identity.", staleInstance: "Setup: The selected instance is no longer configured; refresh setup.", invalidEndpoint: "Setup: Invalid SearXNG endpoint or per-instance CIDR configuration.", duplicateInstance: "SearXNG instance is already configured; permissions were not changed.", removeLastOrder: "Setup: Change automatic provider order before removing the last SearXNG instance.", invalidSearxng: "Setup: Invalid SearXNG URL.", keyedOnly: "Setup: SearXNG is keyless.", managedOnly: "Setup: Only Exa, Tavily, Firecrawl, and SearXNG are managed here.", invalidLanguage: "Setup: Setup language must be en or zh.",
@@ -86,7 +89,10 @@ const zh: Record<Message, string> = {
   statusLine: "状态：{status} | 选择：{selection}", credentialsLine: "凭据：{available} 个本地检查可用 / {total} 个引用", availabilityNote: "可用仅指本地校验，不代表 API 有效。", sourcesLine: "本地：{local} | 环境：{environment} | 缺失：{missing}", eligibleLine: "可参与新请求：{count}", healthLine: "健康：{cooldown} 冷却中 | {disabled} 已禁用 | {exhausted} 额度耗尽", liveUnchecked: "联网验证：面板不主动检查（并非实时服务状态）", instancesLine: "实例（无需密钥）：{total} | 外部：{external}", instanceHealth: "健康：{cooldown} 冷却中 | {disabled} 已禁用", reachability: "连通性：未验证（未联网检查）",
   local: "本地", environment: "环境", missing: "缺失", available: "本地检查可用", unavailable: "不可用", unknown: "未知", yesNo: " [y/是/确认，默认否] ",
   auth: "身份验证", permission: "权限", "rate-limit": "请求限流", quota: "额度", transient: "暂时故障", network: "网络", "invalid-request": "请求无效", "invalid-response": "响应无效", config: "配置",
-  unsupportedProvider: "不支持的设置 Provider。请选择 exa、tavily、firecrawl 或 searxng。",
+  weknoraPartialSave: "设置：本地凭据仍保留为 env:ARKSPACE_WEKNORA_API_KEY，但连接保存失败；重试前请检查本地配置。",
+  weknoraPartialRemove: "设置：WeKnora 引用已取消，但本地凭据仍保留；重试前请检查孤立凭据。",
+  weknoraShared: "设置：WeKnora 引用已共享；替换凭据前请先取消其他用途的引用。",
+  unsupportedProvider: "不支持的设置 Provider。请选择 exa、tavily、firecrawl、searxng 或 weknora。",
   readFiles: "设置：无法安全读取或更新本地设置文件；请检查权限和格式。",  readCredentials: "设置：无法安全读取凭据文件；请检查权限和格式。", owned: "设置：已跟踪的所属资源需要此凭据和已启用的 Provider 进行清理；请先清理这些资源。", staleKey: "设置：所选密钥引用已不在配置中；请刷新设置。", invalidSecret: "设置：凭据不能为空，也不能包含控制字符或占位符。", environmentRef: "设置：所选引用由环境管理；请在外部修改或添加新的本地密钥。", sharedRef: "设置：所选引用已共享；请取消引用或添加新的本地密钥。", noLocalKey: "设置：所选密钥没有可替换的本地凭据。", partialAdd: "设置：本地凭据已保留为 {reference}，但注册失败；请使用 arks key add {provider} --env {variable} 恢复。", partialReplace: "设置：本地凭据已替换，但密钥健康状态重置失败；重试前请检查状态文件。", partialRemove: "设置：引用已取消，但本地凭据仍保留；检查凭据文件后请删除孤立凭据。", noLocalInstance: "设置：SearXNG 没有本地配置；环境端点由外部管理。请先明确添加本地实例。", noProvider: "设置：Provider 没有本地配置；请先明确添加密钥。", invalidOrder: "设置：自动 Provider 顺序不能为空或包含重复条目。", unknownProvider: "设置：自动顺序中有未知 Provider。", invalidIdentity: "设置：SearXNG 实例标识无效。", staleInstance: "设置：所选实例已不在配置中；请刷新设置。", invalidEndpoint: "设置：SearXNG 端点或实例 CIDR 配置无效。", duplicateInstance: "SearXNG 实例已配置；权限未更改。", removeLastOrder: "设置：删除最后一个 SearXNG 实例前，请先修改自动 Provider 顺序。", invalidSearxng: "设置：SearXNG URL 无效。", keyedOnly: "设置：SearXNG 无需密钥。", managedOnly: "设置：此处仅管理 Exa、Tavily、Firecrawl 和 SearXNG。", invalidLanguage: "设置：语言必须为 en 或 zh。",
 };
 export function setupMessage(language: SetupLanguage, key: Message, values: Record<string, string | number> = {}): string {
@@ -98,7 +104,7 @@ export function initialSetupLanguage(explicit: SetupLanguage | undefined, saved:
 export function setupAffirmative(answer: string): boolean { return /^(y|yes|是|确认)$/i.test(answer.trim()); }
 
 // Exact allowlist: never echo arbitrary error messages, even ones with a Setup: prefix.
-const errorKeys: Message[] = ["readFiles", "readCredentials", "owned", "staleKey", "invalidSecret", "environmentRef", "sharedRef", "noLocalKey", "partialReplace", "partialRemove", "noLocalInstance", "noProvider", "invalidOrder", "unknownProvider", "invalidIdentity", "staleInstance", "invalidEndpoint", "duplicateInstance", "removeLastOrder", "invalidSearxng", "keyedOnly", "managedOnly", "invalidLanguage"];
+const errorKeys: Message[] = ["weknoraPartialSave", "weknoraPartialRemove", "weknoraShared", "readFiles", "readCredentials", "owned", "staleKey", "invalidSecret", "environmentRef", "sharedRef", "noLocalKey", "partialReplace", "partialRemove", "noLocalInstance", "noProvider", "invalidOrder", "unknownProvider", "invalidIdentity", "staleInstance", "invalidEndpoint", "duplicateInstance", "removeLastOrder", "invalidSearxng", "keyedOnly", "managedOnly", "invalidLanguage"];
 export function setupSafeError(language: SetupLanguage, message: string): string | undefined {
   const key = errorKeys.find(key => message === en[key] || message === `Setup: ${en[key]}`);
   if (key) return setupMessage(language, key);

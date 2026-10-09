@@ -25,6 +25,10 @@ export type FirecrawlProviderId = (typeof FIRECRAWL_PROVIDER_IDS)[number];
 export const RESEARCH_PROVIDER_IDS = ["exa", "tavily"] as const;
 export type ResearchProviderId = (typeof RESEARCH_PROVIDER_IDS)[number];
 export type Capability =
+  | "weknora.connection.verify"
+  | "weknora.knowledge-bases.list"
+  | "weknora.knowledge-bases.get"
+  | "weknora.search"
   | "web.search"
   | "web.fetch"
   | "web.content.get"

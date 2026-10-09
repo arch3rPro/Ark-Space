@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "protocolVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "capability": {
+      "type": "string",
+      "const": "weknora.knowledge-bases.list"
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "confirmed": {
+          "type": "boolean",
+          "const": true
+        },
+        "allowHttp": {
+          "default": false,
+          "description": "Ignored compatibility field; not required for HTTP. Network access still requires confirmed=true.",
+          "type": "boolean"
+        },
+        "timeoutMs": {
+          "default": 5000,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30000
+        },
+        "page": {
+          "default": 1,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "pageSize": {
+          "default": 20,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "confirmed"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "protocolVersion",
+    "capability",
+    "input"
+  ],
+  "additionalProperties": false
+}

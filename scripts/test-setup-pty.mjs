@@ -80,7 +80,7 @@ async function qualify() {
     }
     await run("npm", ["install", "--prefix", install, "--omit=dev", "--package-lock=false", artifact, ...dependencies, ...npm]);
     const executable = join(install, "node_modules/.bin/arks");
-    if ((await run(executable, ["--version"])).trim() !== "0.1.3") throw new Error("Installed arks version changed.");
+    if ((await run(executable, ["--version"])).trim() !== "0.1.4") throw new Error("Installed arks version changed.");
     const installed = parse(await run("python3", [python, "--entry", executable]), "installed PTY report");
     for (const report of [source, installed]) if (report.status !== "passed" || !report.logicalChecks) throw new Error("PTY seam did not qualify.");
     process.stdout.write(JSON.stringify({ status: "passed", platform: "linux", source, installed,

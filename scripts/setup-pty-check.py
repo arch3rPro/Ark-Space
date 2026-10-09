@@ -41,7 +41,7 @@ def environment(home, trace):
 
 
 class Session:
-    def __init__(self, entry, home, trace, rows=24, columns=80, language='en'):
+    def __init__(self, entry, home, trace, rows=24, columns=80, language='en', service=None):
         self.master, self.slave = pty.openpty()
         self.process = None
         self.raw = b''
@@ -50,7 +50,7 @@ class Session:
             self.resize(rows, columns)
             # Both executable seams use the real CLI, never a controller import.
             command = [str(entry)] if entry.name == 'arks' else ['node', str(entry)]
-            self.process = subprocess.Popen(command + ['setup', '--lang', language],
+            self.process = subprocess.Popen(command + ['setup'] + ([service] if service else []) + ['--lang', language],
                 stdin=self.slave, stdout=self.slave, stderr=self.slave,
                 env=environment(home, trace), cwd=home, start_new_session=True)
         except BaseException:
@@ -102,7 +102,8 @@ class Session:
             raise AssertionError('Timed out: ' + description)
 
     def wait(self, text):
-        self.until(lambda: text in self.screen(), text)
+        frame = self.screen().replace(KEY, '<synthetic secret>').splitlines()
+        self.until(lambda: text in self.screen(), text + '\n' + '\n'.join(frame[:7] + frame[-2:]))
 
     def wait_unchanged(self, language):
         def closed_frame():
@@ -166,7 +167,9 @@ def run(entry):
             prepare(entry, home, trace, 2)
             session = Session(entry, home, trace, rows, columns, language)
             try:
-                session.wait('Configuration' if language == 'en' else '配置')
+                session.wait('Config' if language == 'en' else '配置')
+                if language == 'en':
+                    check('80-column default header shows all five services', all('[' + name + ']' in session.screen().splitlines()[0] for name in ['Exa', 'Tavily', 'Firecrawl', 'SearXNG', 'WeKnora']))
                 before = fingerprint(home)
                 session.send('\x1b[Z\x1b[C')
                 check('raw Shift-Tab and Right select Tavily in Top', '*[Tavily]' in session.screen())
@@ -247,7 +250,7 @@ def run(entry):
         prepare(entry, home, trace, 4)
         session = Session(entry, home, trace)
         try:
-            session.wait('Configuration')
+            session.wait('Config')
             before = fingerprint(home)
             session.send('\x1b[C')
             session.send('t')
@@ -269,6 +272,117 @@ def run(entry):
         finally:
             session.finish()
         check('cancelled diagnostic temporary directories removed', not any(p.is_dir() for p in home.iterdir()))
+        home = base / 'weknora'
+        prepare(entry, home, trace, 1)
+        session = Session(entry, home, trace, columns=100, service='weknora')
+        try:
+            session.wait('WeKnora configuration')
+            check('WeKnora primary list distinguishes two required and one optional setting', session.screen().count('Required ·') == 2 and session.screen().count('Optional ·') == 1)
+            empty = fingerprint(home)
+            session.send('\x1b[C\r')
+            session.wait('*API URL')
+            check('empty WeKnora edits only selected address', '*API key' not in session.screen() and 'KB ID' not in session.screen())
+            session.send('\r')
+            session.send('https://kb.example/prefix/api/v1')
+            session.send('\r\x13')
+            # Require the table label delimiter; "Setting" alone also matches menu "Settings".
+            session.wait('│   Setting ')
+            check('incomplete WeKnora address remains session-only without file changes', fingerprint(home) == empty and 'Draft · add key' in session.screen())
+            session.send('\x1b[B')
+            session.send('e')
+            session.wait('*API key')
+            check('empty WeKnora edits only selected key', '*API URL' not in session.screen() and 'KB ID' not in session.screen())
+            session.send('\r')
+            session.send(KEY)
+            session.send('\r\x13')
+            session.wait('│   Setting ')
+            session.wait('Configured · not tested')
+            session.send('\x1b[B')
+            session.send('e')
+            session.wait('KB ID')
+            session.send('\r')
+            session.send('kb-default')
+            session.send('\r\x13')
+            session.wait('│   Setting ')
+            session.send('\x1b[A\x1b[A')
+            connection = json.loads((home / 'config.json').read_text())['connections']['weknora']
+            check('WeKnora real PTY saves explicit API prefix and offline default', connection['baseUrl'] == 'https://kb.example/prefix/api/v1' and connection['defaultKnowledgeBaseId'] == 'kb-default')
+            check('WeKnora real PTY stores dedicated credential separately', json.loads((home / 'credentials.json').read_text())['values']['ARKSPACE_WEKNORA_API_KEY'] == KEY and KEY not in (home / 'config.json').read_text())
+            check('WeKnora save stays offline and outside Web order', trace.read_text() == '' and 'weknora' not in json.loads((home / 'config.json').read_text())['providerOrder'])
+            before = fingerprint(home)
+            session.send('e')
+            session.wait('*API URL')
+            check('WeKnora selected address edit has one field', '*API key' not in session.screen() and 'KB ID' not in session.screen())
+            session.send('\x13')
+            session.wait('│   Setting ')
+            check('WeKnora unchanged field save has no writes', fingerprint(home) == before)
+            session.send('\x1b[B')
+            session.send('e')
+            session.wait('*API key')
+            session.wait(str(len(KEY)) + ' characters')
+            check('WeKnora selected key edit is masked and field-specific', '*API URL' not in session.screen() and 'KB ID' not in session.screen() and KEY not in session.screen())
+            session.send('\x13')
+            session.wait('│   Setting ')
+            session.send('p')
+            session.wait('API key preview')
+            session.wait('Show full')
+            check('WeKnora real PTY preview starts masked without requests or writes', KEY not in session.screen() and fingerprint(home) == before and trace.read_text() == '')
+            session.send('\x1b')
+            session.wait('│   Setting ')
+            session.send('\x1b[B')
+            session.send('e')
+            session.wait('KB ID')
+            check('WeKnora selected default edit has no address or secret field', '*API URL' not in session.screen() and '*API key' not in session.screen())
+            session.send('\r\x05')
+            session.send('\x7f' * len('kb-default'))
+            session.send('kb-pty-new')
+            session.send('\r\x13')
+            session.wait('│   Setting ')
+            updated = json.loads((home / 'config.json').read_text())['connections']['weknora']
+            expected = dict(connection, defaultKnowledgeBaseId='kb-pty-new')
+            check('WeKnora per-field save changes only default and keeps credential bytes', updated == expected and fingerprint(home)['credentials.json'] == before['credentials.json'])
+            before = fingerprint(home)
+            session.send('t')
+            session.wait('Test connection')
+            session.send('\r')
+            session.wait('│   Setting ')
+            check('WeKnora probe defaults Cancel without requests or writes', trace.read_text() == '' and fingerprint(home) == before)
+            session.send('d')
+            session.wait('Remove local connection')
+            session.send('\r')
+            check('WeKnora removal defaults Cancel', fingerprint(home) == before)
+            session.send('d')
+            session.wait('Remove local connection')
+            session.send('\x1b[C\r')
+            session.wait('Not configured')
+            check('WeKnora confirmed removal unlinks local connection and unshared key', 'connections' not in json.loads((home / 'config.json').read_text()) and 'ARKSPACE_WEKNORA_API_KEY' not in json.loads((home / 'credentials.json').read_text())['values'])
+            removed = fingerprint(home)
+            session.send('\x1b[A')
+            session.send('e')
+            session.wait('*API key')
+            session.send('\r')
+            session.send(KEY)
+            session.send('\r\x13')
+            session.wait('│   Setting ')
+            session.send('p')
+            session.wait('API key preview')
+            check('WeKnora pending key preview is masked and marked unsaved', 'not saved' in session.screen() and KEY not in session.screen() and fingerprint(home) == removed)
+            session.send('\x1b')
+            session.wait('│   Setting ')
+            session.send('\x1b\x1b')
+            session.wait('Discard unsaved drafts and exit?')
+            session.send('\r')
+            session.wait('│   Setting ')
+            process = session.process
+            assert process is not None
+            check('WeKnora draft exit defaults Cancel and keeps the draft without writes', 'Draft · add address' in session.screen() and fingerprint(home) == removed and process.poll() is None)
+            session.send('\x1b')
+            session.wait('Discard unsaved drafts and exit?')
+            session.send('\x1b[C\r')
+            session.until(lambda: process.poll() is not None, 'confirmed draft discard exits')
+            check('WeKnora confirmed exit discards incomplete secret without file writes', process.returncode == 0 and fingerprint(home) == removed)
+        finally:
+            session.finish()
     return {'status': 'passed', 'platform': 'linux', 'qualification': 'real PTY; synthetic fetch only; no real services or human UX acceptance',
             'unverified': ['Windows real TTY', 'macOS real TTY'], 'logicalChecks': len(checks), 'checks': checks}
 

@@ -10,6 +10,8 @@ import { executeWebFetch } from "../capabilities/web-fetch.js";
 import { executeWebMap } from "../capabilities/web-map.js";
 import { executeWebRelated } from "../capabilities/web-related.js";
 import { executeWebSearch } from "../capabilities/web-search.js";
+import { executeWeknoraRetrieval } from "../capabilities/weknora-retrieval.js";
+import { executeWeknoraVerify } from "../capabilities/weknora-verify.js";
 import { resolveArkSpacePaths, type ArkSpacePaths } from "../config/paths.js";
 import { loadConfig } from "../config/store.js";
 import { ProviderError } from "../errors/provider-error.js";
@@ -20,7 +22,7 @@ import { parseSiteMonitorCheckGetRequest, parseSiteMonitorChecksRequest, parseSi
 import type { Capability } from "./types.js";
 
 export const CAPABILITIES = [
-  "web.search", "web.fetch", "web.content.get", "web.map", "web.crawl", "web.related", "web.extract", "code.context", "research.run",
+  "weknora.connection.verify", "weknora.knowledge-bases.list", "weknora.knowledge-bases.get", "weknora.search", "web.search", "web.fetch", "web.content.get", "web.map", "web.crawl", "web.related", "web.extract", "code.context", "research.run",
   "browser.open", "browser.snapshot", "browser.interact", "browser.status", "browser.close",
   "monitor.create", "monitor.list", "monitor.status", "monitor.update", "monitor.pause", "monitor.resume", "monitor.trigger", "monitor.delete", "monitor.runs", "monitor.run.get",
   "monitor.site.create", "monitor.site.list", "monitor.site.status", "monitor.site.update", "monitor.site.pause", "monitor.site.resume", "monitor.site.trigger", "monitor.site.delete", "monitor.site.checks", "monitor.site.check.get",
@@ -29,11 +31,15 @@ export const CAPABILITIES = [
 export interface InvokeOptions {
   paths?: ArkSpacePaths;
   environment?: NodeJS.ProcessEnv;
+  /** Snapshot captured before credential hydration; never infer from environment. */
+  originalEnvironment?: NodeJS.ProcessEnv;
   signal?: AbortSignal;
 }
 
 export async function invokeCapability(capability: Capability, request: unknown, options: InvokeOptions = {}): Promise<{ ok: boolean }> {
-  const paths = options.paths ?? resolveArkSpacePaths(options.environment);
+  const paths = options.paths ?? resolveArkSpacePaths(capability.startsWith("weknora.") ? options.originalEnvironment : options.environment);
+  if (capability === "weknora.connection.verify") return executeWeknoraVerify(request, paths, options.originalEnvironment, options.signal);
+  if (capability === "weknora.knowledge-bases.list" || capability === "weknora.knowledge-bases.get" || capability === "weknora.search") return executeWeknoraRetrieval(capability, request, paths, options.originalEnvironment, options.signal);
   const config = await loadConfig(paths.config);
   const providerContext = { config, statePath: paths.state, ...(options.environment ? { environment: options.environment } : {}), ...(options.signal ? { signal: options.signal } : {}) };
   switch (capability) {

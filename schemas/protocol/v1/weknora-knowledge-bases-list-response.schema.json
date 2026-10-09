@@ -1,0 +1,233 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "connection": {
+          "type": "string",
+          "const": "weknora"
+        },
+        "warnings": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "capability": {
+          "type": "string",
+          "const": "weknora.knowledge-bases.list"
+        },
+        "ok": {
+          "type": "boolean",
+          "const": true
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "managed",
+            "environment"
+          ]
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "knowledgeBases": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 16000
+                  },
+                  "type": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "capabilities": {
+                    "type": "object",
+                    "properties": {
+                      "vector": {
+                        "type": "boolean"
+                      },
+                      "keyword": {
+                        "type": "boolean"
+                      },
+                      "wiki": {
+                        "type": "boolean"
+                      },
+                      "graph": {
+                        "type": "boolean"
+                      },
+                      "faq": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "vector",
+                      "keyword",
+                      "wiki",
+                      "graph",
+                      "faq"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "capabilities"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "page": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            },
+            "pageSize": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          "required": [
+            "knowledgeBases"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "connection",
+        "warnings",
+        "capability",
+        "ok",
+        "source",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "connection": {
+          "type": "string",
+          "const": "weknora"
+        },
+        "warnings": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "capability": {
+          "type": "string",
+          "const": "weknora.knowledge-bases.list"
+        },
+        "ok": {
+          "type": "boolean",
+          "const": false
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "managed",
+            "environment"
+          ]
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "invalid-request",
+                "config",
+                "http-consent",
+                "auth",
+                "permission",
+                "rate-limit",
+                "http-status",
+                "business-failure",
+                "invalid-response",
+                "blocked-address",
+                "dns",
+                "redirect",
+                "timeout",
+                "cancelled",
+                "network",
+                "headers",
+                "body",
+                "content-type",
+                "encoding",
+                "invalid-url",
+                "configuration",
+                "no-index",
+                "knowledge-base-required"
+              ]
+            },
+            "message": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "retryable": {
+              "type": "boolean",
+              "const": false
+            },
+            "status": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 599
+            }
+          },
+          "required": [
+            "kind",
+            "message",
+            "retryable"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "connection",
+        "warnings",
+        "capability",
+        "ok",
+        "error"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

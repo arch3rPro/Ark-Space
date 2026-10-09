@@ -3,6 +3,8 @@ import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { BlockList, isIP } from "node:net";
 import { TextDecoder } from "node:util";
+import { WeknoraConnectionSchema, WEKNORA_MANAGED_KEY_REF } from "../config/schema.js";
+import { validateCredentialValue } from "../config/credentials.js";
 
 /** Internal transport only. Not registered with the public provider registry. */
 export type LocalHttpErrorKind = "invalid-url" | "blocked-address" | "dns" | "redirect" | "timeout" | "cancelled" | "network" | "headers" | "body" | "content-type" | "encoding" | "http-status" | "configuration";
@@ -93,11 +95,11 @@ function parseUrl(value: string): URL {
   return url;
 }
 
-function checkAddress(value: string, allowed: BlockList): { address: string; family: 4 | 6 } {
+function checkAddress(value: string, allowed?: BlockList): { address: string; family: 4 | 6 } {
   const ip = addressInfo(value);
   if (!ip) throw new LocalHttpError("dns");
   const kind = ip.family === 4 ? "ipv4" : "ipv6";
-  if (!allowed.check(ip.address, kind) && (ip.family === 4 ? denied4.check(ip.address, kind) : !global6.check(ip.address, kind) || denied6.check(ip.address, kind))) {
+  if (allowed && !allowed.check(ip.address, kind) && (ip.family === 4 ? denied4.check(ip.address, kind) : !global6.check(ip.address, kind) || denied6.check(ip.address, kind))) {
     throw new LocalHttpError("blocked-address");
   }
   return ip;
@@ -105,13 +107,52 @@ function checkAddress(value: string, allowed: BlockList): { address: string; fam
 
 /** Performs one pinned DNS resolution per hop; no proxy, cookies, credentials, or automatic redirects. */
 export async function localHttpGet(input: string, options: LocalHttpOptions = {}): Promise<LocalHttpResponse> {
+  return pinnedGet(input, options);
+}
+
+/** Narrow authenticated route, never arbitrary URL/header forwarding. Redirects are
+ * forbidden independently of options; TLS validation uses Node's secure default. */
+export async function localHttpWeknoraVerify(baseUrl: string, apiKey: string, options: LocalHttpOptions = {}): Promise<LocalHttpResponse> {
+  const parsed = WeknoraConnectionSchema.safeParse({ baseUrl, apiKeyRef: WEKNORA_MANAGED_KEY_REF, allowRanges: options.allowRanges ?? [] });
+  const key = validateCredentialValue(apiKey);
+  if (!parsed.success || !key || /[^\x21-\x7e]/.test(key) || Buffer.byteLength(key) > 4096) throw new LocalHttpError("configuration");
+  return pinnedGet(`${parsed.data.baseUrl}/auth/me`, { ...options, maxRedirects: 0, maxHeaderBytes: 16 * 1024, maxBodyBytes: 64 * 1024, timeoutMs: Math.min(options.timeoutMs ?? 5000, 5000) }, key);
+}
+
+/** Operation-specific authenticated read routes only; not an arbitrary proxy. */
+export async function localHttpWeknoraRetrieve(baseUrl: string, apiKey: string, operation:
+  | { kind: "list"; page: number; pageSize: number }
+  | { kind: "get"; knowledgeBaseId: string }
+  | { kind: "search"; knowledgeBaseId: string; query: string; limit: number }, options: LocalHttpOptions = {}): Promise<LocalHttpResponse> {
+  const parsed = WeknoraConnectionSchema.safeParse({ baseUrl, apiKeyRef: WEKNORA_MANAGED_KEY_REF, allowRanges: options.allowRanges ?? [] });
+  const key = validateCredentialValue(apiKey);
+  if (!parsed.success || !key || /[^\x21-\x7e]/.test(key) || Buffer.byteLength(key) > 4096) throw new LocalHttpError("configuration");
+  let path: string, body: string | undefined;
+  if (operation.kind === "list") {
+    if (!positiveInteger(operation.page, 10_000) || !positiveInteger(operation.pageSize, 100)) throw new LocalHttpError("configuration");
+    path = `/knowledge-bases?page=${operation.page}&page_size=${operation.pageSize}`;
+  } else {
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(operation.knowledgeBaseId)) throw new LocalHttpError("configuration");
+    path = `/knowledge-bases/${operation.knowledgeBaseId}`;
+    if (operation.kind === "search") {
+      if (typeof operation.query !== "string" || !operation.query.trim() || operation.query.length > 4000 || !positiveInteger(operation.limit, 100)) throw new LocalHttpError("configuration");
+      path += "/hybrid-search?resource_urls=handle";
+      body = JSON.stringify({ query_text: operation.query, match_count: operation.limit });
+    }
+  }
+  return pinnedGet(`${parsed.data.baseUrl}${path}`, { ...options, maxRedirects: 0, maxHeaderBytes: 16 * 1024, maxBodyBytes: 2 * 1024 * 1024, timeoutMs: Math.min(options.timeoutMs ?? 5000, 30_000) }, key, body);
+}
+
+async function pinnedGet(input: string, options: LocalHttpOptions, apiKey?: string, body?: string): Promise<LocalHttpResponse> {
   if (options.trustEnvProxy) throw new LocalHttpError("configuration");
   const redirects = options.maxRedirects ?? 5;
   const headerLimit = options.maxHeaderBytes ?? 16 * 1024;
   const bodyLimit = options.maxBodyBytes ?? 2 * 1024 * 1024;
   const timeout = options.timeoutMs ?? 10_000;
   if (!Number.isSafeInteger(redirects) || redirects < 0 || redirects > 20 || !positiveInteger(headerLimit, 64 * 1024) || !positiveInteger(bodyLimit, 16 * 1024 * 1024) || !positiveInteger(timeout, 120_000)) throw new LocalHttpError("configuration");
-  const allowed = ranges(options.allowRanges ?? []);
+  // Only the fixed authenticated WeKnora wrappers supply apiKey. Their configured
+  // destination may be any valid IP; unauthenticated Web/SearXNG keeps its deny list.
+  const allowed = apiKey === undefined ? ranges(options.allowRanges ?? []) : undefined;
   let url = parseUrl(input);
   const deadline = Date.now() + timeout;
   const resolve = options.lookup ?? (async (hostname: string) => dnsLookup(hostname, { all: true, verbatim: true }));
@@ -139,9 +180,9 @@ export async function localHttpGet(input: string, options: LocalHttpOptions = {}
         Promise.resolve().then(() => resolve(hostname)).then((result) => finish(undefined, result), () => finish(new LocalHttpError("dns")));
       });
     } catch (error) { throw error instanceof LocalHttpError ? error : new LocalHttpError("dns"); }
-    if (!addresses.length || addresses.length > 256) throw new LocalHttpError("dns");
+    if (!Array.isArray(addresses) || !addresses.length || addresses.length > 256) throw new LocalHttpError("dns");
     const validated = addresses.map((entry) => {
-      if (entry.family !== isIP(entry.address)) throw new LocalHttpError("dns");
+      if (!entry || typeof entry.address !== "string" || entry.family !== isIP(entry.address)) throw new LocalHttpError("dns");
       const ip = checkAddress(entry.address, allowed);
       if (entry.family !== ip.family && !(entry.family === 6 && ip.family === 4)) throw new LocalHttpError("dns");
       return ip;
@@ -153,8 +194,9 @@ export async function localHttpGet(input: string, options: LocalHttpOptions = {}
       let settled = false;
       const fail = (kind: LocalHttpErrorKind, status?: number) => { if (!settled) { settled = true; reject(new LocalHttpError(kind, status)); request.destroy(); } };
       const request = (url.protocol === "https:" ? httpsRequest : httpRequest)(url, {
-        method: "GET", agent: false, maxHeaderSize: headerLimit,
-        headers: { accept: "text/*, application/json, application/xml", "accept-encoding": "identity" },
+        method: body === undefined ? "GET" : "POST", agent: false, maxHeaderSize: headerLimit,
+        ...(apiKey && url.protocol === "https:" ? { rejectUnauthorized: true } : {}),
+        headers: { accept: apiKey ? "application/json" : "text/*, application/json, application/xml", "accept-encoding": "identity", ...(apiKey ? { "X-API-Key": apiKey } : {}), ...(body === undefined ? {} : { "content-type": "application/json", "content-length": Buffer.byteLength(body) }) },
         // Node requests all addresses by default (autoSelectFamily). Honour the
         // lookup callback's `all` contract while returning only the vetted IP.
         lookup: (_host, opts, cb) => {
@@ -165,6 +207,7 @@ export async function localHttpGet(input: string, options: LocalHttpOptions = {}
         if (settled) { response.destroy(); return; }
         const status = response.statusCode ?? 0;
         const location = response.headers.location;
+        if (apiKey && status >= 300 && status < 400) { fail("redirect", status); return; }
         if (status >= 300 && status < 400 && location) {
           settled = true;
           resolveResult({ status, location, contentType: "", text: "" });
@@ -198,7 +241,7 @@ export async function localHttpGet(input: string, options: LocalHttpOptions = {}
       options.signal?.addEventListener("abort", abort, { once: true });
       request.on("error", (error: NodeJS.ErrnoException) => fail(error.code === "HPE_HEADER_OVERFLOW" ? "headers" : "network"));
       request.on("close", () => { clearTimeout(timer); options.signal?.removeEventListener("abort", abort); });
-      request.end();
+      request.end(body);
       if (options.signal?.aborted) abort();
     });
     if (result.location !== undefined) {

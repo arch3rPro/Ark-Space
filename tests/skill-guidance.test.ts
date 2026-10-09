@@ -58,6 +58,21 @@ describe("canonical Skill guidance", () => {
       expect(report, requirement).toContain(requirement);
   });
 
+  it("keeps WeKnora managed configuration optional with explicit source and operation boundaries", async () => {
+    const content = await readFile(resolve(skillsRoot, "weknora/SKILL.md"), "utf8");
+    const managed = await readFile(resolve(skillsRoot, "weknora/references/managed.md"), "utf8");
+    expect(content).toContain("`arks` is not required");
+    expect(content).toContain("**Only one supplied:** stop");
+    expect(content).toContain("never reads private ArkSpace configuration or credential files");
+    expect(content).toContain("references/managed.md");
+    for (const capability of ["weknora.connection.verify", "weknora.knowledge-bases.list", "weknora.knowledge-bases.get", "weknora.search"]) expect(managed).toContain(capability);
+    expect(managed).toContain("single-base search only");
+    expect(managed).toContain("Do not extract a stored key");
+    expect(managed).toContain("explicit request to access their selected instance supplies network consent");
+    expect(managed).toContain("not an additional confirmation or permission requirement");
+    expect(managed).not.toContain('"allowHttp":');
+  });
+
   it("keeps every published Skill self-contained when copied without siblings", async () => {
     const temporary = await mkdtemp(
       join(tmpdir(), "arkspace-isolated-skills-"),

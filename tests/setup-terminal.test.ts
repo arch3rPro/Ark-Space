@@ -98,6 +98,29 @@ it("places provider status in the roomy header and falls back below the compact 
   expect(screen.split("\n")[0]).toContain("SearXNG");
   expect(screen.split("\n")[2]).toContain("Reference");
 });
+it.each([60, 80, 90, 100])("fits service tabs at %s columns without moving summary or body and keeps the selected tab visible", columns => {
+  vi.stubEnv("NO_COLOR", "1");
+  const { terminal, write } = terminalFixture(24, columns);
+  terminal.render({ ...snapshot(), focus: "top" });
+  const baseline = plain(write.mock.calls.at(-1)![0]).split("\n");
+  for (let providerIndex = 0; providerIndex < 5; providerIndex++) {
+    const providers = [...snapshot().providers, "WeKnora"];
+    terminal.render({ ...snapshot(), providers, providerIndex, focus: "top" });
+    const lines = plain(write.mock.calls.at(-1)![0]).split("\n");
+    expect(lines[0]).toContain(`*[${providers[providerIndex]}]`);
+    if (columns === 80 || columns === 100) for (const name of providers) expect(lines[0]).toContain(`[${name}]`);
+    expect(lines.slice(1)).toEqual(baseline.slice(1));
+    expect(lines.every(line => cellWidth(line) === columns - 1)).toBe(true);
+  }
+  vi.unstubAllEnvs();
+});
+it("highlights the fifth service in color without losing its complete label", () => {
+  vi.stubEnv("NO_COLOR", ""); vi.stubEnv("TERM", "xterm");
+  const { terminal, write } = terminalFixture();
+  terminal.render({ ...snapshot(), providers: [...snapshot().providers, "WeKnora"], providerIndex: 4, focus: "top" });
+  expect(String(write.mock.calls.at(-1)![0])).toContain("\x1b[30;46;1;4m[WeKnora]");
+  vi.unstubAllEnvs();
+});
 it("shows live grapheme masks/count and moves the caret through an editable horizontal window", async () => {
   const { input, output, write, terminal } = terminalFixture(16, 60);
   const pending = terminal.form(snapshot, { title: "Key", fields: [{ label: "API key", secret: true }], notes: "", save: "Save", cancel: "Cancel", rejected: "Rejected" });
@@ -405,6 +428,101 @@ it("rejects C0/paste payload in page discard mode before any following button in
     input.write("\x00bad\nprivate"); input.write("\x1b[C"); input.write("\r"); await new Promise(resolve => setTimeout(resolve, 180));
     expect(settled).toBe(false); input.write("\r"); input.write("\x13"); expect(await pending).toEqual(["draft"]);
   } finally { controller.abort(); await pending.catch(() => {}); }
+});
+it.each(["en", "zh"] as const)("keeps the 19-cell menu and stable half/quarter table budgets (%s)", language => {
+  const { terminal, write, output } = terminalFixture();
+  const menu = language === "en" ? snapshot().menu : ["供应商", "配置", "设置", "退出"];
+  for (const columns of [80, 100, 120]) {
+    Object.assign(output, { columns });
+    const tableWidth = columns - 31; // frame, 19-cell menu, marker and two-space gaps
+    const principalWidth = Math.floor(tableWidth / 2);
+    const sourceWidth = Math.floor((tableWidth - principalWidth) / 2);
+    const statusWidth = tableWidth - principalWidth - sourceWidth;
+    const first = 24; const source = first + principalWidth + 2; const status = source + sourceWidth + 2;
+    const url = "https://example.com/" + "long-path/".repeat(20);
+    const view = { ...snapshot(), language, menu, selected: 0, hints: [],
+      columns: ["URL", "Source", "Status"], cells: [[url, "local", "disabled"]] };
+    for (const focus of ["content", "menu"] as const) {
+      terminal.render({ ...view, focus });
+      const rendered = plain(write.mock.calls.at(-1)![0]).split("\n");
+      expect(cellWidth(rendered[2]!.slice(0, rendered[2]!.indexOf("│", 1) + 1))).toBe(19);
+      for (const label of menu) expect(rendered.join("\n")).toContain(label);
+      // Normalize only the menu's UTF-16 length; table assertions use cell offsets.
+      const lines = rendered.map(line => line.replace(/^│.*?│/, " ".repeat(19)));
+      expect(lines[2]!.slice(first, source)).toBe("URL".padEnd(principalWidth) + "  ");
+      expect(lines[2]!.slice(source, status)).toBe("Source".padEnd(sourceWidth) + "  ");
+      expect(lines[2]!.slice(status, status + statusWidth)).toBe("Status".padEnd(statusWidth));
+      expect(sourceWidth).toBeGreaterThanOrEqual(Math.floor(tableWidth / 4));
+      expect(statusWidth).toBeGreaterThanOrEqual(Math.floor(tableWidth / 4));
+      expect(lines[3]!.slice(first, source)).toBe(clipCells(url, principalWidth).padEnd(principalWidth) + "  ");
+      expect(lines[3]!.slice(source, status)).toBe("local".padEnd(sourceWidth) + "  ");
+      expect(lines[3]!.slice(status, status + statusWidth)).toBe("disabled".padEnd(statusWidth));
+      expect(lines.every(line => cellWidth(line) === columns - 1)).toBe(true);
+      terminal.render({ ...view, focus, cells: [["reference", "environment override", "cooldown 120s"]] });
+      const longLines = plain(write.mock.calls.at(-1)![0]).split("\n").map(line => line.replace(/^│.*?│/, " ".repeat(19)));
+      expect(longLines[2]).toBe(lines[2]);
+      expect(longLines[3]!.slice(source, status)).toBe(clipCells("environment override", sourceWidth).padEnd(sourceWidth) + "  ");
+      expect(longLines[3]!.slice(status, status + statusWidth)).toBe(clipCells("cooldown 120s", statusWidth).padEnd(statusWidth));
+      if (columns === 120) expect(longLines[3]).toContain("environment override");
+      expect(longLines.every(line => cellWidth(line) === columns - 1)).toBe(true);
+    }
+    terminal.render({ ...view, columns: ["Setting", "Value"], cells: [["URL", "https://example.com/knowledge-base"]] });
+    expect(plain(write.mock.calls.at(-1)![0])).toContain("URL      https://example.com/knowledge-base");
+    terminal.render({ ...view, route: "order", columns: ["Provider", "Position", "Status"], cells: [["Firecrawl", "#3", "enabled"]] });
+    expect(plain(write.mock.calls.at(-1)![0])).toMatch(/Firecrawl\s{2,}#3\s{2,}enabled/);
+    terminal.render({ ...view, route: "language", columns: ["Language", "Status"], cells: [["English", "selected"]] });
+    expect(plain(write.mock.calls.at(-1)![0])).toMatch(/English\s{2,}selected/);
+    terminal.render({ ...view, route: "language", columns: ["Language"], cells: [["English"]] });
+    expect(plain(write.mock.calls.at(-1)![0])).toContain("> English");
+    terminal.render({ ...view, cells: [] });
+    expect(plain(write.mock.calls.at(-1)![0])).toContain(language === "en" ? "No objects" : "无对象");
+  }
+});
+it("keeps required Chinese two-column setting labels readable at 60 columns", () => {
+  const { terminal, write } = terminalFixture(16, 60);
+  const labels = ["API 根地址", "API 密钥", "默认知识库", "私有网络授权"];
+  terminal.render({ ...snapshot(), language: "zh", menu: ["供应商", "配置", "设置", "退出"],
+    columns: ["设置", "值"], cells: labels.map(label => [label, "value"]), selected: 0, hints: [] });
+  const lines = plain(write.mock.calls.at(-1)![0]).split("\n");
+  for (const label of labels) expect(lines.join("\n")).toContain(label);
+  expect(cellWidth(lines[2]!.slice(0, lines[2]!.indexOf("│", 1) + 1))).toBe(19);
+  expect(lines.every(line => cellWidth(line) === 59)).toBe(true);
+});
+it.each(["en", "zh"] as const)("aligns page form caret with its rendered field through resize (%s)", async language => {
+  const { terminal, write, input, output } = terminalFixture(16, 60);
+  const view = () => ({ ...snapshot(), language, menu: language === "en" ? snapshot().menu : ["供应商", "配置", "设置", "退出"] });
+  const pending = terminal.form(view, { presentation: "page", title: "Edit", fields: [{ label: "URL", value: "https://example.com/" + "x".repeat(100) }], notes: "", save: "Save", cancel: "Cancel", rejected: "Rejected" });
+  try {
+    input.write("\r");
+    for (const columns of [60, 100, 80, 60]) {
+      Object.assign(output, { columns, rows: columns === 60 ? 16 : 24 }); output.emit("resize");
+      const lines = plain(write.mock.calls.at(-2)![0]).split("\n");
+      const cursor = /\x1b\[(\d+);(\d+)H/.exec(String(write.mock.calls.at(-1)![0]))!;
+      expect(Number(cursor[1])).toBe(4);
+      expect(Number(cursor[2])).toBe(cellWidth(lines[3]!.slice(0, lines[3]!.indexOf("]"))) + 1);
+      expect(lines.every(line => cellWidth(line) === columns - 1)).toBe(true);
+      expect(cellWidth(lines[3]!.slice(0, lines[3]!.indexOf("│", 1) + 1))).toBe(19);
+      expect(lines[3]).toContain("URL      │ > [");
+    }
+    input.write("\x13"); await pending;
+  } finally { input.write("\x03"); await pending.catch(() => {}); }
+});
+it("keeps masked modal fields and caret aligned after supported resizes", async () => {
+  const { input, output, write, terminal } = terminalFixture();
+  const pending = terminal.form(snapshot, { title: "Key", fields: [{ label: "API key", secret: true, value: "fixture-only-secret" }], notes: "", save: "Save", cancel: "Cancel", rejected: "Rejected" });
+  try {
+    for (const columns of [60, 100, 80]) {
+      Object.assign(output, { columns, rows: columns === 60 ? 16 : 24 }); output.emit("resize");
+      const lines = plain(write.mock.calls.at(-2)![0]).split("\n");
+      const cursor = /\x1b\[(\d+);(\d+)H/.exec(String(write.mock.calls.at(-1)![0]))!;
+      const field = lines[Number(cursor[1]) - 1]!;
+      expect(field).toContain("API key"); expect(field).toContain("19 characters");
+      expect(Number(cursor[2])).toBe(cellWidth(field.slice(0, field.indexOf("]"))) + 1);
+      expect(lines.every(line => cellWidth(line) === columns - 1)).toBe(true);
+      expect(lines.join("\n")).not.toContain("fixture-only-secret");
+    }
+    input.write("\t"); input.write("\r"); expect(await pending).toBeUndefined();
+  } finally { input.write("\x03"); await pending.catch(() => {}); }
 });
 it("does not send alternate-buffer sequences to a non-TTY", () => {
   const { input, write, terminal } = terminalFixture(); Object.assign(input, { isTTY: false });

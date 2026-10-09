@@ -5,7 +5,7 @@ ArkSpace has two installable surfaces:
 1. **Agent Skills** provide operation guidance for `web`, `research`, `browser`, `monitor`, and `weknora`.
 2. **`arks` CLI** provides shared Provider execution, credential handling, owned resources, and MCP stdio.
 
-Provider-backed Skills need both surfaces. `weknora` is an external-tool Skill: it needs neither, and instead requires its own `WEKNORA_BASE_URL` and `WEKNORA_API_KEY`. Node.js 20 or newer is required.
+Provider-backed Skills need both surfaces. `weknora` can run independently with `WEKNORA_BASE_URL` and `WEKNORA_API_KEY`, without the CLI. The prepared 0.1.4 release candidate additionally offers an optional managed connection for supported retrieval operations; it is not yet published. Node.js 20 or newer is required for the CLI and the Skill's SSE script.
 
 ## Give this to your Agent
 
@@ -28,16 +28,14 @@ An Agent performing the installation must:
 
 ## Install the CLI
 
-See [0.1.3 release notes](release/0.1.3.md) for features, verification evidence, and qualification limits.
-
-Install the pinned release:
+See [0.1.4 release candidate notes](release/0.1.4.md) for features, verification evidence, and qualification limits. The following pinned installation is available only after publication:
 
 ```bash
-npm install --global @arkspace/cli@0.1.3
+npm install --global @arkspace/cli@0.1.4
 arks --version
 ```
 
-Expected version: `0.1.3`.
+Expected version after publication: `0.1.4`.
 
 ## Install the Skills
 
@@ -89,7 +87,7 @@ node dist/cli/main.js setup exa --lang en
 # Direct Provider menus also accept tavily, firecrawl, or searxng.
 ```
 
-The reference-driven Setup TUI rebuild is included in 0.1.3. Automated Linux source and offline installed-entry PTY qualification passed; human UX acceptance remains pending. It has three primary focus regions: Top (Exa/Tavily/Firecrawl/SearXNG provider context), Menu (Providers/Configuration/Settings/Exit), and Content. Tab/Shift-Tab cycles the three regions. Top Left/Right switches provider; `[`/`]` remain advertised alternates, and Down/Enter enters Content. Menu Up/Down selects a function, Enter opens it, and Right enters Content; Content Left returns to Menu. A primary resource table/list drives page-local actions; non-focusable hints wrap below the table. There are no legacy stacked toolbars or nested button-bar subfocus. Enter/`e` edits, `a` adds, `i` shows details, `p` opens secure preview, and `d` removes. Editing a stored local key preloads it into a masked draft; Esc restores the field, and Ctrl-S validates before explicit overwrite consent. Add starts blank; unchanged saves close without a write or replacement consent. Space toggles selected-key enablement; `V`/`v` toggles provider enablement; `t` opens a Cancel-default choice between one normal round-robin pool test (five seconds total) and sequential tests of every configured local key reference (one request per reference, five seconds per key). The all-keys mode requires consent for possible fees and logging, uses isolated temporary state, skips missing/unusable values without requests, reports only references and classified outcomes, and does not mutate global cursor, health, or configuration or fall back to another key/provider. Esc stops it. SearXNG remains keyless and retains its instance-pool test. Global order and language are independent: `u`/`d` reorder, Delete removes, `I` includes with confirmation, Ctrl-S saves order; language is a plain list applied with Enter. Draft editing and guarded save behavior are retained. Selected-key details include source (local, environment, or environment override), disabled state, health-failure reason, and remaining cooldown snapshot (not a live countdown while the modal is open); shared-provider status is explicit. Resource summaries group counts by kind and provide actionable cleanup guidance without authority-bearing URLs or secrets. The all-keys diagnostic shows current reference details, completed count, and recent session-only results; each result has numeric timestamp and duration. Switching provider context retains results, but cached rows are historical and do not validate the currently effective credential. Read-only navigation, preview, and details refreshes retain history; removed references are pruned. An attempted managed write (including other configuration operations) or a normal pool test clears it conservatively, and editing/removing a credential invalidates its diagnostic. History is memory-only and is never global health, cursor, or configuration. No credential values or fingerprints are kept, so external credential changes cannot be detected or reliably invalidate history. Linux PTY qualification uses standard-library Python 3 as a development-only prerequisite, not an end-user CLI dependency. Qualification evidence and caveats are tracked in the [priority-one workbench report](.scratch/setup-priority-one/report.md); human usability, real-service behavior, and Windows/macOS terminal acceptance remain unclaimed. See [ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md) and reference provenance in [NOTICE.md](NOTICE.md).
+The reference-driven Setup TUI rebuild is included in 0.1.3. Automated Linux source and offline installed-entry PTY qualification passed; human UX acceptance remains pending. It has three primary focus regions: Top (Exa/Tavily/Firecrawl/SearXNG provider context), Menu (Providers/Configuration/Settings/Exit), and Content. Tab/Shift-Tab cycles the three regions. Top Left/Right switches provider; `[`/`]` remain advertised alternates, and Down/Enter enters Content. Menu Up/Down selects a function, Enter opens it, and Right enters Content; Content Left returns to Menu. A primary resource table/list drives page-local actions; non-focusable hints wrap below the table. There are no legacy stacked toolbars or nested button-bar subfocus. Enter/`e` edits, `a` adds, `i` shows details, `p` opens secure preview, and `d` removes. Editing a stored local key preloads it into a masked draft; Esc restores the field, and Ctrl-S validates before explicit overwrite consent. Add starts blank; unchanged saves close without a write or replacement consent. Space toggles selected-key enablement; `V`/`v` toggles provider enablement; `t` opens a Cancel-default choice between one normal round-robin pool test (five seconds total) and sequential tests of every configured local key reference (one request per reference, five seconds per key). The all-keys mode requires consent for request logging, uses isolated temporary state, skips missing/unusable values without requests, reports only references and classified outcomes, and does not mutate global cursor, health, or configuration or fall back to another key/provider. Esc stops it. SearXNG remains keyless and retains its instance-pool test. Global order and language are independent: `u`/`d` reorder, Delete removes, `I` includes with confirmation, Ctrl-S saves order; language is a plain list applied with Enter. Draft editing and guarded save behavior are retained. Selected-key details include source (local, environment, or environment override), disabled state, health-failure reason, and remaining cooldown snapshot (not a live countdown while the modal is open); shared-provider status is explicit. Resource summaries group counts by kind and provide actionable cleanup guidance without authority-bearing URLs or secrets. The all-keys diagnostic shows current reference details, completed count, and recent session-only results; each result has numeric timestamp and duration. Switching provider context retains results, but cached rows are historical and do not validate the currently effective credential. Read-only navigation, preview, and details refreshes retain history; removed references are pruned. An attempted managed write (including other configuration operations) or a normal pool test clears it conservatively, and editing/removing a credential invalidates its diagnostic. History is memory-only and is never global health, cursor, or configuration. No credential values or fingerprints are kept, so external credential changes cannot be detected or reliably invalidate history. Linux PTY qualification uses standard-library Python 3 as a development-only prerequisite, not an end-user CLI dependency. Qualification evidence and caveats are tracked in the [priority-one workbench report](.scratch/setup-priority-one/report.md); human usability, real-service behavior, and Windows/macOS terminal acceptance remain unclaimed. See [ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md) and reference provenance in [NOTICE.md](NOTICE.md).
 
 Existing contracts remain: session-only `--lang en|zh` overrides saved `setupLanguage`; environment keys cannot be replaced, and unlinking references never changes external values; ownership/shared-reference guards, independent SearXNG enablement/order, narrow per-instance CIDR consent, explicit live-test consent, cancellation, and terminal restoration are preserved. Preview remains read-only and ephemeral, distinguishing stored from effective environment values without network or file writes. No-color rendering is supported. Every provider label uses constant `[Name]` brackets, three-space gaps, classic centered placement, and a distinct provider accent; these are presentation changes, not new backends.
 
@@ -110,6 +108,20 @@ arks provider list
 ```
 
 `arks key add` stores references only. In the workbench, open a new right-pane **Add** form for each additional key to append without deleting or replacing existing entries. If reference registration fails after a key is saved, the credential remains stored and the diagnostic identifies its reference without displaying the key. Do not paste keys into an Agent chat.
+
+## WeKnora optional managed connection (0.1.4 release candidate)
+
+This optional feature is prepared for 0.1.4, which is not yet published. Build this checkout using [Source development](#source-development); the pinned npm installation above is not available until publication. The human opens its configuration page in a trusted terminal:
+
+```bash
+node dist/cli/main.js setup weknora
+```
+
+Enter the exact `/api/v1` API root, a masked API key, and optional default knowledge-base ID. Saving stays offline. An explicit request to read the configured instance authorizes network access; HTTP is supported and carries an informational plaintext credential-transport warning. Valid localhost, private, and public destinations are supported without CIDR exceptions; address-format/original environment-pair validation, DNS pinning, verified TLS, refused redirects, no proxy, operation deadlines, and response bounds remain enforced. Legacy `allowRanges` values are ignored; new managed saves write an empty array. Removing the connection removes only local configuration, never remote content. Configuration stores the dedicated `env:ARKSPACE_WEKNORA_API_KEY` reference; raw keys stay in the existing private credential file, with the same plaintext-at-rest limits described above.
+
+Supported optional managed operations are connection verification, knowledge-base list/detail, and single-base search. They use `arks invoke` or the equivalent MCP tools; see [the capability reference](docs/capabilities.md#optional-weknora-connection-verification) and the Skill's [managed guide](skills/weknora/references/managed.md). WeKnora does not join Web search order, key rotation, or fallback.
+
+Manual environment configuration remains independent and takes precedence when both public variables are supplied. Supply them in your own trusted environment without pasting keys into chat or shell arguments. An incomplete/empty pair fails rather than combining a local key with an external address. A complete external pair is used as supplied and does not inherit a managed connection's default knowledge base. The Skill's environment path does not require installing `arks`; imports, document/chunk operations, multi-base search, and streamed chat continue using that path. Managed credentials are never exported to enable unsupported operations.
 
 ## SearXNG (0.1.3)
 
@@ -161,7 +173,7 @@ npx skills@latest list
 
 Installation is ready when:
 
-- `arks --version` reports `0.1.3`;
+- `arks --version` reports the version installed (the 0.1.4 pin is usable only after publication);
 - at least one required Provider is ready in `arks doctor --json`;
 - the target Agent discovers the selected ArkSpace Skills.
 
@@ -176,10 +188,10 @@ Register MCP only for hosts that need it; Skills can execute `arks` directly.
 
 ## Update
 
-Update within the 0.1 release line only after reviewing the target version:
+Update within the 0.1 release line only after publication and reviewing the target version:
 
 ```bash
-npm install --global @arkspace/cli@0.1.3
+npm install --global @arkspace/cli@0.1.4
 npx skills@latest update
 ```
 
@@ -213,4 +225,13 @@ node dist/cli/main.js provider configure searxng --base-url "https://search.exam
 node dist/cli/main.js web search "agent skills" --provider searxng --json
 ```
 
-Terminal UI setup and keyless SearXNG are included in 0.1.3. Automated verification does not establish human UX, real-service, or hosted Windows/macOS terminal qualification. These commands use the normal user-level ArkSpace configuration and credential paths; set `ARKSPACE_HOME` to a separate directory if you want isolation. When developing from source, substitute this built entry for `arks` in the earlier examples. Release and cross-platform qualification rules are documented in [Maintenance](docs/maintenance.md) and [Platform Support](docs/platform-support.md).
+Terminal UI setup and keyless SearXNG are included in 0.1.3. Automated verification does not establish human UX, real-service, or hosted Windows/macOS terminal qualification. These commands use the normal user-level ArkSpace configuration and credential paths; set `ARKSPACE_HOME` to a separate directory if you want isolation. When developing from source, substitute this built entry for `arks` in the earlier examples.
+
+With explicit permission to replace a global installation, build the reviewed checkout and pack it to a temporary directory:
+
+```bash
+npm pack --ignore-scripts --pack-destination /path/to/temporary-directory
+npm install --global --ignore-scripts /path/to/temporary-directory/arkspace-cli-0.1.4.tgz
+```
+
+Synchronize the installed WeKnora Skill from the same checkout, preserving unrelated user files, and reload the Agent's Skills. This installs a local 0.1.4 release-candidate artifact without publishing; do not infer registry availability from its version string. Updating only the CLI or only the Skill leaves managed execution unavailable. Existing connection and credential files need no changes. Release and cross-platform qualification rules are documented in [Maintenance](docs/maintenance.md) and [Platform Support](docs/platform-support.md).

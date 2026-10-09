@@ -9,6 +9,7 @@ import {
 } from "../config/manage.js";
 import { loadCredentialEnvironment, loadCredentialStore, validateCredentialValue } from "../config/credentials.js";
 import { executeWebSearch } from "../capabilities/web-search.js";
+import { SetupWeknora } from "./setup-weknora.js";
 import { testSetupKeys, type SetupKeyTestResult } from "./setup-key-tests.js";
 import { resolveWebSearchInput } from "../protocol/schema.js";
 import { FAILURE_KINDS, type ProviderId } from "../protocol/types.js";
@@ -17,11 +18,12 @@ import { ProviderError } from "../errors/provider-error.js";
 import { setupMessage, setupSafeError, type SetupLanguage } from "./setup-language.js";
 import { SetupTerminal, setupFocusHelp, type WorkbenchView, type SetupTone, type SetupFocus, type SetupRoute, type SetupHint } from "./setup-terminal.js";
 
-type PageIntent = "add" | "edit" | "details" | "preview" | "remove" | "toggleKey" | "toggleProvider" | "test" | "up" | "down" | "include" | "save" | "apply";
+type PageIntent = "connection" | "add" | "edit" | "details" | "preview" | "remove" | "toggleKey" | "toggleProvider" | "test" | "up" | "down" | "include" | "save" | "apply";
 type PageBinding = SetupHint & { intent: PageIntent; keys: string[] };
 
 const providers = ["exa", "tavily", "firecrawl", "searxng"] as const;
 const names = ["Exa", "Tavily", "Firecrawl", "SearXNG"];
+const contexts = [...providers, "weknora"] as const;
 const keyPages = { exa: "https://dashboard.exa.ai/api-keys", tavily: "https://app.tavily.com/home", firecrawl: "https://www.firecrawl.dev/app/api-keys" };
 const privateNetworks = new BlockList();
 for (const [ip, prefix] of [["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8], ["169.254.0.0", 16], ["172.16.0.0", 12], ["192.168.0.0", 16]] as const) privateNetworks.addSubnet(ip, prefix, "ipv4");
@@ -29,7 +31,9 @@ for (const [ip, prefix] of [["::", 128], ["::1", 128], ["fc00::", 7], ["fe80::",
 
 /** Real setup controller: session-only focus/drafts; all writes use existing management helpers. */
 export async function runSetupWorkbench(paths: ArkSpacePaths, terminal: SetupTerminal, initialLanguage: SetupLanguage, options: { provider?: string; environment: NodeJS.ProcessEnv; signal?: AbortSignal; onLanguageChange?: (language: SetupLanguage) => void }) {
-  let language = initialLanguage; let providerIndex = Math.max(0, providers.indexOf(options.provider as SetupProviderId));
+  let language = initialLanguage; let providerIndex = Math.max(0, contexts.indexOf(options.provider as typeof contexts[number]));
+  const connection = new SetupWeknora(paths, terminal, options.environment, () => language, options.signal);
+  const connectionPage = () => route === "providers" && contexts[providerIndex] === "weknora";
   let route = "providers" as SetupRoute; let openedMenu = 0; let menuCursor = 0;
   let focus: SetupFocus = "menu"; let row = 0;
   let current: SetupSnapshot = { providers: [], providerOrder: [] }; let orderDraft: ProviderId[] | undefined;
@@ -48,7 +52,7 @@ export async function runSetupWorkbench(paths: ArkSpacePaths, terminal: SetupTer
       ...(numeric(result.durationMs) !== undefined ? { durationMs: result.durationMs } : {}),
     });
   };
-  const selectionId = () => route === "providers" ? providers[providerIndex]! : route;
+  const selectionId = () => route === "providers" ? contexts[providerIndex]! : route;
   const t = (en: string, zh: string) => language === "zh" ? zh : en;
   const m = (key: Parameters<typeof setupMessage>[1], values?: Record<string, string | number>) => setupMessage(language, key, values);
   let status = t("Ready · unverified", "就绪 · 未联网验证"); let statusTone: SetupTone = "muted"; let lastNotice = "";
@@ -56,9 +60,9 @@ export async function runSetupWorkbench(paths: ArkSpacePaths, terminal: SetupTer
   const lifecycleTone = (state: string): SetupTone => state === "disabled" ? "danger" : state === "cooldown" || state === "exhausted" ? "warning" : "success";
   const diagnostics: string[] = [];
   const cancel = () => { if (options.signal?.aborted) throw new Error("Setup cancelled."); };
-  const p = () => current.providers.find(p => p.id === providers[providerIndex])!;
+  const p = () => current.providers.find(p => p.id === providers[providerIndex]) ?? current.providers[0]!;
   const keys = () => p().keys.filter(k => !(k.source === "missing" && !k.hasLocal && k.reference === `env:${p().id.toUpperCase()}_API_KEY`));
-  const resources = () => p().id === "searxng" ? p().instances.map(i => i.baseUrl) : keys().map(k => k.reference);
+  const resources = () => connectionPage() ? connection.page().cells.map(cell => cell[0]!) : p().id === "searxng" ? p().instances.map(i => i.baseUrl) : keys().map(k => k.reference);
   const list = () => route === "providers" ? resources() : route === "order" ? orderDraft ?? current.providerOrder : ["en", "zh"];
   const dirtyOrder = () => orderDraft !== undefined && orderDraft.join(",") !== current.providerOrder.join(",");
   const remember = () => { const identity = list()[row]; if (identity) selections.set(selectionId(), identity); positions.set(selectionId(), row); };
@@ -70,6 +74,7 @@ export async function runSetupWorkbench(paths: ArkSpacePaths, terminal: SetupTer
     // Preserve external precedence while keeping malformed injected values unavailable in the metadata view.
     const environment = Object.fromEntries(Object.entries(options.environment).map(([name, value]) => [name, typeof value === "string" ? value : ""]));
     cancel(); current = await getSetupSnapshot(paths, environment);
+    if (contexts[providerIndex] === "weknora") await connection.refresh();
     for (const id of keyDiagnostics.keys()) if (!current.providers.some(p => p.keys.some(key => diagnosticId(p.id, key.reference) === id))) keyDiagnostics.delete(id);
     const identity = selections.get(selectionId()); const entries = list(); const index = identity ? entries.indexOf(identity) : -1;
     row = index >= 0 ? index : Math.min(positions.get(selectionId()) ?? 0, Math.max(0, entries.length - 1)); remember();
@@ -77,6 +82,7 @@ export async function runSetupWorkbench(paths: ArkSpacePaths, terminal: SetupTer
   // The page binding table drives both the displayed hints and keyboard dispatch.
   // Guards still run for disabled bindings so the reason is accessible without a button cursor.
   const bindings = (): PageBinding[] => {
+    if (connectionPage()) return connection.hints(row);
     if (route === "language") return [{ intent: "apply", keys: ["return", "enter"], key: "Enter", label: t("Apply", "应用"), tone: "success" }];
     if (route === "order") return [
       { intent: "up", keys: ["u"], key: "u", label: t("Up", "上移"), reason: row === 0 ? m("boundary") : "" },
@@ -101,6 +107,7 @@ export async function runSetupWorkbench(paths: ArkSpacePaths, terminal: SetupTer
       { intent: "toggleProvider", keys: ["v", "V"], key: "v", label: t("Provider on/off", "供应商开关"),
         reason: provider.external ? m("externalToggle") : provider.enabled && provider.keys.some(k => k.ownedResources) ? m("owned") : provider.id === "searxng" && !provider.instances.length ? m("noLocalInstance") : "", tone: provider.enabled ? "success" : "danger" },
       { intent: "test", keys: ["t"], key: "t", label: t("Test provider", "测试供应商"), reason: testReason() },
+      { intent: "connection", keys: ["w"], key: "w", label: "WeKnora" },
     ];
   };
   const testReason = () => !p().enabled || !(p().id === "searxng" ? p().instances.some(i => i.status !== "disabled" && i.status !== "cooldown") : keys().length > 0)
@@ -114,8 +121,8 @@ export async function runSetupWorkbench(paths: ArkSpacePaths, terminal: SetupTer
       : route === "order" ? order.map((id, index) => [id, String(index + 1), m(current.providers.find(p => p.id === id)?.enabled ? "enabled" : "disabled")])
         : [["English", language === "en" ? t("Current", "当前") : ""], ["中文", language === "zh" ? t("Current", "当前") : ""]];
     return {
-      language, providers: names, providerIndex, menuCursor, openedMenu, route, focus,
-      menu: [t("Providers", "供应商"), t("Configuration", "配置"), t("Settings", "设置"), t("Exit", "退出")],
+      language, providers: [...names, "WeKnora"], providerIndex, menuCursor, openedMenu, route, focus,
+      menu: [providerIndex === 4 ? t("Connections", "连接") : t("Providers", "供应商"), t("Configuration", "配置"), t("Settings", "设置"), t("Exit", "退出")],
       title: route === "providers" ? names[providerIndex]! : route === "order" ? dirtyOrder() ? t("Order · unsaved", "顺序 · 未保存") : t("Order · unchanged", "顺序 · 未更改") : "Language / 语言",
       summary: route === "providers" ? `${t("Provider", "供应商")} ${provider.enabled ? t("On", "开") : t("Off", "关")} · ${provider.automaticPosition ? `${t("auto", "自动")} #${provider.automaticPosition}` : t("explicit only", "仅显式")}`
         : route === "order" ? `${t("Saved", "已保存")}: ${current.providerOrder.join(" → ")}` : t("Global setup preference", "全局设置语言"),
@@ -128,6 +135,7 @@ export async function runSetupWorkbench(paths: ArkSpacePaths, terminal: SetupTer
       hints: bindings().map(({ intent: _intent, keys: _keys, ...hint }) => hint),
       status: status + (lastNotice ? t(" · ! details", " · ! 详情") : ""), statusTone,
       footer: setupFocusHelp(focus, language),
+      ...(connectionPage() ? connection.page() : {}),
     };
   };
   const confirm = (title: string, body: string, accept: string, tone: SetupTone) => terminal.confirm(view, title, body, accept, t("Cancel", "取消"), options.signal, tone);
@@ -170,7 +178,7 @@ export async function runSetupWorkbench(paths: ArkSpacePaths, terminal: SetupTer
         const values = await terminal.form(view, {
           presentation: "page", dirty: draft !== original, error: formError, title: `${t(edit ? "Edit" : "Add", edit ? "编辑" : "添加")} ${names[providerIndex]}`,
           fields: [{ label: t("API key", "API 密钥"), secret: true, value: draft }],
-          notes: `${edit ? `${t("Target", "目标")}: ${target}\n` : ""}${keyPages[provider.id]}\n${t("Plaintext storage", "明文保存")}: ${paths.credentials}`,
+          notes: `${edit ? `${t("Target", "目标")}: ${target}\n` : ""}${keyPages[provider.id]}\n${t("Credential file", "密钥文件")}: ${paths.credentials}`,
           save: t("Save", "保存"), cancel: t("Cancel", "取消"), rejected: m("rejectedSecret"),
         }, options.signal);
         if (!values) return; draft = values[0]!; cancel();
@@ -356,7 +364,7 @@ export async function runSetupWorkbench(paths: ArkSpacePaths, terminal: SetupTer
     await refresh(); focus = "content";
   };
   const switchProvider = async (delta: number) => {
-    remember(); providerIndex = (providerIndex + delta + providers.length) % providers.length;
+    remember(); providerIndex = (providerIndex + delta + contexts.length) % contexts.length;
     // Global routes and drafts are not replaced by a context change.
     if (route === "providers") await refresh();
   };
@@ -393,6 +401,12 @@ export async function runSetupWorkbench(paths: ArkSpacePaths, terminal: SetupTer
   const dispatch = async (binding: PageBinding) => {
     // Preview re-reads sources before disclosure, including stale/missing references.
     if (binding.reason && binding.intent !== "preview") { setStatus(binding.reason, "warning"); lastNotice = binding.reason; return; }
+    if (binding.intent === "connection") { await switchProvider(4 - providerIndex); return; }
+    if (connectionPage()) {
+      try { await connection.act(binding.intent, view, row); await refresh(); }
+      catch (error) { if (error instanceof Error && error.message === "Setup cancelled.") throw error; await notify(errorText(error)); await refresh(); }
+      return;
+    }
     if (route === "order") { await orderIntent(binding.intent); return; }
     if (route === "language") {
       const next = row === 0 ? "en" : "zh";
@@ -413,9 +427,15 @@ export async function runSetupWorkbench(paths: ArkSpacePaths, terminal: SetupTer
       }
     }
   };
-  const exit = async () => confirm(t("Exit setup", "退出设置"), orderDraft && orderDraft.join(",") !== current.providerOrder.join(",")
-    ? t("Discard the order draft and exit?", "放弃顺序草稿并退出？") : t("Exit setup?", "退出设置？"),
-    orderDraft && orderDraft.join(",") !== current.providerOrder.join(",") ? t("Discard", "放弃") : t("Exit", "退出"), "warning");
+  const exit = async () => {
+    const dirty = dirtyOrder() || connection.hasDraft();
+    const body = connection.hasDraft() ? t("Discard unsaved drafts and exit?", "放弃未保存的草稿并退出？")
+      : dirtyOrder() ? t("Discard the order draft and exit?", "放弃顺序草稿并退出？") : t("Exit setup?", "退出设置？");
+    const accepted = await confirm(t("Exit setup", "退出设置"), body,
+      dirty ? t("Discard", "放弃") : t("Exit", "退出"), "warning");
+    if (accepted) connection.discardDraft();
+    return accepted;
+  };
   await refresh();
   try {
     for (;;) {
@@ -443,11 +463,11 @@ export async function runSetupWorkbench(paths: ArkSpacePaths, terminal: SetupTer
       }
       if (token === "?") {
         const instructions = [route === "providers" ? t("Keys / instances", "密钥 / 实例") : route === "order" ? t("Order draft", "顺序草稿") : t("Language", "语言"),
-          t("Tab/Shift-Tab: Top/Menu/Content. Top ←→ switches provider; ↓ enters opened content. [ ] also switches provider.", "Tab/Shift-Tab：顶部/菜单/内容。顶部 ←→ 切换供应商；↓ 进入已打开内容。[ ] 也可切换供应商。"),
+          t("Tab/Shift-Tab: Top/Menu/Content. Top ←→ switches context (Web providers and WeKnora connection); ↓ enters opened content. [ ] also switches context. arks setup weknora opens the connection directly.", "Tab/Shift-Tab：顶部/菜单/内容。顶部 ←→ 切换供应商；↓ 进入已打开内容。[ ] 也可切换供应商。"),
           t("Menu ↑↓ moves its pending cursor; Enter opens. * marks the opened function. Content ← returns to Menu; Menu → enters Content.", "菜单 ↑↓ 移动待选光标；Enter 打开。* 标记已打开功能。内容 ← 返回菜单；菜单 → 进入内容。"),
           t("Row actions act only in Content. v toggles the provider from Top/Menu/Content on the Providers page. Hints are not focusable buttons. ↑↓ selects rows; Home/End and PgUp/Dn move the list.", "行操作仅在内容区生效。供应商页的 v 在顶部、菜单、内容区均可切换供应商开关。提示不是可聚焦按钮。↑↓ 选择行；Home/End 和 PgUp/Dn 移动列表。"),
           ...bindings().map(binding => `${binding.key} ${binding.label}${binding.reason ? " — " + binding.reason : ""}`),
-          route === "providers" ? t("Space toggles the selected KEY, not the provider. v toggles PROVIDER, independent of order. t tests the PROVIDER pool only after network consent.", "Space 切换所选密钥，不是供应商。v 切换供应商，与顺序独立。t 在联网授权后测试整个供应商池。") : "",
+          connectionPage() ? t("Connection actions never change Web routing or key health. External sources are read-only. t requires network consent.", "连接操作不改变 Web 路由或密钥健康。外部来源为只读。t 需要联网授权。") : route === "providers" ? t("Space toggles the selected KEY, not the provider. v toggles PROVIDER, independent of order. t tests the PROVIDER pool only after network consent.", "Space 切换所选密钥，不是供应商。v 切换供应商，与顺序独立。t 在联网授权后测试整个供应商池。") : "",
           t("Esc: dirty order asks Cancel/Discard; otherwise Content/Top → Menu → confirmed exit. ! shows reasons/diagnostics. Ctrl-C cancels.", "Esc：顺序草稿有更改时询问取消/放弃；否则内容/顶部 → 菜单 → 确认退出。! 显示原因/诊断。Ctrl-C 取消。")].filter(Boolean).join("\n");
         await terminal.notice(view, t("Help", "帮助"), instructions, t("Close", "关闭"), options.signal, "neutral"); continue;
       }
@@ -478,5 +498,5 @@ export async function runSetupWorkbench(paths: ArkSpacePaths, terminal: SetupTer
   } catch (error) {
     if (error instanceof Error && error.message === "Setup cancelled.") throw error;
     await notify(errorText(error)); throw new Error("Setup operation failed.");
-  }
+  } finally { connection.discardDraft(); }
 }

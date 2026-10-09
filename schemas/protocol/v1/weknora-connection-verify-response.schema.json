@@ -1,0 +1,160 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "capability": {
+          "type": "string",
+          "const": "weknora.connection.verify"
+        },
+        "connection": {
+          "type": "string",
+          "const": "weknora"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ok": {
+          "type": "boolean",
+          "const": true
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "managed",
+            "environment"
+          ]
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "const": "accepted"
+            },
+            "status": {
+              "type": "integer",
+              "minimum": 200,
+              "maximum": 299
+            }
+          },
+          "required": [
+            "outcome",
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "capability",
+        "connection",
+        "warnings",
+        "ok",
+        "source",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "capability": {
+          "type": "string",
+          "const": "weknora.connection.verify"
+        },
+        "connection": {
+          "type": "string",
+          "const": "weknora"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ok": {
+          "type": "boolean",
+          "const": false
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "managed",
+            "environment"
+          ]
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "invalid-request",
+                "config",
+                "http-consent",
+                "auth",
+                "permission",
+                "rate-limit",
+                "http-status",
+                "business-failure",
+                "invalid-response",
+                "blocked-address",
+                "dns",
+                "redirect",
+                "timeout",
+                "cancelled",
+                "network",
+                "headers",
+                "body",
+                "content-type",
+                "encoding",
+                "invalid-url",
+                "configuration"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "retryable": {
+              "type": "boolean",
+              "const": false
+            },
+            "status": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 599
+            }
+          },
+          "required": [
+            "kind",
+            "message",
+            "retryable"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "capability",
+        "connection",
+        "warnings",
+        "ok",
+        "error"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

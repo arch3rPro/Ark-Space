@@ -45,7 +45,7 @@ export async function runSetup(paths: ArkSpacePaths, injected?: SetupPrompts, op
   }
   const environment = options.environment ?? { ...process.env };
   let language = initialSetupLanguage(options.language, undefined, environment);
-  if (options.provider !== undefined && !PROVIDERS.includes(options.provider as SetupProvider)) {
+  if (options.provider !== undefined && options.provider !== "weknora" && !PROVIDERS.includes(options.provider as SetupProvider)) {
     throw new ProviderError(setupMessage(language, "unsupportedProvider"), { kind: "invalid-request" });
   }
   const m = (key: Parameters<typeof setupMessage>[1], values?: Record<string, string | number>) => setupMessage(language, key, values);
@@ -280,6 +280,10 @@ export async function runSetup(paths: ArkSpacePaths, injected?: SetupPrompts, op
     }
   };
   try {
+    if (options.provider === "weknora") {
+      // Injected legacy menus are a Web safety-test seam, not a second connection UI.
+      await runSetupWorkbench(paths, terminal, language, { ...options, environment }); return;
+    }
     if (options.provider) { await providerMenu(options.provider as SetupProvider); return; }
     for (;;) {
       const current = await snapshot();

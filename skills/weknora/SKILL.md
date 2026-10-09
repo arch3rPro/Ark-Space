@@ -1,20 +1,26 @@
 ---
 name: weknora
 description: Work with a WeKnora knowledge base through its REST API — list and inspect knowledge bases, search one or many of them, import files, URLs, or Markdown, confirm an import finished parsing, read and edit chunks, and ask questions with a streamed answer. Use when the task targets a user's own WeKnora instance and its stored documents; use web or research instead for public sources.
-compatibility: Requires a local filesystem-based host with shell and network access, plus a reachable WeKnora instance and the WEKNORA_BASE_URL and WEKNORA_API_KEY environment variables. The optional SSE consumer script requires Node.js 20+. Intended for Claude Code and Codex CLI on macOS, Linux, and Windows.
+compatibility: Requires a filesystem-based host with shell/network access and a reachable WeKnora instance. Supply WEKNORA_BASE_URL and WEKNORA_API_KEY for independent use; optionally use arks with a managed connection for supported retrieval operations. arks and the SSE consumer require Node.js 20+. Intended for Claude Code and Codex CLI on macOS, Linux, and Windows.
 ---
 
 # WeKnora
 
-Operate a WeKnora knowledge base over its REST API. WeKnora is an external application that owns its own credentials; this Skill never calls `arks` and never reads ArkSpace configuration or Providers.
+Operate a user's WeKnora knowledge base. Choose the independent environment path or optional managed `arks` path; WeKnora is a connection, not a Web search Provider.
 
-## Readiness
+## Readiness and execution path
 
-1. Confirm `WEKNORA_BASE_URL` is set and is the `/api/v1` root, for example `https://weknora.example.com/api/v1`. An internal deployment may legitimately be plain **HTTP**: do not "fix" it to HTTPS, and do not add or re-append `/api/v1` yourself.
-2. Confirm `WEKNORA_API_KEY` is set. Never ask the user to paste a key into the conversation, never place it in a command argument or a file, and never append it to `~/.zshrc`, `~/.bashrc`, or any shell profile. If it is missing, ask the user to set it in their own terminal and stop.
-3. Probe the key once with `GET /auth/me`. A `403` means the key is invalid or that route carries no policy for API keys — it does not mean credentials are missing.
+Check whether each environment variable is supplied without printing its value:
 
-Refer to the key only as an environment expansion, never as a literal:
+1. **Both `WEKNORA_BASE_URL` and `WEKNORA_API_KEY` supplied:** use the independent REST/script path; `arks` is not required. Empty or invalid values are a configuration error. The URL is already the `/api/v1` root, for example `https://weknora.example.com/api/v1`; preserve deployment prefixes and legitimate private HTTP, and never append `/api/v1` again.
+2. **Neither supplied:** for connection verification, knowledge-base list/detail, or single-base search, read [managed execution](references/managed.md). Use `arks` only when it is available and the connection is configured. For other operations, explain that independent environment credentials are needed; a stored key is not exported to complete them.
+3. **Only one supplied:** stop and ask the human to complete the pair in their own terminal. Never fill the missing half from managed storage or switch paths after a request fails.
+
+Never request a key in chat, pass its literal value as a command argument, or write ad-hoc key files/shell profiles. Managed storage is allowed only through human-controlled `arks setup weknora`. The Skill never reads private ArkSpace configuration or credential files. Missing CLI does not authorize installation; offer manual environment configuration instead.
+
+Obtain consent before probing the independent key once with `GET /auth/me`. A `403` may mean capability/scope denial or a route with no API-key policy; it is not proof that the key is missing or invalid. Follow [errors](references/errors.md), with no automatic connection fallback.
+
+Independent requests refer to the key only as an environment expansion, never as a literal:
 
 ```bash
 curl -sS "$WEKNORA_BASE_URL/knowledge-bases?page=1&page_size=20" \
@@ -48,7 +54,8 @@ Search and list payloads may carry `data: null` as well as `data: []`. Both mean
 Load exactly the reference matching the requested outcome:
 
 - Importing files, URLs, or Markdown; assigning tags or metadata; writing a short summary: [Ingest](references/ingest.md)
-- Any other endpoint or its required capability: [Endpoints](references/endpoints.md)
+- Supported retrieval using an optional managed connection: [Managed execution](references/managed.md)
+- Independent REST endpoints or their required capability: [Endpoints](references/endpoints.md)
 - A question over a knowledge base that returns a streamed answer: [SSE chat](references/sse.md)
 - A non-2xx response, an unexpected `data` shape, or `403`: [Errors and pagination](references/errors.md)
 - An import that never becomes searchable, or a surprising field name: [Pitfalls](references/pitfalls.md)
@@ -83,6 +90,8 @@ For an explicit verification request or import-and-answer task, poll `GET /knowl
 5. Attribute the answer to the documents in `knowledge_references`. A stream that ends without reaching `complete` is an incomplete result, not an answer.
 
 ### Search and read
+
+With a managed connection, use the operations in [managed execution](references/managed.md); search performs knowledge-base capability preflight. Document/chunk reads and multi-base search still use the independent environment path. With an independent connection:
 
 - One knowledge base: `POST /knowledge-bases/:id/hybrid-search` (POST is the documented form; `GET` exists only for backwards compatibility).
 - Several knowledge bases: `POST /knowledge-search`.

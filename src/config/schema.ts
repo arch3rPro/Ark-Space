@@ -39,6 +39,27 @@ export const SearxngInstanceSchema = z.object({
   catch { context.addIssue({ code: "custom", message: "Invalid SearXNG base URL" }); return z.NEVER; }
 });
 
+export const WEKNORA_MANAGED_KEY_REF = "env:ARKSPACE_WEKNORA_API_KEY" as const;
+export const WeknoraConnectionSchema = z.object({
+  baseUrl: SearxngInstanceSchema.in.shape.baseUrl.refine(value => {
+    try {
+      const url = new URL(value);
+      const authority = /^https?:\/\/([^/]+)\//i.exec(value)?.[1];
+      return authority !== undefined && /^(?:\[[0-9a-f:.]+\]|[a-z0-9.-]+)(?::[0-9]{1,5})?$/i.test(authority) && url.pathname.endsWith("/api/v1") &&
+        !/[?#]/.test(value) && (url.hostname.startsWith("[") ||
+          url.hostname.split(".").every(label => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label)));
+    } catch { return false; }
+  }, "WeKnora requires an explicit HTTP(S) API root ending in /api/v1"),
+  apiKeyRef: z.literal(WEKNORA_MANAGED_KEY_REF),
+  // Legacy metadata only: accepted unchanged on load, ignored by WeKnora transport.
+  allowRanges: SearxngInstanceSchema.in.shape.allowRanges.refine(values => values.every(value => {
+    const [address, bits] = value.split("/");
+    return Number(bits) >= (isIP(address!) === 4 ? 24 : 64);
+  }), "Use narrow endpoint-specific CIDRs (IPv4 /24 or narrower, IPv6 /64 or narrower)"),
+  defaultKnowledgeBaseId: z.string().trim().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/).optional(),
+}).strict();
+export type WeknoraConnection = z.infer<typeof WeknoraConnectionSchema>;
+
 const SearxngPolicySchema = ProviderConfigSchema.omit({ baseUrl: true }).extend({
   keyRefs: z.array(z.never()).default([]),
 });
@@ -63,6 +84,7 @@ export const ExecutionConfigSchema = z
 
 // Keys are Protocol capability IDs; aliases affect discovery surfaces, never the invoke ID.
 const CapabilitySchema = z.enum([
+  "weknora.connection.verify", "weknora.knowledge-bases.list", "weknora.knowledge-bases.get", "weknora.search",
   "web.search", "web.fetch", "web.content.get", "web.map", "web.crawl", "web.related", "web.extract",
   "code.context", "research.run", "browser.open", "browser.snapshot", "browser.interact",
   "browser.status", "browser.close", "monitor.create", "monitor.list", "monitor.status",
@@ -94,6 +116,7 @@ export const ArkSpaceConfigSchema = z
   .object({
     version: z.literal(1),
     setupLanguage: z.enum(["en", "zh"]).optional(),
+    connections: z.object({ weknora: WeknoraConnectionSchema.optional() }).strict().optional(),
     providerOrder: z.array(z.enum(PROVIDER_IDS)).min(1),
     tools: z.partialRecord(CapabilitySchema, ToolConfigSchema).default({}),
     localFetch: LocalFetchConfigSchema.default({ enabled: false, allowRanges: [], trustEnvProxy: false }),

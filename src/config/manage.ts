@@ -6,7 +6,8 @@ import { searxngInstanceIdFor } from "../providers/searxng-pool.js";
 import type { ArkSpaceState } from "../state/schema.js";
 import { loadCredentialStore as readCredentialStore, validateCredentialValue } from "./credentials.js";
 import type { ArkSpacePaths } from "./paths.js";
-import { ArkSpaceConfigSchema, SearxngInstanceSchema, defaultConfig, getSearxngConfig, type ArkSpaceConfig, type SetupLanguage } from "./schema.js";
+import { ArkSpaceConfigSchema, SearxngInstanceSchema, WeknoraConnectionSchema, WEKNORA_MANAGED_KEY_REF, defaultConfig, getSearxngConfig, type ArkSpaceConfig, type SetupLanguage, type WeknoraConnection } from "./schema.js";
+import { resolveWeknoraConnection, weknoraTransportWarnings } from "./weknora.js";
 
 const managedProviders = ["exa", "tavily", "firecrawl", "searxng"] as const;
 export type SetupProviderId = typeof managedProviders[number];
@@ -17,6 +18,7 @@ export interface SetupKeySnapshot {
   hasLocal: boolean; available: boolean; status: string; ownedResources: number;
   manualDisabled?: boolean; healthReason?: FailureKind | "operator-disabled"; cooldownRemainingMs?: number;
   sharedProviders?: ProviderId[];
+  sharedConnections?: "weknora"[];
   ownedResourceTypes?: { browserSessions: number; monitors: number; siteMonitors: number };
 }
 export interface SetupInstanceSnapshot {
@@ -66,7 +68,8 @@ function target(config: ArkSpaceConfig, provider: KeyedProvider, reference: stri
   return entry;
 }
 function references(config: ArkSpaceConfig, reference: string): number {
-  return Object.values(config.providers).reduce((count, entry) => count + (entry?.keyRefs.filter(ref => ref === reference).length ?? 0), 0);
+  return (config.connections?.weknora?.apiKeyRef === reference ? 1 : 0) +
+    Object.values(config.providers).reduce((count, entry) => count + (entry?.keyRefs.filter(ref => ref === reference).length ?? 0), 0);
 }
 function secretValue(secret: string): string {
   const value = validateCredentialValue(secret);
@@ -103,6 +106,7 @@ export async function getSetupSnapshot(paths: ArkSpacePaths, environment: NodeJS
             ...(metadata?.lastFailure && !expired ? { healthReason: metadata.lastFailure === "operator-disabled" ? "operator-disabled" as const : FAILURE_KINDS.includes(metadata.lastFailure as FailureKind) ? metadata.lastFailure as FailureKind : "unknown" as const } : {}),
             ...(!expired && (metadata?.status === "cooldown" || metadata?.status === "exhausted") ? { cooldownRemainingMs: Math.max(0, (metadata.cooldownUntil ?? 0) - Date.now()) } : {}),
             sharedProviders: PROVIDER_IDS.filter(other => other !== id && config.providers[other]?.keyRefs.some(ref => ref === reference)),
+            ...(config.connections?.weknora?.apiKeyRef === reference ? { sharedConnections: ["weknora" as const] } : {}),
             ownedResourceTypes: {
               browserSessions: Object.values(state.resources.browserSessions).filter(owner => owner.provider === id && owner.keyId === keyId).length,
               monitors: Object.values(state.resources.monitors).filter(owner => owner.provider === id && owner.keyId === keyId).length,
@@ -127,6 +131,7 @@ export async function addSetupKey(paths: ArkSpacePaths, provider: ProviderId, se
     const entry = config.providers[provider] ?? defaultConfig().providers[provider]!;
     const base = defaultVariables[provider]; let variable = base;
     const occupied = (name: string) => Object.hasOwn(store.values, name) || Object.hasOwn(environment, name) ||
+      config.connections?.weknora?.apiKeyRef === `env:${name}` ||
       Object.entries(config.providers).some(([id, item]) => item?.keyRefs.some(ref => ref === `env:${name}`) && (id !== provider || name !== base));
     for (let index = 1; occupied(variable); index++) variable = `${base}_${index}`;
     const reference = `env:${variable}`;
@@ -211,6 +216,92 @@ export async function setSetupLanguage(paths: ArkSpacePaths, language: SetupLang
     config.setupLanguage = language;
     await writeJsonAtomic(paths.config, ArkSpaceConfigSchema.parse(config));
   }));
+}
+
+export interface WeknoraConnectionSnapshot extends Omit<WeknoraConnection, "apiKeyRef"> {
+  apiKeyRef?: typeof WEKNORA_MANAGED_KEY_REF;
+  source: "managed" | "environment" | "environment-override";
+  available: boolean; hasLocal: boolean; status: "configured (not tested)" | "missing" | "conflict";
+  sharedProviders: ProviderId[]; warnings: string[];
+}
+
+/** Nonsecret metadata only. originalEnvironment must precede credential hydration. */
+export async function getWeknoraConnectionSnapshot(paths: ArkSpacePaths, originalEnvironment: NodeJS.ProcessEnv): Promise<WeknoraConnectionSnapshot | undefined> {
+  return locked(paths, async () => {
+    const config = await configFor(paths);
+    if (Object.hasOwn(originalEnvironment, "WEKNORA_BASE_URL") || Object.hasOwn(originalEnvironment, "WEKNORA_API_KEY")) {
+      const external = (await resolveWeknoraConnection(config, paths.credentials, originalEnvironment))!;
+      return { source: "environment", baseUrl: external.baseUrl, allowRanges: [], available: true, hasLocal: false,
+        status: "configured (not tested)", sharedProviders: [], warnings: external.warnings };
+    }
+    const connection = config.connections?.weknora;
+    if (!connection) return undefined;
+    const store = await loadCredentialStore(paths.credentials); const variable = connection.apiKeyRef.slice(4);
+    const conflict = Object.hasOwn(originalEnvironment, variable);
+    const hasLocal = Object.hasOwn(store.values, variable);
+    return { ...connection, allowRanges: [...connection.allowRanges], source: conflict ? "environment-override" : "managed",
+      hasLocal, available: !conflict && hasLocal, status: conflict ? "conflict" : hasLocal ? "configured (not tested)" : "missing",
+      sharedProviders: PROVIDER_IDS.filter(id => config.providers[id]?.keyRefs.some(ref => ref === connection.apiKeyRef)),
+      warnings: weknoraTransportWarnings(connection.baseUrl) };
+  });
+}
+
+/** No network or prompts. Legacy ranges are validated for compatibility, then reset on save. */
+export async function saveWeknoraConnection(
+  paths: ArkSpacePaths,
+  settings: { baseUrl: string; allowRanges?: string[]; defaultKnowledgeBaseId?: string },
+  secret: string | undefined,
+  consent: { reuseSavedKey?: boolean; replaceSavedKey?: boolean; authorizePrivateRanges?: boolean },
+  originalEnvironment: NodeJS.ProcessEnv,
+): Promise<void> {
+  const parsed = WeknoraConnectionSchema.safeParse({ ...settings, apiKeyRef: WEKNORA_MANAGED_KEY_REF });
+  if (!parsed.success) fail("Invalid WeKnora API root or connection settings.");
+  parsed.data.allowRanges = [];
+  const value = secret === undefined ? undefined : secretValue(secret);
+  const variable = WEKNORA_MANAGED_KEY_REF.slice(4);
+  if ([variable, "WEKNORA_BASE_URL", "WEKNORA_API_KEY"].some(name => Object.hasOwn(originalEnvironment, name))) {
+    fail("WeKnora environment-managed configuration is read-only; change it externally.");
+  }
+  await locked(paths, async () => {
+    const config = await configFor(paths); const previous = config.connections?.weknora;
+    const store = await loadCredentialStore(paths.credentials);
+    if (previous && previous.baseUrl !== parsed.data.baseUrl && (value === undefined || value === store.values[variable]) && consent.reuseSavedKey !== true) {
+      fail("Changing the WeKnora API root requires explicit consent to reuse its saved key.");
+    }
+    if (value === undefined) {
+      if (!previous || !store.values[variable]) fail("WeKnora has no saved key to reuse; supply a new credential explicitly.");
+    } else {
+      if (references(config, WEKNORA_MANAGED_KEY_REF) > (previous ? 1 : 0)) fail("The WeKnora reference is shared; unlink other uses before replacing its credential.");
+      if (Object.hasOwn(store.values, variable) && store.values[variable] !== value && consent.replaceSavedKey !== true) {
+        fail("An existing WeKnora credential requires explicit replacement consent; refresh setup before replacing it.");
+      }
+      store.values[variable] = value;
+      await writeJsonAtomic(paths.credentials, store);
+    }
+    (config.connections ??= {}).weknora = parsed.data;
+    try { await writeJsonAtomic(paths.config, ArkSpaceConfigSchema.parse(config)); }
+    catch {
+      if (value !== undefined) fail(`Local credential remains stored as ${WEKNORA_MANAGED_KEY_REF}, but connection save failed; inspect local configuration before retrying.`);
+      fail("WeKnora connection save failed; the saved credential was not changed.");
+    }
+  });
+}
+
+export async function removeWeknoraConnection(paths: ArkSpacePaths): Promise<void> {
+  await locked(paths, async () => {
+    const config = await configFor(paths); const connection = config.connections?.weknora;
+    if (!connection) fail("WeKnora connection is no longer configured; refresh configuration.");
+    const store = await loadCredentialStore(paths.credentials);
+    delete config.connections!.weknora;
+    if (!Object.keys(config.connections!).length) delete config.connections;
+    await writeJsonAtomic(paths.config, config);
+    const variable = connection.apiKeyRef.slice(4);
+    if (references(config, connection.apiKeyRef) === 0 && Object.hasOwn(store.values, variable)) {
+      delete store.values[variable];
+      try { await writeJsonAtomic(paths.credentials, store); }
+      catch { fail("WeKnora reference was unlinked, but its local credential remains stored; inspect the orphaned credential before retrying."); }
+    }
+  });
 }
 
 function localInstances(config: ArkSpaceConfig) {

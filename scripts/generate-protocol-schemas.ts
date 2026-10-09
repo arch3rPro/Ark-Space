@@ -28,10 +28,17 @@ import {
 import { ResourceRequestSchemas } from "../src/protocol/resource-schema.js";
 import { SiteMonitorRequestSchemas } from "../src/protocol/site-monitor-schema.js";
 
+import { WeknoraRetrievalRequestSchemas, WeknoraRetrievalEnvelopeSchemas } from "../src/protocol/weknora-retrieval-schema.js";
+import { WeknoraVerifyRequestSchema, WeknoraVerifyEnvelopeSchema } from "../src/protocol/weknora-schema.js";
+
 const outputDirectory = resolve("schemas/protocol/v1");
 await mkdir(outputDirectory, { recursive: true });
 
 await Promise.all([
+  ...Object.entries(WeknoraRetrievalRequestSchemas).map(([capability, schema]) => writeSchema(`${capability.replaceAll(".", "-")}-request.schema.json`, schema, "input")),
+  ...Object.entries(WeknoraRetrievalEnvelopeSchemas).map(([capability, schema]) => writeSchema(`${capability.replaceAll(".", "-")}-response.schema.json`, schema)),
+  writeSchema("weknora-connection-verify-request.schema.json", WeknoraVerifyRequestSchema, "input"),
+  writeSchema("weknora-connection-verify-response.schema.json", WeknoraVerifyEnvelopeSchema),
   writeSchema("web-search-request.schema.json", WebSearchRequestSchema),
   writeSchema("web-search-response.schema.json", WebSearchEnvelopeSchema),
   writeSchema("web-fetch-request.schema.json", WebFetchRequestSchema),
@@ -54,7 +61,7 @@ await Promise.all([
   ...Object.entries(ResourceEnvelopeSchemas).map(([capability, schema]) => writeSchema(`${capability.replaceAll(".", "-")}-response.schema.json`, schema)),
 ]);
 
-async function writeSchema(name: string, schema: z.ZodType): Promise<void> {
-  const jsonSchema = z.toJSONSchema(schema, { target: "draft-7" });
+async function writeSchema(name: string, schema: z.ZodType, io: "input" | "output" = "output"): Promise<void> {
+  const jsonSchema = z.toJSONSchema(schema, { target: "draft-7", io });
   await writeFile(resolve(outputDirectory, name), `${JSON.stringify(jsonSchema, null, 2)}\n`, "utf8");
 }

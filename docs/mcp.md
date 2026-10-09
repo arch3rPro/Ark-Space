@@ -47,7 +47,11 @@ Every call returns:
 - the complete ArkSpace envelope as `structuredContent`;
 - `isError: true` when the envelope has `ok: false`.
 
-MCP annotations are descriptive hints, not authorization. ArkSpace independently requires `confirmed: true` for Browser interaction and Monitor mutations. The caller must obtain approval for the exact target and effect before setting it.
+MCP annotations are descriptive hints, not authorization. ArkSpace independently requires `confirmed: true` for Browser interaction, Monitor mutations, and managed WeKnora calls. An explicit user request to read the configured WeKnora instance authorizes that network access; no separate HTTP permission is required.
+
+`weknora_connection_verify` makes one bounded `GET /auth/me` to the configured connection (at most five seconds); HTTP is supported with an informational plaintext-transport warning. Its additive non-Web Protocol v1 envelope uses `connection: "weknora"`, not `provider` or Web `attempts`. Success reports only route acceptance, not identity or retrieval permission. Failure reports a fixed non-secret classification; 403 means ambiguous permission, not an invalid key. CLI startup passes the pre-hydration environment snapshot through MCP to the dispatcher, so stored keys never establish external ownership. See the [verification contract](../.scratch/weknora-managed-config/spec.md#implemented-verification-contract-issue-02). `arks setup weknora` manages the optional connection; the independent environment-based Skill path remains available without the CLI.
+
+Managed retrieval tools are `weknora_knowledge-bases_list`, `weknora_knowledge-bases_get`, and `weknora_search`. They require `confirmed: true` and use the same non-Web envelope with validated knowledge-base/result projections. Search sends query content to the selected instance after knowledge-base index preflight; obtain consent before submission. Detail/search support the managed default ID when omitted. Requests default to five seconds and accept up to thirty seconds; there is no key/connection fallback, state mutation, or credential export. See the [retrieval contract](capabilities.md#optional-weknora-retrieval).
 
 ## Lifecycle
 
