@@ -29,7 +29,7 @@ Install ArkSpace from https://github.com/arch3rPro/Ark-Space by following the re
 
 ### Or install it yourself
 
-See the [0.1.4 release candidate notes](release/0.1.4.md) for features, verification evidence, and qualification limits. The pinned npm install becomes available only after publication.
+See the [0.1.4 release notes](release/0.1.4.md) for features, verification evidence, and qualification limits.
 
 ```bash
 npm install --global @arkspace/cli@0.1.4
@@ -61,11 +61,11 @@ See [INSTALL.md](INSTALL.md) for host-specific installation, verification, updat
 
 See the [Skill, Capability, and Provider reference](docs/capabilities.md) for operation identifiers, Provider coverage, fallback behavior, and resource ownership.
 
-### Optional managed WeKnora configuration (0.1.4 release candidate)
+### Optional managed WeKnora configuration (0.1.4)
 
-Build this checkout and run `node dist/cli/main.js setup weknora` in your trusted terminal to manage its API root, masked key, and optional default knowledge base. Authenticated managed verification, list/detail, and search may target a valid localhost, private, or public address without a CIDR exception. They retain URL and address validation, DNS pinning, TLS verification, redirect refusal, no-proxy transport, deadlines, and response bounds. An explicit request to read the configured instance authorizes that network access; HTTP is supported with an informational plaintext-transport warning. The managed path does not join Web search order or fallback.
+Run `arks setup weknora` in your trusted terminal to manage its API root, masked key, and optional default knowledge base. Authenticated managed verification, list/detail, and search may target a valid localhost, private, or public address without a CIDR exception. They retain URL and address validation, DNS pinning, TLS verification, redirect refusal, no-proxy transport, deadlines, and response bounds. An explicit request to read the configured instance authorizes that network access; HTTP is supported with an informational plaintext-transport warning. The managed path does not join Web search order or fallback.
 
-A manually supplied `WEKNORA_BASE_URL` / `WEKNORA_API_KEY` pair remains independent and needs no CLI. Imports, document/chunk operations, multi-base search, and streamed chat continue using that environment path. See [installation](INSTALL.md) and the [managed guide](skills/weknora/references/managed.md). The 0.1.4 release candidate is not yet published.
+A manually supplied `WEKNORA_BASE_URL` / `WEKNORA_API_KEY` pair remains independent and needs no CLI. Imports, document/chunk operations, multi-base search, and streamed chat continue using that environment path. See [installation](INSTALL.md) and the [managed guide](skills/weknora/references/managed.md).
 
 ## What the runtime adds
 
@@ -136,7 +136,7 @@ The local credential file contains plaintext secrets and is not an operating-sys
 
 ## Release status and limits
 
-**0.1.4 is a prepared release candidate** adding optional managed WeKnora verification and retrieval to the 0.1.3 feature set. It is not yet published. See [release notes](release/0.1.4.md) for evidence and qualification limits.
+**0.1.4 adds optional managed WeKnora verification and retrieval** to the 0.1.3 feature set. See [release notes](release/0.1.4.md) for evidence and qualification limits.
 
 Version 0.1.3 includes keyless SearXNG and a rebuilt Setup TUI. The UI has three focus regions—Top, Menu, Content—cycled with Tab/Shift-Tab. Top Left/Right switches provider; brackets remain an advertised alternate, and Down/Enter enters Content. Menu Up/Down selects Providers, Configuration, Settings, or Exit; Enter opens the function and Right enters Content. Content Left returns to Menu. A primary resource table/list drives page-local actions, with non-focusable hints wrapped below the table; there are no legacy stacked toolbars or nested button subfocus. Enter/`e` edits, `a` adds, `i` shows details, `p` opens secure preview, and `d` removes. Editing a stored local key preloads it into a masked draft; Esc restores the field, and Ctrl-S validates before explicit overwrite consent. Adding starts blank; unchanged saves close without writing or replacement consent. Space toggles selected-key enablement; `V`/`v` toggles provider enablement; `t` offers a Cancel-default choice between one normal round-robin pool test (five seconds total) and sequential tests of each configured local key reference (one request per reference, five seconds per key). The latter requires consent for request logging, uses isolated temporary state, skips missing/unusable values without requests, and reports only reference/classified outcomes. It does not change global cursor, health, or configuration, and does not fall back to other keys/providers; Esc stops it. SearXNG retains its keyless instance-pool test. Global order and language remain independent: `u`/`d` reorder, Delete removes, `I` includes with confirmation, and Ctrl-S saves order; language is a plain option list applied with Enter. Forms retain safe in-memory drafts and guarded saves. Selected-key cooldown is a snapshot, not a live countdown. Diagnostic rows are session-only historical results: context switching retains them, while attempted managed writes and normal pool tests clear them; they do not validate externally changed credential values. See [ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md) for the current interaction contract and [NOTICE.md](NOTICE.md) for reference provenance. Automated Linux PTY qualification uses standard-library Python 3 as a development-only prerequisite, not an end-user CLI dependency. Qualification evidence and caveats are tracked in the [priority-one workbench report](.scratch/setup-priority-one/report.md); human usability, real services, and hosted Windows/macOS terminals remain unqualified.
 

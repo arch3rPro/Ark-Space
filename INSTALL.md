@@ -5,7 +5,7 @@ ArkSpace has two installable surfaces:
 1. **Agent Skills** provide operation guidance for `web`, `research`, `browser`, `monitor`, and `weknora`.
 2. **`arks` CLI** provides shared Provider execution, credential handling, owned resources, and MCP stdio.
 
-Provider-backed Skills need both surfaces. `weknora` can run independently with `WEKNORA_BASE_URL` and `WEKNORA_API_KEY`, without the CLI. The prepared 0.1.4 release candidate additionally offers an optional managed connection for supported retrieval operations; it is not yet published. Node.js 20 or newer is required for the CLI and the Skill's SSE script.
+Provider-backed Skills need both surfaces. `weknora` can run independently with `WEKNORA_BASE_URL` and `WEKNORA_API_KEY`, without the CLI. Version 0.1.4 additionally offers an optional managed connection for supported retrieval operations. Node.js 20 or newer is required for the CLI and the Skill's SSE script.
 
 ## Give this to your Agent
 
@@ -28,14 +28,14 @@ An Agent performing the installation must:
 
 ## Install the CLI
 
-See [0.1.4 release candidate notes](release/0.1.4.md) for features, verification evidence, and qualification limits. The following pinned installation is available only after publication:
+See [0.1.4 release notes](release/0.1.4.md) for features, verification evidence, and qualification limits. Install the pinned release:
 
 ```bash
 npm install --global @arkspace/cli@0.1.4
 arks --version
 ```
 
-Expected version after publication: `0.1.4`.
+Expected version: `0.1.4`.
 
 ## Install the Skills
 
@@ -109,12 +109,12 @@ arks provider list
 
 `arks key add` stores references only. In the workbench, open a new right-pane **Add** form for each additional key to append without deleting or replacing existing entries. If reference registration fails after a key is saved, the credential remains stored and the diagnostic identifies its reference without displaying the key. Do not paste keys into an Agent chat.
 
-## WeKnora optional managed connection (0.1.4 release candidate)
+## WeKnora optional managed connection (0.1.4)
 
-This optional feature is prepared for 0.1.4, which is not yet published. Build this checkout using [Source development](#source-development); the pinned npm installation above is not available until publication. The human opens its configuration page in a trusted terminal:
+The human opens its configuration page in a trusted terminal:
 
 ```bash
-node dist/cli/main.js setup weknora
+arks setup weknora
 ```
 
 Enter the exact `/api/v1` API root, a masked API key, and optional default knowledge-base ID. Saving stays offline. An explicit request to read the configured instance authorizes network access; HTTP is supported and carries an informational plaintext credential-transport warning. Valid localhost, private, and public destinations are supported without CIDR exceptions; address-format/original environment-pair validation, DNS pinning, verified TLS, refused redirects, no proxy, operation deadlines, and response bounds remain enforced. Legacy `allowRanges` values are ignored; new managed saves write an empty array. Removing the connection removes only local configuration, never remote content. Configuration stores the dedicated `env:ARKSPACE_WEKNORA_API_KEY` reference; raw keys stay in the existing private credential file, with the same plaintext-at-rest limits described above.
@@ -173,7 +173,7 @@ npx skills@latest list
 
 Installation is ready when:
 
-- `arks --version` reports the version installed (the 0.1.4 pin is usable only after publication);
+- `arks --version` reports `0.1.4`;
 - at least one required Provider is ready in `arks doctor --json`;
 - the target Agent discovers the selected ArkSpace Skills.
 
@@ -188,7 +188,7 @@ Register MCP only for hosts that need it; Skills can execute `arks` directly.
 
 ## Update
 
-Update within the 0.1 release line only after publication and reviewing the target version:
+Update within the 0.1 release line after reviewing the target version:
 
 ```bash
 npm install --global @arkspace/cli@0.1.4
@@ -234,4 +234,4 @@ npm pack --ignore-scripts --pack-destination /path/to/temporary-directory
 npm install --global --ignore-scripts /path/to/temporary-directory/arkspace-cli-0.1.4.tgz
 ```
 
-Synchronize the installed WeKnora Skill from the same checkout, preserving unrelated user files, and reload the Agent's Skills. This installs a local 0.1.4 release-candidate artifact without publishing; do not infer registry availability from its version string. Updating only the CLI or only the Skill leaves managed execution unavailable. Existing connection and credential files need no changes. Release and cross-platform qualification rules are documented in [Maintenance](docs/maintenance.md) and [Platform Support](docs/platform-support.md).
+Synchronize the installed WeKnora Skill from the same checkout, preserving unrelated user files, and reload the Agent's Skills. This installs a local 0.1.4 artifact without publishing; do not infer registry availability from its version string. Updating only the CLI or only the Skill leaves managed execution unavailable. Existing connection and credential files need no changes. Release and cross-platform qualification rules are documented in [Maintenance](docs/maintenance.md) and [Platform Support](docs/platform-support.md).

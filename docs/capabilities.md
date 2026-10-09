@@ -14,7 +14,7 @@ This reference maps each canonical Skill to its public `arks` capabilities and P
 
 `gh-repo` is an independent Skill for revision-pinned GitHub project analysis and supporting issue/PR inspection. It uses host tools and native GitHub CLI/API reads, not an `arks` capability or Provider. See its [canonical instructions](../skills/gh-repo/SKILL.md).
 
-`weknora` remains independently usable with its environment variables and has no mandatory CLI or Provider dependency. The prepared 0.1.4 release candidate implements optional managed configuration and the verification/list/detail/search capabilities below; it is not yet published. The canonical Skill selects the independent environment path or supported managed path without a mandatory CLI dependency.
+`weknora` remains independently usable with its environment variables and has no mandatory CLI or Provider dependency. Version 0.1.4 implements optional managed configuration and the verification/list/detail/search capabilities below. The canonical Skill selects the independent environment path or supported managed path without a mandatory CLI dependency.
 
 ## Optional WeKnora connection verification
 
