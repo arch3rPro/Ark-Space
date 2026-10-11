@@ -29,10 +29,10 @@ Install ArkSpace from https://github.com/arch3rPro/Ark-Space by following the re
 
 ### Or install it yourself
 
-See the [0.1.4 release notes](release/0.1.4.md) for features, verification evidence, and qualification limits.
+See the [0.1.5 release notes](release/0.1.5.md) for features, verification evidence, and qualification limits.
 
 ```bash
-npm install --global @arkspace/cli@0.1.4
+npm install --global @arkspace/cli@latest
 npx skills@latest add arch3rPro/Ark-Space
 ```
 
@@ -46,7 +46,18 @@ arks web search "agent skills"
 
 > **Keep API keys out of Agent chats.** `arks setup` uses hidden terminal input and stores local credentials separately from configuration and state. Environment variables remain available for CI and externally managed secrets.
 
-See [INSTALL.md](INSTALL.md) for host-specific installation, verification, update, uninstall, MCP, and credential details.
+See [INSTALL.md](INSTALL.md) for host-specific installation, verification, update, uninstall, MCP, and credential details. The 0.1.5 release-candidate source adds manual npm CLI update checks and installation; published 0.1.4 does not include the updater, and availability of the candidate package on npm is not implied. Install the CLI with `@latest` and update Skills separately.
+
+### Check and update installed Skills
+
+For Skills installed through the Skills CLI:
+
+```bash
+npx skills@latest check   # Check for available Skill updates
+npx skills@latest update  # Manually update installed Skills
+```
+
+These commands apply to Skills tracked by the installer, not just ArkSpace. Back up local edits before updating; `npx` may download the tool and write its cache. CLI updates are separate, and native Codex/Claude plugins use their host's plugin update mechanism.
 
 ## Choose the Skill by outcome
 
@@ -136,7 +147,7 @@ The local credential file contains plaintext secrets and is not an operating-sys
 
 ## Release status and limits
 
-**0.1.4 adds optional managed WeKnora verification and retrieval** to the 0.1.3 feature set. See [release notes](release/0.1.4.md) for evidence and qualification limits.
+**0.1.5 release-candidate changes since 0.1.4** include manual npm CLI updates, improved bounded research evidence review, and Skill icons and invocation policies. See [release notes](release/0.1.5.md) for evidence and qualification limits. The 0.1.4 release added optional managed WeKnora verification and retrieval; see [0.1.4 release notes](release/0.1.4.md).
 
 Version 0.1.3 includes keyless SearXNG and a rebuilt Setup TUI. The UI has three focus regions—Top, Menu, Content—cycled with Tab/Shift-Tab. Top Left/Right switches provider; brackets remain an advertised alternate, and Down/Enter enters Content. Menu Up/Down selects Providers, Configuration, Settings, or Exit; Enter opens the function and Right enters Content. Content Left returns to Menu. A primary resource table/list drives page-local actions, with non-focusable hints wrapped below the table; there are no legacy stacked toolbars or nested button subfocus. Enter/`e` edits, `a` adds, `i` shows details, `p` opens secure preview, and `d` removes. Editing a stored local key preloads it into a masked draft; Esc restores the field, and Ctrl-S validates before explicit overwrite consent. Adding starts blank; unchanged saves close without writing or replacement consent. Space toggles selected-key enablement; `V`/`v` toggles provider enablement; `t` offers a Cancel-default choice between one normal round-robin pool test (five seconds total) and sequential tests of each configured local key reference (one request per reference, five seconds per key). The latter requires consent for request logging, uses isolated temporary state, skips missing/unusable values without requests, and reports only reference/classified outcomes. It does not change global cursor, health, or configuration, and does not fall back to other keys/providers; Esc stops it. SearXNG retains its keyless instance-pool test. Global order and language remain independent: `u`/`d` reorder, Delete removes, `I` includes with confirmation, and Ctrl-S saves order; language is a plain option list applied with Enter. Forms retain safe in-memory drafts and guarded saves. Selected-key cooldown is a snapshot, not a live countdown. Diagnostic rows are session-only historical results: context switching retains them, while attempted managed writes and normal pool tests clear them; they do not validate externally changed credential values. See [ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md) for the current interaction contract and [NOTICE.md](NOTICE.md) for reference provenance. Automated Linux PTY qualification uses standard-library Python 3 as a development-only prerequisite, not an end-user CLI dependency. Qualification evidence and caveats are tracked in the [priority-one workbench report](.scratch/setup-priority-one/report.md); human usability, real services, and hosted Windows/macOS terminals remain unqualified.
 

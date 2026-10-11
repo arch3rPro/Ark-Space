@@ -1,6 +1,6 @@
 {
   "name": "@arkspace/cli",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Provider-aware retrieval, research, browser, monitor, and MCP runtime for ArkSpace skills",
   "private": false,
   "license": "MIT",

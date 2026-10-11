@@ -73,7 +73,7 @@ const readOnly = new Set<Capability>(["weknora.knowledge-bases.list", "weknora.k
 const destructive = new Set<Capability>(["browser.close", "monitor.delete", "monitor.site.delete"]);
 
 export function createMcpServer(config?: ArkSpaceConfig, options: InvokeOptions = {}): McpServer {
-  const server = new McpServer({ name: "arkspace", version: "0.1.4" });
+  const server = new McpServer({ name: "arkspace", version: "0.1.5" });
   const activeRequests = new Map<string | number, AbortController>();
   const names = new Set<string>();
   for (const capability of Object.keys(inputSchemas) as Capability[]) {

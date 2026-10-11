@@ -28,14 +28,14 @@ An Agent performing the installation must:
 
 ## Install the CLI
 
-See [0.1.4 release notes](release/0.1.4.md) for features, verification evidence, and qualification limits. Install the pinned release:
+See [0.1.5 release notes](release/0.1.5.md) for features, verification evidence, and qualification limits. Install the current published CLI:
 
 ```bash
-npm install --global @arkspace/cli@0.1.4
+npm install --global @arkspace/cli@latest
 arks --version
 ```
 
-Expected version: `0.1.4`.
+At preparation time, the published version is 0.1.4; the 0.1.5 release-candidate source is not a claim that 0.1.5 is available from npm.
 
 ## Install the Skills
 
@@ -173,7 +173,7 @@ npx skills@latest list
 
 Installation is ready when:
 
-- `arks --version` reports `0.1.4`;
+- `arks --version` reports the version currently published on npm (0.1.4 during 0.1.5 release-candidate preparation);
 - at least one required Provider is ready in `arks doctor --json`;
 - the target Agent discovers the selected ArkSpace Skills.
 
@@ -188,14 +188,26 @@ Register MCP only for hosts that need it; Skills can execute `arks` directly.
 
 ## Update
 
-Update within the 0.1 release line after reviewing the target version:
+The manual npm updater is introduced in the 0.1.5 release candidate. Published `@arkspace/cli@0.1.4` does not include `arks update`. Until a release containing it is published, update the CLI to the current stable npm version and update Skills separately:
 
 ```bash
-npm install --global @arkspace/cli@0.1.4
+npm install --global @arkspace/cli@latest
+npx skills@latest check
 npx skills@latest update
 ```
 
-Plugin metadata changes only during an explicit ArkSpace release.
+The release-candidate implementation supports `arks update --check` for a read-only check, `arks update --check --json` for one CLI-specific JSON result, and `arks update` for an interactive install prompt. The prompt accepts Y/N (case-insensitive), with empty input defaulting to no; non-interactive use never installs. Skills still use their separate check/update commands.
+
+In a source checkout, build and run the development-only, read-only check:
+
+```bash
+npm run build
+node dist/cli/main.js update --check
+```
+
+A source checkout cannot self-update. When released, `arks update --check` will check for a newer stable npm version without installing; `arks update` will display the verified global npm target and ask `[y/N]` interactively (Y/N, case-insensitive; empty means no). There is no `--confirm` option, and non-interactive use never installs. `--json` emits one CLI-specific JSON object on stdout; prompts and diagnostics stay on stderr.
+
+Only a verified, unlinked npm-global installation owned by the available npm can be updated. Source, local, linked, missing, and mismatched installs must be updated manually. Installation targets the exact newer stable version checked, uses engine checks and `--ignore-scripts`, and never elevates privileges. It does not alter ArkSpace configuration or credentials, invoke Skill/plugin installers, or change host registrations. Files bundled in the npm package, including canonical Skills and plugin manifests, change with that package; separately installed Skills/plugins do not. Failed or interrupted npm installation may have partially changed files; no rollback is promised. No other command performs startup update checks. Plugin metadata changes only during an explicit ArkSpace release.
 
 ## Uninstall
 
@@ -227,11 +239,11 @@ node dist/cli/main.js web search "agent skills" --provider searxng --json
 
 Terminal UI setup and keyless SearXNG are included in 0.1.3. Automated verification does not establish human UX, real-service, or hosted Windows/macOS terminal qualification. These commands use the normal user-level ArkSpace configuration and credential paths; set `ARKSPACE_HOME` to a separate directory if you want isolation. When developing from source, substitute this built entry for `arks` in the earlier examples.
 
-With explicit permission to replace a global installation, build the reviewed checkout and pack it to a temporary directory:
+A source checkout remains check-only; use the manual `@latest` npm install above (and update Skills separately) when an update is needed. With explicit permission to replace a global installation, build the reviewed checkout and pack it to a temporary directory:
 
 ```bash
 npm pack --ignore-scripts --pack-destination /path/to/temporary-directory
-npm install --global --ignore-scripts /path/to/temporary-directory/arkspace-cli-0.1.4.tgz
+npm install --global --ignore-scripts /path/to/temporary-directory/arkspace-cli-0.1.5.tgz
 ```
 
-Synchronize the installed WeKnora Skill from the same checkout, preserving unrelated user files, and reload the Agent's Skills. This installs a local 0.1.4 artifact without publishing; do not infer registry availability from its version string. Updating only the CLI or only the Skill leaves managed execution unavailable. Existing connection and credential files need no changes. Release and cross-platform qualification rules are documented in [Maintenance](docs/maintenance.md) and [Platform Support](docs/platform-support.md).
+Synchronize the installed WeKnora Skill from the same checkout, preserving unrelated user files, and reload the Agent's Skills. This installs a local 0.1.5 source artifact without publishing; do not infer registry availability from its version string. Updating only the CLI or only the Skill leaves managed execution unavailable. Existing connection and credential files need no changes. Release and cross-platform qualification rules are documented in [Maintenance](docs/maintenance.md) and [Platform Support](docs/platform-support.md).

@@ -2,7 +2,7 @@
 
 import { access, readFile } from "node:fs/promises";
 import process from "node:process";
-import { Command } from "commander";
+import { Command, CommanderError } from "commander";
 import { ZodError } from "zod";
 
 import {
@@ -33,6 +33,7 @@ import { executeWebMap } from "../capabilities/web-map.js";
 import { executeWebRelated } from "../capabilities/web-related.js";
 import { executeWebSearch } from "../capabilities/web-search.js";
 import { runSetup } from "./setup.js";
+import { CliUpdateError, runCliUpdate } from "./update.js";
 import { buildDiagnosticPlan, renderDiagnostic } from "./diagnostics.js";
 import { loadCredentialEnvironment } from "../config/credentials.js";
 import { resolveArkSpacePaths } from "../config/paths.js";
@@ -98,15 +99,16 @@ import {
   createSearchProviderRegistry,
 } from "../providers/registry.js";
 
-const VERSION = "0.1.4";
+const VERSION = "0.1.5";
 const MAX_INPUT_BYTES = 1_048_576;
 // Capture before credential bootstrap so setup can distinguish external overrides from local keys.
 const originalEnvironment = { ...process.env };
+const isUpdateInvocation = process.argv.slice(2).find((argument) => !argument.startsWith("-")) === "update";
 const operationController = new AbortController();
 let receivedTerminationSignal = false;
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
-    if (receivedTerminationSignal) process.exit(130);
+    if (receivedTerminationSignal && !isUpdateInvocation) process.exit(130);
     receivedTerminationSignal = true;
     operationController.abort(new Error(`Received ${signal}.`));
   });
@@ -116,6 +118,21 @@ const program = new Command()
   .name("arks")
   .description("ArkSpace provider execution CLI")
   .version(VERSION);
+
+if (isUpdateInvocation) program.exitOverride().configureOutput({ writeErr: () => {} });
+program.command("update")
+  .description("Check npm stable or interactively approve an npm-global CLI update")
+  .option("--check", "Check the official stable release without running npm or changing files")
+  .option("--json", "Write one CLI-specific JSON result")
+  .action(async (options: { check?: boolean; json?: boolean }) => {
+    try {
+      const result = await runCliUpdate(options, VERSION, originalEnvironment, operationController.signal,
+        (message) => { process.stderr.write(`${message}\n`); });
+      process.stdout.write(options.json ? `${JSON.stringify(result)}\n` : `${result.message}\n`);
+    } catch (error) {
+      writeUpdateFailure(error, Boolean(options.json));
+    }
+  });
 
 program.command("setup").argument("[service]", "exa, tavily, firecrawl, searxng or weknora")
   .description("Manage service connections and credentials in a trusted terminal")
@@ -584,10 +601,9 @@ webCommand
   });
 
 try {
-  const paths = resolveArkSpacePaths();
-  // Setup and machine invocation resolve credentials inside their own boundaries.
-  // Invoke has fixed capability IDs, so it needs no human-command alias bootstrap.
-  if (process.argv[2] !== "setup" && process.argv[2] !== "invoke") {
+  // Update never reads local config/credentials; setup and invoke own their bootstrap.
+  if (!isUpdateInvocation && process.argv[2] !== "setup" && process.argv[2] !== "invoke") {
+    const paths = resolveArkSpacePaths();
     const environment = await loadCredentialEnvironment(paths.credentials);
     for (const [name, value] of Object.entries(environment)) {
       if (value !== undefined && process.env[name] === undefined) process.env[name] = value;
@@ -596,9 +612,24 @@ try {
   }
   await program.parseAsync(process.argv);
 } catch (error) {
-  const normalized = publicError(error);
-  process.stderr.write(`arks: ${normalized.message}\n`);
-  process.exitCode = 1;
+  if (isUpdateInvocation) {
+    if (!(error instanceof CommanderError && error.exitCode === 0)) {
+      writeUpdateFailure(new CliUpdateError("Invalid update arguments. Use arks update --help."), process.argv.includes("--json"));
+    }
+  } else {
+    const normalized = publicError(error);
+    process.stderr.write(`arks: ${normalized.message}\n`);
+    process.exitCode = 1;
+  }
+}
+
+function writeUpdateFailure(error: unknown, json: boolean): void {
+  const safe = error instanceof CliUpdateError ? error : new CliUpdateError("CLI update failed; no automatic retry was attempted.");
+  const result = { ok: false, command: "update", currentVersion: VERSION, latestVersion: null, updateAvailable: null,
+    ...safe.details, status: safe.status, possiblePartialChanges: safe.possiblePartialChanges, error: { message: safe.message } };
+  if (json) process.stdout.write(`${JSON.stringify(result)}\n`);
+  else process.stderr.write(`arks: ${safe.message}\n`);
+  process.exitCode = safe.status === "cancelled" ? 130 : 1;
 }
 
 async function configureCliCommands(root: Command): Promise<void> {

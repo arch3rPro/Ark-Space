@@ -55,7 +55,7 @@ Managed operations cover verification, knowledge-base list/detail, and single-ba
 
 ### `arks` CLI
 
-`arks` is both a human-facing CLI and a machine-facing execution boundary.
+`arks` is both a human-facing CLI and a machine-facing execution boundary. The manual npm updater is introduced in the 0.1.5 release-candidate implementation, not a Provider, capability, or Protocol v1 surface; it is not yet part of the published 0.1.4 package. It checks only on explicit request and installs only after interactive consent from a verified npm-global installation. It does not change ArkSpace state, separate Skill/plugin installations, or host registrations; bundled files change with their owning npm package. Source checkout behavior and published package status are documented in [INSTALL.md](../INSTALL.md#update); see [ADR 0020](adr/accepted/0020-manual-npm-cli-update.md).
 
 Human commands optimize for discoverability:
 
