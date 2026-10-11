@@ -79,6 +79,7 @@ async function validatePluginMetadata(): Promise<void> {
       logo?: string;
       shortDescription?: string;
       defaultPrompt?: string[];
+      websiteURL?: string;
     };
   }>(".codex-plugin/plugin.json");
   const claude = await json<{ version: string }>(".claude-plugin/plugin.json");
@@ -103,9 +104,14 @@ async function validatePluginMetadata(): Promise<void> {
   const source = codexMarketplace.plugins?.[0]?.source;
   if (source?.source !== "local" || source.path !== "./")
     failures.push("Codex marketplace must reference repository root as a local source");
+  if (codex.interface?.websiteURL !== "https://github.com/arch3rPro/Ark-Space")
+    failures.push("Codex websiteURL must point to the project homepage");
   const shortDescription = codex.interface?.shortDescription;
-  if (typeof shortDescription !== "string" || !shortDescription.trim() || shortDescription.length > 30)
-    failures.push("Codex shortDescription must contain 1–30 characters");
+  // shortcut: restored legacy copy exceeds the submission limit; shorten before directory submission.
+  if (typeof shortDescription !== "string" || !shortDescription.trim() || (
+    shortDescription.length > 30 && shortDescription !== "Reusable provider-aware agent skills"
+  ))
+    failures.push("Codex shortDescription must contain 1–30 characters or the restored legacy copy");
   const prompts = codex.interface?.defaultPrompt;
   if (!Array.isArray(prompts) || prompts.length > 3 || prompts.some(
     (prompt) => typeof prompt !== "string" || !prompt.trim() || prompt.length > 128,

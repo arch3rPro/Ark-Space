@@ -1,7 +1,9 @@
 {
   "name": "arkspace",
   "version": "0.1.4",
-  "description": "Reusable skills for Web evidence, cited research, browser work, monitoring, WeKnora knowledge bases, and GitHub repository analysis.",
+  "description": "Provider-aware Web retrieval, structured extraction, cited Research, Code Context, and reusable agent skills.",
+  "homepage": "https://github.com/arch3rPro/Ark-Space",
+  "repository": "https://github.com/arch3rPro/Ark-Space",
   "author": {
     "name": "arch3rPro"
   },
@@ -16,12 +18,18 @@
   "hooks": {},
   "interface": {
     "displayName": "ArkSpace",
-    "shortDescription": "Reusable agent skills",
-    "longDescription": "Retrieve Web evidence, produce cited research, operate owned browser sessions, manage monitors, query WeKnora knowledge bases, and analyze GitHub repositories. Shared Provider operations require the separately installed arks CLI and configured credentials or SearXNG instances. Guidance-only workflows use host tools; plugin installation does not install the CLI or configure credentials.",
+    "shortDescription": "Reusable provider-aware agent skills",
+    "longDescription": "Use ArkSpace for provider-aware Web retrieval, structured extraction, cited Research, and implementation context through a stable local CLI contract.",
+    "websiteURL": "https://github.com/arch3rPro/Ark-Space",
     "developerName": "arch3rPro",
     "category": "Developer Tools",
     "capabilities": [
-      "Read"
+      "Web search and extraction",
+      "Cited research",
+      "Browser interaction",
+      "Recurring monitoring",
+      "WeKnora knowledge bases",
+      "GitHub repository analysis"
     ],
     "defaultPrompt": [
       "Search the web for current sources about this topic.",

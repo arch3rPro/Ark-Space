@@ -1,7 +1,7 @@
 {
   "name": "arkspace-dev",
   "interface": {
-    "displayName": "ArkSpace Dev"
+    "displayName": "ArkSpace"
   },
   "plugins": [
     {

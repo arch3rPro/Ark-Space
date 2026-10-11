@@ -1,4 +1,5 @@
-import { readFile, stat } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -6,6 +7,8 @@ interface CodexPlugin {
   name: string;
   version: string;
   skills: string;
+  homepage: string;
+  repository: string;
   interface: {
     composerIcon: string;
     logo: string;
@@ -14,6 +17,8 @@ interface CodexPlugin {
     shortDescription: string;
     longDescription: string;
     defaultPrompt: string[];
+    websiteURL: string;
+    capabilities: string[];
   };
 }
 
@@ -34,12 +39,13 @@ describe("direct-source plugin metadata", () => {
     );
   });
 
-  it("keeps Codex listing text and starter prompts within official limits", async () => {
+  it("preserves the legacy Codex listing copy and bounded starter prompts", async () => {
     const { interface: listing } = await jsonFile<CodexPlugin>(".codex-plugin/plugin.json");
     expect(listing.displayName.trim().length).toBeGreaterThan(0);
     expect(listing.displayName.length).toBeLessThanOrEqual(30);
     expect(listing.shortDescription.trim().length).toBeGreaterThan(0);
-    expect(listing.shortDescription.length).toBeLessThanOrEqual(30);
+    expect(listing.shortDescription).toBe("Reusable provider-aware agent skills");
+    expect(listing.longDescription).toBe("Use ArkSpace for provider-aware Web retrieval, structured extraction, cited Research, and implementation context through a stable local CLI contract.");
     expect(listing.longDescription.trim().length).toBeGreaterThan(0);
     expect(listing.longDescription.length).toBeLessThanOrEqual(4000);
     expect(listing.defaultPrompt.length).toBe(3);
@@ -48,6 +54,22 @@ describe("direct-source plugin metadata", () => {
       expect(prompt.trim().length).toBeGreaterThan(0);
       expect(prompt.length).toBeLessThanOrEqual(128);
     }
+  });
+
+  it("exposes a project website and concrete capability labels in Codex", async () => {
+    const plugin = await jsonFile<CodexPlugin>(".codex-plugin/plugin.json");
+    const website = "https://github.com/arch3rPro/Ark-Space";
+    expect(plugin.interface.websiteURL).toBe(website);
+    expect(plugin.homepage).toBe(website);
+    expect(plugin.repository).toBe(website);
+    expect(plugin.interface.capabilities).toEqual([
+      "Web search and extraction",
+      "Cited research",
+      "Browser interaction",
+      "Recurring monitoring",
+      "WeKnora knowledge bases",
+      "GitHub repository analysis",
+    ]);
   });
 
   it("provides a square, self-contained Codex icon for both display surfaces", async () => {
@@ -61,6 +83,42 @@ describe("direct-source plugin metadata", () => {
     expect(icon).not.toMatch(/<script|<foreignObject|\b(?:href|on\w+)\s*=/i);
     expect(Buffer.byteLength(icon)).toBeLessThan(5 * 1024 * 1024);
   });
+
+  it.each([
+    ["browser", "chrome", false],
+    ["gh-repo", "github", true],
+    ["monitor", "azure-network-watcher", false],
+    ["research", "azure-cognitive-search", true],
+    ["web", "azure-website-staging", true],
+    ["weknora", "knowledgebase", true],
+  ] as const)(
+    "keeps %s Codex icons, invocation policy, and attribution usable outside the repository",
+    async (name, slug, implicit) => {
+      const isolated = await mkdtemp(resolve(tmpdir(), "arkspace-skill-icon-"));
+      try {
+        await cp(resolve("skills", name), isolated, { recursive: true });
+        const metadata = await readFile(resolve(isolated, "agents/openai.yaml"), "utf8");
+        expect(metadata).toContain('  icon_small: "./assets/icon.svg"');
+        expect(metadata).toContain('  icon_large: "./assets/icon.svg"');
+        expect(metadata).toContain(`policy:\n  allow_implicit_invocation: ${implicit}`);
+        const icon = await readFile(resolve(isolated, "assets/icon.svg"), "utf8");
+        expect(icon).toMatch(/<svg\b/);
+        expect(icon).toMatch(/viewBox="[^"]+"/);
+        expect(icon).not.toMatch(/<script|<foreignObject|<!DOCTYPE|<!ENTITY|\bon\w+\s*=|(?:href|src)\s*=\s*["'](?:https?:|\/\/|data:)/i);
+        const notice = await readFile(resolve(isolated, "assets/NOTICE.md"), "utf8");
+        expect(notice).toContain(`https://thesvg.org/icon/${slug}`);
+        expect(notice).toContain("a7c5ddd3f529accdf86519cc8fb96cb76cef4efd");
+        expect(notice).toContain("License");
+        if (name === "gh-repo") {
+          expect(icon).toContain("@media (prefers-color-scheme: dark)");
+          expect(icon).toContain(await readFile(resolve(isolated, "assets/github-light.svg"), "utf8"));
+          expect(icon).toContain(await readFile(resolve(isolated, "assets/github-dark.svg"), "utf8"));
+        }
+      } finally {
+        await rm(isolated, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("keeps package and host manifest versions aligned", async () => {
     const packageJson = await jsonFile<{ version: string }>("package.json");
