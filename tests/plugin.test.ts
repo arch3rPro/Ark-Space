@@ -92,12 +92,30 @@ describe("direct-source plugin metadata", () => {
     ["web", "azure-website-staging", true],
     ["weknora", "knowledgebase", true],
   ] as const)(
-    "keeps %s Codex icons, invocation policy, and attribution usable outside the repository",
+    "keeps %s Codex display metadata, icons, invocation policy, and references usable outside the repository",
     async (name, slug, implicit) => {
       const isolated = await mkdtemp(resolve(tmpdir(), "arkspace-skill-icon-"));
       try {
         await cp(resolve("skills", name), isolated, { recursive: true });
         const metadata = await readFile(resolve(isolated, "agents/openai.yaml"), "utf8");
+        const display = metadata.match(/^interface:\n((?:  .+\n)+)/m)?.[1] ?? "";
+        for (const [field, maxLength] of [
+          ["display_name", 64],
+          ["short_description", 64],
+          ["default_prompt", 256],
+        ] as const) {
+          const matches = [...display.matchAll(new RegExp(
+            `^  ${field}: (?:"([^"\\n]+)"$|>-\\n((?:    [^\\n]+\\n)+))`, "gm",
+          ))];
+          expect(matches).toHaveLength(1);
+          const value = matches[0]?.[1] ?? matches[0]?.[2]?.trim().replace(/\s+/g, " ") ?? "";
+          expect(value.trim().length).toBeGreaterThan(0);
+          expect(value).toBe(value.trim());
+          expect(value.length).toBeLessThanOrEqual(maxLength);
+          if (field === "default_prompt") {
+            expect(value.match(/\$[a-z][a-z-]*/g)).toEqual([`$${name}`]);
+          }
+        }
         expect(metadata).toContain('  icon_small: "./assets/icon.svg"');
         expect(metadata).toContain('  icon_large: "./assets/icon.svg"');
         expect(metadata).toContain(`policy:\n  allow_implicit_invocation: ${implicit}`);
@@ -109,6 +127,11 @@ describe("direct-source plugin metadata", () => {
         expect(notice).toContain(`https://thesvg.org/icon/${slug}`);
         expect(notice).toContain("a7c5ddd3f529accdf86519cc8fb96cb76cef4efd");
         expect(notice).toContain("License");
+        if (name === "research") {
+          const skill = await readFile(resolve(isolated, "SKILL.md"), "utf8");
+          expect(skill).toMatch(/\[[^\]\n]+\]\((?:\.\/)?references\/evidence-review\.md\)/);
+          expect((await stat(resolve(isolated, "references/evidence-review.md"))).isFile()).toBe(true);
+        }
         if (name === "gh-repo") {
           expect(icon).toContain("@media (prefers-color-scheme: dark)");
           expect(icon).toContain(await readFile(resolve(isolated, "assets/github-light.svg"), "utf8"));

@@ -1,4 +1,9 @@
 interface:
+  display_name: "Browser"
+  short_description: "Interact with pages in owned browser sessions"
+  default_prompt: >-
+    Use $browser to work in an owned session, confirm material side effects,
+    and verify cleanup.
   icon_small: "./assets/icon.svg"
   icon_large: "./assets/icon.svg"
 

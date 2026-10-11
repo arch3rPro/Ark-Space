@@ -1,4 +1,9 @@
 interface:
+  display_name: "Research"
+  short_description: "Produce cited reports with decision-critical checks"
+  default_prompt: >-
+    Use $research to produce a cited report, verify decision-critical
+    conclusions, and disclose evidence gaps.
   icon_small: "./assets/icon.svg"
   icon_large: "./assets/icon.svg"
 

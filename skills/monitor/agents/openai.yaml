@@ -1,4 +1,9 @@
 interface:
+  display_name: "Monitor"
+  short_description: "Manage recurring searches and site-change checks"
+  default_prompt: >-
+    Use $monitor to manage recurring checks, confirm material mutations,
+    and report verified status.
   icon_small: "./assets/icon.svg"
   icon_large: "./assets/icon.svg"
 

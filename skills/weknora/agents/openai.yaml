@@ -1,4 +1,9 @@
 interface:
+  display_name: "WeKnora"
+  short_description: "Search and manage WeKnora knowledge bases via REST"
+  default_prompt: >-
+    Use $weknora to work with my knowledge bases through the REST API
+    and cite supporting documents.
   icon_small: "./assets/icon.svg"
   icon_large: "./assets/icon.svg"
 

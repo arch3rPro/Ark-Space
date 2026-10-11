@@ -1,4 +1,9 @@
 interface:
+  display_name: "GitHub Repository"
+  short_description: "Analyze repositories with revision-pinned source evidence"
+  default_prompt: >-
+    Use $gh-repo to analyze this repository with source evidence pinned
+    to a fixed revision.
   icon_small: "./assets/icon.svg"
   icon_large: "./assets/icon.svg"
 

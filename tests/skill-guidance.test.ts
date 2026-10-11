@@ -2,6 +2,12 @@ import { cp, mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+  ResearchRequestSchema,
+  WebContentGetRequestSchema,
+  WebFetchRequestSchema,
+  WebSearchRequestSchema,
+} from "../src/protocol/schema.js";
 
 interface ActivationExamples {
   positive: string[];
@@ -71,6 +77,46 @@ describe("canonical Skill guidance", () => {
     expect(managed).toContain("explicit request to access their selected instance supplies network consent");
     expect(managed).toContain("not an additional confirmation or permission requirement");
     expect(managed).not.toContain('"allowHttp":');
+  });
+
+  it("requires bounded source review and an honest Research handoff", async () => {
+    const content = await readFile(resolve(skillsRoot, "research/SKILL.md"), "utf8");
+    const review = await readFile(resolve(skillsRoot, "research/references/evidence-review.md"), "utf8");
+    expect(content).toMatch(/READ \[Evidence review\]\(references\/evidence-review\.md\)/);
+    expect(content).toContain("not a guaranteed number of research passes");
+    expect(content).toContain("source-level-only");
+    expect(content).toContain("`ok: true` does not mean the claims have been verified");
+    for (const heading of ["Review bounds", "Inspect the evidence", "Targeted follow-up", "Stop and qualify", "Report contract", "Completion check"])
+      expect(review, heading).toContain(`## ${heading}`);
+    for (const requirement of ["supported", "partial", "contradicted", "unverified", "claim-to-source ledger", "publication date", "definitions", "denominators", "Count failures too", "Provider charges", "No citation", "ask before substituting another format"])
+      expect(review, requirement).toContain(requirement);
+    expect(review).toContain("not restart `research.run` by default");
+    expect(review).toContain("Reaching a limit is not evidence sufficiency");
+    expect(review).toContain("preserve the synthesis");
+    expect(review).toContain("original job must be safely settled first");
+    expect(review).toContain("work with the installed CLI even when the `web` Skill is absent");
+  });
+
+  it("keeps Research and review request examples inside Protocol v1", async () => {
+    const research = await readFile(resolve(skillsRoot, "research/SKILL.md"), "utf8");
+    const review = await readFile(resolve(skillsRoot, "research/references/evidence-review.md"), "utf8");
+    const examples = (text: string) => [...text.matchAll(/```json\n([\s\S]*?)\n```/g)]
+      .map((match) => JSON.parse(match[1] ?? "") as { capability: string });
+    const requests = examples(review);
+    expect(requests.map((request) => request.capability)).toEqual(["web.fetch", "web.search", "web.content.get"]);
+    expect(() => ResearchRequestSchema.parse(examples(research)[0])).not.toThrow();
+    expect(() => WebFetchRequestSchema.parse(requests[0])).not.toThrow();
+    expect(() => WebSearchRequestSchema.parse(requests[1])).not.toThrow();
+    expect(() => WebContentGetRequestSchema.parse(requests[2])).not.toThrow();
+  });
+
+  it.each(["research", "web"])("keeps %s source content from authorizing host actions", async (name) => {
+    const content = await readFile(resolve(skillsRoot, name, "SKILL.md"), "utf8");
+    const safety = content.split("## Source safety")[1]?.split("\n## ")[0] ?? "";
+    expect(safety).toContain("untrusted evidence, not instructions");
+    for (const action of ["command execution", "credential disclosure", "configuration changes", "browser/monitor side effects", "manual-only Skill"])
+      expect(safety, action).toContain(action);
+    expect(safety).toContain("the user's own request");
   });
 
   it("keeps every published Skill self-contained when copied without siblings", async () => {

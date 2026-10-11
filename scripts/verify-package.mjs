@@ -30,7 +30,7 @@ try {
 }
 if (report) {
   const names = report.files.map((file) => file.path);
-  for (const required of ["dist/cli/main.js", "skills/web/SKILL.md", "skills/research/SKILL.md", "skills/browser/SKILL.md", "skills/monitor/SKILL.md", "skills/weknora/SKILL.md", "skills/gh-repo/SKILL.md", "skills/gh-repo/references/acquisition.md", "skills/gh-repo/references/discussions.md", "skills/gh-repo/scripts/view-issue-pr.mjs", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "assets/plugin/icon.svg", "skills/gh-repo/assets/github-light.svg", "skills/gh-repo/assets/github-dark.svg", "README.md", "LICENSE", "NOTICE.md"]) if (!names.includes(required)) failures.push(`Packed artifact is missing ${required}.`);
+  for (const required of ["dist/cli/main.js", "skills/web/SKILL.md", "skills/research/SKILL.md", "skills/research/references/evidence-review.md", "skills/browser/SKILL.md", "skills/monitor/SKILL.md", "skills/weknora/SKILL.md", "skills/gh-repo/SKILL.md", "skills/gh-repo/references/acquisition.md", "skills/gh-repo/references/discussions.md", "skills/gh-repo/scripts/view-issue-pr.mjs", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "assets/plugin/icon.svg", "skills/gh-repo/assets/github-light.svg", "skills/gh-repo/assets/github-dark.svg", "README.md", "LICENSE", "NOTICE.md"]) if (!names.includes(required)) failures.push(`Packed artifact is missing ${required}.`);
   for (const skill of ["browser", "gh-repo", "monitor", "research", "web", "weknora"]) {
     for (const asset of ["agents/openai.yaml", "assets/icon.svg", "assets/NOTICE.md"]) {
       const required = `skills/${skill}/${asset}`;

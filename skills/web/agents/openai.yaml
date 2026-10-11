@@ -1,4 +1,9 @@
 interface:
+  display_name: "Web"
+  short_description: "Retrieve precise web evidence and source links"
+  default_prompt: >-
+    Use $web to retrieve precise evidence for this request
+    and include source links.
   icon_small: "./assets/icon.svg"
   icon_large: "./assets/icon.svg"
 
