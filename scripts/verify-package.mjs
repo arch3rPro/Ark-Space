@@ -4,8 +4,15 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const packageJson = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
-const lock = JSON.parse(await readFile(resolve(root, "package-lock.json"), "utf8"));
+let packageJson;
+let lock;
+try {
+  packageJson = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
+  lock = JSON.parse(await readFile(resolve(root, "package-lock.json"), "utf8"));
+} catch {
+  process.stderr.write("Package verification requires readable, valid package.json and package-lock.json.\n");
+  process.exit(1);
+}
 const npmrc = await readFile(resolve(root, ".npmrc"), "utf8");
 const failures = [];
 
@@ -23,7 +30,7 @@ try {
 }
 if (report) {
   const names = report.files.map((file) => file.path);
-  for (const required of ["dist/cli/main.js", "skills/web/SKILL.md", "skills/research/SKILL.md", "skills/browser/SKILL.md", "skills/monitor/SKILL.md", "skills/weknora/SKILL.md", "skills/gh-repo/SKILL.md", "skills/gh-repo/references/acquisition.md", "skills/gh-repo/references/discussions.md", "skills/gh-repo/scripts/view-issue-pr.mjs", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "README.md", "LICENSE", "NOTICE.md"]) if (!names.includes(required)) failures.push(`Packed artifact is missing ${required}.`);
+  for (const required of ["dist/cli/main.js", "skills/web/SKILL.md", "skills/research/SKILL.md", "skills/browser/SKILL.md", "skills/monitor/SKILL.md", "skills/weknora/SKILL.md", "skills/gh-repo/SKILL.md", "skills/gh-repo/references/acquisition.md", "skills/gh-repo/references/discussions.md", "skills/gh-repo/scripts/view-issue-pr.mjs", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "assets/plugin/icon.svg", "README.md", "LICENSE", "NOTICE.md"]) if (!names.includes(required)) failures.push(`Packed artifact is missing ${required}.`);
   for (const name of names) if (/^(?:src|tests|scripts|docs\/research|overlays|node_modules|\.git)(?:\/|$)/.test(name) || /(?:^|\/)(?:\.env(?:\.|$)|.*\.state\.json$|.*\.(?:pem|key)$)/.test(name)) failures.push(`Forbidden packed path: ${name}.`);
   if (report.size > 5_000_000 || report.unpackedSize > 10_000_000) failures.push(`Packed artifact exceeds the release budget (${report.size}/${report.unpackedSize} bytes).`);
   for (const file of report.files) if (file.size > 1_000_000) failures.push(`Packed file ${file.path} exceeds 1 MB.`);

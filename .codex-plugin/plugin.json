@@ -1,7 +1,7 @@
 {
   "name": "arkspace",
   "version": "0.1.4",
-  "description": "Provider-aware Web retrieval, structured extraction, cited Research, Code Context, and reusable agent skills.",
+  "description": "Reusable skills for Web evidence, cited research, browser work, monitoring, WeKnora knowledge bases, and GitHub repository analysis.",
   "author": {
     "name": "arch3rPro"
   },
@@ -16,8 +16,8 @@
   "hooks": {},
   "interface": {
     "displayName": "ArkSpace",
-    "shortDescription": "Reusable provider-aware agent skills",
-    "longDescription": "Use ArkSpace for provider-aware Web retrieval, structured extraction, cited Research, and implementation context through a stable local CLI contract.",
+    "shortDescription": "Reusable agent skills",
+    "longDescription": "Retrieve Web evidence, produce cited research, operate owned browser sessions, manage monitors, query WeKnora knowledge bases, and analyze GitHub repositories. Shared Provider operations require the separately installed arks CLI and configured credentials or SearXNG instances. Guidance-only workflows use host tools; plugin installation does not install the CLI or configure credentials.",
     "developerName": "arch3rPro",
     "category": "Developer Tools",
     "capabilities": [
@@ -26,13 +26,11 @@
     "defaultPrompt": [
       "Search the web for current sources about this topic.",
       "Fetch these URLs and summarize their contents with citations.",
-      "Map this site and identify the most relevant pages.",
-      "Crawl this site within a bounded page and depth limit.",
-      "Extract schema-bound data from these exact URLs.",
-      "Retrieve implementation context for this API.",
       "Produce a bounded, cited research report from authoritative sources."
     ],
     "brandColor": "#5B6CFF",
+    "composerIcon": "./assets/plugin/icon.svg",
+    "logo": "./assets/plugin/icon.svg",
     "screenshots": []
   }
 }

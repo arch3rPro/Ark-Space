@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">ArkSpace</title>
+  <rect width="256" height="256" rx="56" fill="#5B6CFF"/>
+  <path d="M128 40 64 152h32l32-56 32 56h32L128 40Z" fill="#FFF"/>
+  <path d="M48 168h160l-24 32H72l-24-32Z" fill="#FFF"/>
+  <path d="M80 216h96" fill="none" stroke="#FFF" stroke-width="8" stroke-linecap="round"/>
+</svg>

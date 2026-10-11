@@ -26,6 +26,7 @@
     ".agents",
     ".claude-plugin",
     ".codex-plugin",
+    "assets/plugin",
     "README.md",
     "LICENSE",
     "NOTICE.md"

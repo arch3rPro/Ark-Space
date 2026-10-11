@@ -71,17 +71,46 @@ async function validateMarkdownLinks(): Promise<void> {
 
 async function validatePluginMetadata(): Promise<void> {
   const packageJson = await json<{ version: string }>("package.json");
-  const codex = await json<{ version: string; skills: string }>(
-    ".codex-plugin/plugin.json",
-  );
+  const codex = await json<{
+    version: string;
+    skills: string;
+    interface?: {
+      composerIcon?: string;
+      logo?: string;
+      shortDescription?: string;
+      defaultPrompt?: string[];
+    };
+  }>(".codex-plugin/plugin.json");
   const claude = await json<{ version: string }>(".claude-plugin/plugin.json");
   const codexMarketplace = await json<{
-    plugins: Array<{ source: { url: string } }>;
+    plugins: Array<{ source: { source: string; path: string } }>;
   }>(".agents/plugins/marketplace.json");
   if (codex.skills !== "./skills/")
     failures.push("Codex plugin must reference ./skills/");
-  if (codexMarketplace.plugins[0]?.source.url !== "./")
-    failures.push("Codex marketplace must reference repository root");
+  for (const field of ["composerIcon", "logo"] as const) {
+    const path = codex.interface?.[field];
+    if (path !== "./assets/plugin/icon.svg") {
+      failures.push(`Codex ${field} must reference ./assets/plugin/icon.svg`);
+      continue;
+    }
+    try {
+      if (!(await stat(resolve(root, path))).isFile())
+        failures.push(`Codex ${field} must reference a file`);
+    } catch {
+      failures.push(`Codex ${field} references missing ${path}`);
+    }
+  }
+  const source = codexMarketplace.plugins?.[0]?.source;
+  if (source?.source !== "local" || source.path !== "./")
+    failures.push("Codex marketplace must reference repository root as a local source");
+  const shortDescription = codex.interface?.shortDescription;
+  if (typeof shortDescription !== "string" || !shortDescription.trim() || shortDescription.length > 30)
+    failures.push("Codex shortDescription must contain 1–30 characters");
+  const prompts = codex.interface?.defaultPrompt;
+  if (!Array.isArray(prompts) || prompts.length > 3 || prompts.some(
+    (prompt) => typeof prompt !== "string" || !prompt.trim() || prompt.length > 128,
+  ))
+    failures.push("Codex defaultPrompt must contain at most 3 non-empty prompts of at most 128 characters");
   if (
     codex.version !== packageJson.version ||
     claude.version !== packageJson.version
