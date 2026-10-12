@@ -11,7 +11,9 @@ describe("GitHub Skill issue/PR viewer", () => {
     const dir = await mkdtemp(join(tmpdir(), "arkspace-fake-gh-"));
     const fake = join(dir, "gh");
     await writeFile(fake, `#!/usr/bin/env node
-if (process.argv.slice(2).join(" ") !== "api repos/acme/widgets/issues/42") process.exit(3);
+const args = process.argv.slice(2);
+if (args[0] !== 'api' || !args.includes('repos/acme/widgets/issues/42') || !args.includes('--include') || !args.includes('github.com') || !args.includes('GET')) process.exit(3);
+process.stdout.write('HTTP/2.0 200 OK\\r\\nContent-Type: application/json\\r\\n\\r\\n');
 console.log(JSON.stringify({number:42,title:"Fix it",state:"open",html_url:"https://github.com/acme/widgets/issues/42",user:{login:"octocat"},body:"details",labels:[{name:"bug"}],assignees:[{login:"dev"}],pull_request:{url:"x"},created_at:"2025-01-01T00:00:00Z"}));
 `);
     await chmod(fake, 0o700);
