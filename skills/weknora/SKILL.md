@@ -67,9 +67,9 @@ Do not guess a route from a REST convention. Chunks live at `/chunks/:knowledge_
 ### Import a document — return after writing by default
 
 1. Identify and confirm the target knowledge base. Read [Ingest](references/ingest.md) before constructing requests.
-2. Read existing tags; reuse 1–3 clearly relevant tags where available. Prepare source-backed custom metadata and a short summary when the source text is available.
+2. Read existing tags; reuse 1–3 clearly relevant tags, or automatically create 1–3 content-backed topic tags if none fit. Import consent covers this limited creation; follow Ingest without a separate approval prompt. Prepare source-backed custom metadata and a short summary when the source text is available.
 3. Import the file, URL, or Markdown with `tag_ids`; for Markdown send `status: "publish"`. Preserve Wiki, graph, and other processing settings. A `409` returns an existing entry: report it without re-uploading or modifying it automatically.
-4. Using the new entry ID, save metadata and, when supported and prepared, the short summary. These writes do **not** require parsing to finish. Read the entry once to verify saved fields and capture current status.
+4. Using the new entry ID, save metadata and, when supported and prepared, the short summary. These writes do **not** require parsing to finish. Read the entry once to verify selected tag IDs and other saved fields, and capture current status; missing tags mean decoration incomplete, not a fully tagged import.
 5. Return the ID, knowledge base, saved tags/metadata, summary strategy, and observed `parse_status`. Report background processing as pending, not searchable. Do not poll or wait for Wiki, graph, or parsing on an ordinary import; partial decoration failures do not justify re-uploading.
 
 ### Confirm an import is searchable — only when requested

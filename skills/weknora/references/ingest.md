@@ -5,9 +5,17 @@ Ordinary import completes after the entry and requested decorations are saved. S
 ## Prepare before uploading
 
 1. Confirm the target knowledge base, then read `GET /knowledge-bases/:id` and `GET /knowledge-bases/:id/tags`. Paginate tags as needed; use IDs from this knowledge base, not names or guessed IDs.
-2. Reuse 1–3 clearly relevant existing tags. If none fit, propose tags and obtain approval before creating them with `POST /knowledge-bases/:id/tags`; otherwise report that no suitable tag was available. Preserve explicit user choices. If server automatic tagging is enabled, report it as pending rather than claiming its tags are already assigned.
+2. Reuse 1–3 clearly relevant existing tags. If no existing tags fit (including an empty tag list), generate 1–3 topic tags from the document content and create them with `POST /knowledge-bases/:id/tags`. The import request authorizes this limited tag creation; do not ask for separate approval. Preserve explicit user choices, including a request for no tags.
 3. Prepare `custom_metadata` from evidence: source URL or supplied filename, document type, language, and author/date/version only when stated in the source. Omit unknown fields. Do not infer confidentiality or department, expose absolute local paths, or store signed URLs, credentials, or secrets. Upload time is not publication time.
 4. When source text is available, prepare an objective summary: Chinese **80–150 characters**, or other languages **40–80 words**, in 1–3 sentences covering subject, key conclusion, and scope. Shorter is fine for sparse content. Read enough of the source to justify the summary; label an excerpt-only summary. A filename or URL alone is not evidence for a summary.
+
+## Automatic topic tags
+
+Read enough document content to support the topics. Use concise, reusable subject names; avoid whole titles, filenames, upload dates, speculative department/confidentiality labels, and synonymous duplicates. A filename or URL alone is not evidence. If content cannot be read or tag preparation fails, stop before uploading and explain the limitation; never silently send empty `tag_ids` unless the user explicitly requested an untagged import.
+
+Validate each created tag's real ID and use IDs belonging to the target knowledge base. On a duplicate/conflicting creation or uncertain network outcome, re-read tags and reuse a matching entry before any retry; do not blindly create duplicates. On permission or unsupported-field errors, stop before upload and report any tags already created; do not broaden scope or delete them automatically.
+
+Server automatic tagging may continue in the background but is not a substitute for the Skill's selected tags. Do not wait for it or change server tagging settings.
 
 ## Choose the summary strategy
 
@@ -66,12 +74,12 @@ Sending metadata and a new description together can itself enqueue a refresh. Om
 
 ## Return without waiting
 
-A successful creation response must include the new entry ID. Apply the updates above, then read `GET /knowledge/:id` once to check saved fields. If verification fails, distinguish saved-but-unverified from confirmed saved; do not claim the decorations succeeded. Stop on validation, permission, or unsupported-field errors and report partial completion, retaining the ID.
+A successful creation response must include the new entry ID. Apply the updates above, then read `GET /knowledge/:id` once to check saved fields. Compare the saved tag IDs with the selected IDs; a missing tag is decoration incomplete, not successful tagging. If tag fields are absent or verification fails, distinguish saved-but-unverified from confirmed saved; do not claim the decorations succeeded. Stop on validation, permission, or unsupported-field errors and report partial completion, retaining the ID.
 
 Report:
 
 - Entry ID and target knowledge base.
-- Tags actually saved, or no match / automatic tagging pending.
+- Selected topic tags and which were reused or created; tags confirmed saved, explicitly omitted by the user, or decoration incomplete/unverified. Distinguish any extra server-generated tags still pending.
 - Custom metadata confirmed saved, omitted unknowns, and any failed update.
 - Summary strategy: short description saved, automatic pending, or incomplete.
 - Observed parse status and enable status; background Wiki/graph work is not verified complete.
