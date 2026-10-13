@@ -68,11 +68,11 @@ Do not guess a route from a REST convention. Chunks live at `/chunks/:knowledge_
 
 1. Identify and confirm the target knowledge base. Read [Ingest](references/ingest.md) before constructing requests.
 2. Read existing tags; reuse 1–3 clearly relevant tags, or automatically create 1–3 content-backed topic tags if none fit. Import consent covers this limited creation; follow Ingest without a separate approval prompt. Prepare source-backed custom metadata and a short summary when the source text is available.
-3. Import the file, URL, or Markdown with `tag_ids`; for Markdown send `status: "publish"`. Preserve Wiki, graph, and other processing settings. A `409` returns an existing entry: report it without re-uploading or modifying it automatically.
-4. Using the new entry ID, save metadata and, when supported and prepared, the short summary. These writes do **not** require parsing to finish. Read the entry once to verify selected tag IDs and other saved fields, and capture current status; missing tags mean decoration incomplete, not a fully tagged import.
-5. Return the ID, knowledge base, saved tags/metadata, summary strategy, and observed `parse_status`. Report background processing as pending, not searchable. Do not poll or wait for Wiki, graph, or parsing on an ordinary import; partial decoration failures do not justify re-uploading.
+3. Choose the route by source: for Markdown content (including a document drafted in the conversation or a supplied `.md` file), prefer creating a manual document with `POST /knowledge-bases/:id/knowledge/manual`; use the file endpoint for other local file formats, and the URL endpoint for web sources. Honor an explicit request to preserve/upload the original Markdown file. Read [Ingest](references/ingest.md) for request shapes.
+4. Apply `tag_ids` using the selected route; for manual Markdown send `status: "publish"`. Preserve Wiki, graph, and other processing settings. A `409` returns an existing entry: report it without re-uploading or modifying it automatically.
+5. Using the new entry ID, save metadata and, when supported and prepared, the short summary. These writes do **not** require parsing to finish. Read the entry once to verify selected tag IDs and other saved fields, and capture current status; missing tags mean decoration incomplete, not a fully tagged import.
 
-### Confirm an import is searchable — only when requested
+6. Return the ID, knowledge base, saved tags/metadata, summary strategy, and observed `parse_status`. Report background processing as pending, not searchable. Do not poll or wait for Wiki, graph, or parsing on an ordinary import; partial decoration failures do not justify re-uploading.
 
 For an explicit verification request or import-and-answer task, poll `GET /knowledge/:id` within an agreed time budget, requiring `parse_status == "completed"` and `enable_status == "enabled"`. On `failed`, report the failure. On deadline or cancellation, return the ID and last observed status; leave processing running unless cancellation was requested. `finalizing` can include long-running enhancement tasks and is not by itself a stall.
 

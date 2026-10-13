@@ -10,7 +10,13 @@ it("ships automatic content-based tagging with real IDs and save verification in
     await cp(resolve("skills/weknora"), installed, { recursive: true });
     const skill = await readFile(join(installed, "SKILL.md"), "utf8");
     const ingest = await readFile(join(installed, "references/ingest.md"), "utf8");
-    expect(skill).toContain("automatically create 1–3 content-backed topic tags");
+    expect(skill).toContain("Choose the route by source: for Markdown content");
+    expect(skill).toContain("use the file endpoint for other local file formats");
+    expect(skill).toContain("and the URL endpoint for web sources");
+    expect(ingest).toContain("**Prefer manual creation for Markdown.**");
+    expect(ingest).toContain("A `.md` file is read as Markdown content and created as a manual entry");
+    expect(ingest).toContain("Honor an explicit request to preserve the original Markdown file");
+    expect(ingest).toContain("If no existing tags fit (including an empty tag list), generate 1–3 topic tags from the document content");
     expect(ingest).toContain("The import request authorizes this limited tag creation");
     expect(ingest).toContain("do not ask for separate approval");
     expect(ingest).toContain("If no existing tags fit (including an empty tag list)");

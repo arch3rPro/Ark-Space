@@ -6,8 +6,9 @@ Ordinary import completes after the entry and requested decorations are saved. S
 
 1. Confirm the target knowledge base, then read `GET /knowledge-bases/:id` and `GET /knowledge-bases/:id/tags`. Paginate tags as needed; use IDs from this knowledge base, not names or guessed IDs.
 2. Reuse 1–3 clearly relevant existing tags. If no existing tags fit (including an empty tag list), generate 1–3 topic tags from the document content and create them with `POST /knowledge-bases/:id/tags`. The import request authorizes this limited tag creation; do not ask for separate approval. Preserve explicit user choices, including a request for no tags.
-3. Prepare `custom_metadata` from evidence: source URL or supplied filename, document type, language, and author/date/version only when stated in the source. Omit unknown fields. Do not infer confidentiality or department, expose absolute local paths, or store signed URLs, credentials, or secrets. Upload time is not publication time.
-4. When source text is available, prepare an objective summary: Chinese **80–150 characters**, or other languages **40–80 words**, in 1–3 sentences covering subject, key conclusion, and scope. Shorter is fine for sparse content. Read enough of the source to justify the summary; label an excerpt-only summary. A filename or URL alone is not evidence for a summary.
+3. Choose the route by source: create Markdown content (including a drafted document or supplied `.md` file) with `POST /knowledge-bases/:id/knowledge/manual`; upload other local file formats with `POST /knowledge-bases/:id/knowledge/file`; import web sources with `POST /knowledge-bases/:id/knowledge/url`. Honor an explicit request to preserve the original Markdown file instead of converting it.
+4. Prepare `custom_metadata` from evidence: source URL or supplied filename, document type, language, and author/date/version only when stated in the source. Omit unknown fields. Do not infer confidentiality or department, expose absolute local paths, or store signed URLs, credentials, or secrets. Upload time is not publication time.
+5. When source text is available, prepare an objective summary: Chinese **80–150 characters**, or other languages **40–80 words**, in 1–3 sentences covering subject, key conclusion, and scope. Shorter is fine for sparse content. Read enough of the source to justify the summary; label an excerpt-only summary. A filename or URL alone is not evidence for a summary.
 
 ## Automatic topic tags
 
@@ -25,6 +26,8 @@ Server automatic tagging may continue in the background but is not a substitute 
 These fields were checked against upstream revision `e7aaf8ae02608d1d9e0f84aa864106a5f1ae78a3`. Confirm support from the deployment's version/documentation before relying on `summary_enabled` or manual `description` semantics; a 2xx can silently ignore an unknown field. `GET /system/info` is a version probe, not a guarantee of feature support. If support is unknown, use automatic mode and disclose the limitation. Do not upload test documents or change server settings to probe support.
 
 ## Request shapes
+
+**Prefer manual creation for Markdown.** This creates an editable manual knowledge entry and accepts `title`, `content`, `status`, `tag_ids`, and `process_config`. Use file upload for other source file formats; use URL import for web sources. A `.md` file is read as Markdown content and created as a manual entry unless the user asks to preserve it as an uploaded file.
 
 Paths below omit the `/api/v1` root supplied by `$WEKNORA_BASE_URL`.
 
