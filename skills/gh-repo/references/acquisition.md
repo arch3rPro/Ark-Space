@@ -26,12 +26,22 @@ Ordinary REST limits are normally 60 requests/hour per source IP anonymously and
 | Missing tool or authentication | Choose a public anonymous route before acquisition, or let the user prepare required access. |
 | Invalid authentication | Offer user-controlled repair; never repeatedly reuse it. |
 | Permission failure or 404 | Report inaccessible-or-not-found; private access stops. |
-| Primary limit (`403`/`429`, remaining `0`) | Stop REST requests until `x-ratelimit-reset`; default to a partial report, not a long background wait. |
+| Primary limit (`403`/`429`, remaining `0`, with no secondary-limit signal) | Stop the exhausted REST route until `x-ratelimit-reset`; run the first-limit decision below instead of waiting or immediately ending analysis. |
 | Secondary limit (`429`, `Retry-After`, or a secondary-limit error) | Stop; respect `Retry-After` and GitHub's waiting rules before any user-approved retry. |
 | Temporary network failure | A limited retry may fit the remaining budget; otherwise report the gap. |
 | Oversized, malformed, or truncated response | Mark omitted/incomplete; do not repeat the same oversized request. |
 
-A plain 403 is not proof of a limit or missing login. Never rotate identities, tokens, proxies, or channels to bypass limits. Finish with gathered evidence, omitted scope, and actionable recovery; after a limit, use local/already-fetched evidence rather than probing alternative network routes. See [official limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api) and [retry best practices](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api).
+A plain 403 is not proof of a limit or missing login. Never rotate identities, tokens, or proxies to bypass limits. For secondary or unclassified limits, use local/already-fetched evidence only until the required wait has elapsed and the user approves retry; do not switch network routes. A secondary-limit signal takes precedence over remaining `0`. See [official limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api) and [retry best practices](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api).
+
+### First-limit decision
+
+1. **Notify and ask once.** Immediately report the classified limit, affected evidence, and available reset/retry time without secrets. Stop repeated requests and background waiting. Ask the user to choose:
+   - **Continue without login (default for public source):** reuse local/cached evidence, then eligible bounded public-source reads below.
+   - **User-controlled login:** if anonymous primary REST quota is exhausted and `gh` is available, offer the trusted-terminal commands above. Login is optional and may provide a separate authenticated quota, not a guarantee of access or relief from secondary limits. If already authenticated, do not suggest account switching; offer source analysis or a later retry instead.
+   - **Provide a checkout or finish partial:** use a user-provided checkout, or report the exact evidence still unavailable.
+   In an unattended subagent, return this decision to the parent Agent for the user rather than waiting for input or repeatedly calling the API. If the user declines login, continue the eligible public-source path; if no answer is available, use local evidence and only eligible public-source reads under the existing task authorization.
+2. **Continue source analysis where eligible.** These source reads are only for primary REST quota exhaustion on a confirmed public repository, within the original request/byte/time budget and GitHub's applicable limits. Use an existing full SHA or resolve the requested ref with a bounded, noninteractive `git ls-remote`; then fetch validated known paths from `raw.githubusercontent.com/OWNER/REPO/FULL_COMMIT_SHA/ENCODED_PATH`. Follow the pin/path/transport rules below. Do not replace blocked REST calls with GraphQL, HTML scraping, or the helper's anonymous mode. Stop a source route on its own limit or denial. Unknown paths/tree coverage remain partial; raw files do not supply current metadata or discussions. Request a user checkout or separately consented bounded clone only when needed; a rate limit alone is not clone consent.
+3. **Finish or hand off.** Resume missing evidence after user-confirmed login with at most one readiness verification, not a polling loop. Reuse pinned files and count the verification/request against the budget. If recovery is unavailable or exhausted, return a qualified partial report with missing evidence and a concrete next step; never silently hang or claim completion.
 
 ## Pin and traverse
 
