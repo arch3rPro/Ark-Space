@@ -27,10 +27,10 @@ describe("canonical Skill guidance", () => {
 
     expect(Object.keys(fixtures).sort()).toEqual(skillNames);
     for (const skillName of skillNames) {
-      const content = await readFile(
+      const content = (await readFile(
         resolve(skillsRoot, skillName, "SKILL.md"),
         "utf8",
-      );
+      )).replace(/\r\n/g, "\n");
       const frontmatter = content.match(/^---\n([\s\S]*?)\n---\n/)?.[1] ?? "";
       expect(frontmatter, skillName).toMatch(/^compatibility:\s*\S.+$/m);
 
@@ -100,7 +100,7 @@ describe("canonical Skill guidance", () => {
   it("keeps Research and review request examples inside Protocol v1", async () => {
     const research = await readFile(resolve(skillsRoot, "research/SKILL.md"), "utf8");
     const review = await readFile(resolve(skillsRoot, "research/references/evidence-review.md"), "utf8");
-    const examples = (text: string) => [...text.matchAll(/```json\n([\s\S]*?)\n```/g)]
+    const examples = (text: string) => [...text.replace(/\r\n/g, "\n").matchAll(/```json\n([\s\S]*?)\n```/g)]
       .map((match) => JSON.parse(match[1] ?? "") as { capability: string });
     const requests = examples(review);
     expect(requests.map((request) => request.capability)).toEqual(["web.fetch", "web.search", "web.content.get"]);

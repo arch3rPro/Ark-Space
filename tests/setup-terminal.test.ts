@@ -387,14 +387,23 @@ it("joins fragmented page arrows and Shift-Tab without treating their Escape pre
   } finally { controller.abort(); await pending.catch(() => {}); }
 });
 it("holds a lone page Escape for 50ms, then restores only the field", async () => {
-  const { input, terminal } = terminalFixture(); const controller = new AbortController();
-  const pending = terminal.form(snapshot, { presentation: "page", title: "Key", fields: [{ label: "Key", value: "seed" }], notes: "", save: "Save", cancel: "Cancel", rejected: "Rejected" }, controller.signal);
+  // Page framing uses global timers; control the deadline, not scheduler latency.
+  vi.useFakeTimers();
+  const { input, terminal, write } = terminalFixture(); const controller = new AbortController();
+  let settled = false;
+  const pending = terminal.form(snapshot, { presentation: "page", title: "Key", fields: [{ label: "Key", value: "seed" }], notes: "", save: "Save", cancel: "Cancel", rejected: "Rejected" }, controller.signal).finally(() => { settled = true; });
+  const screen = () => write.mock.calls.map(call => plain(call[0])).filter(text => text.includes("Field")).at(-1)!;
   try {
     input.write("\r"); input.write("X"); input.write("\x1b");
-    await new Promise(resolve => setTimeout(resolve, 20)); input.write("[D"); input.write("Y");
-    input.write("\x1b"); await new Promise(resolve => setTimeout(resolve, 80));
-    input.write("\x13"); expect(await pending).toEqual(["seed"]);
-  } finally { controller.abort(); await pending.catch(() => {}); }
+    await vi.advanceTimersByTimeAsync(20); expect(screen()).toContain("[seedX]");
+    input.write("[D"); input.write("Y"); expect(screen()).toContain("[seedYX]");
+    input.write("\x1b"); await vi.advanceTimersByTimeAsync(49);
+    expect(screen()).toContain("[seedYX]"); expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(screen()).toContain("[seed]"); expect(screen()).not.toContain("Discard unsaved changes?");
+    expect(settled).toBe(false); expect(input.isRaw).toBe(true);
+    input.write("\x13"); await vi.advanceTimersByTimeAsync(150); expect(await pending).toEqual(["seed"]);
+  } finally { controller.abort(); await pending.catch(() => {}); vi.useRealTimers(); }
 });
 it("bounds fragmented page paste and rejects timed-out or unknown CSI without inserting controls", async () => {
   const { input, terminal, write } = terminalFixture(16, 60); const controller = new AbortController();

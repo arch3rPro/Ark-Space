@@ -97,7 +97,7 @@ describe("direct-source plugin metadata", () => {
       const isolated = await mkdtemp(resolve(tmpdir(), "arkspace-skill-icon-"));
       try {
         await cp(resolve("skills", name), isolated, { recursive: true });
-        const metadata = await readFile(resolve(isolated, "agents/openai.yaml"), "utf8");
+        const metadata = (await readFile(resolve(isolated, "agents/openai.yaml"), "utf8")).replace(/\r\n/g, "\n");
         const display = metadata.match(/^interface:\n((?:  .+\n)+)/m)?.[1] ?? "";
         for (const [field, maxLength] of [
           ["display_name", 64],

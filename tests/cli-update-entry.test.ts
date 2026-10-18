@@ -2,10 +2,11 @@ import { spawn, spawnSync } from "node:child_process";
 import { cp, mkdir, mkdtemp, readFile, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
 const directories: string[] = [];
-const fixture = resolve("tests/fixtures/cli-update-boundary.mjs");
+const fixture = pathToFileURL(resolve("tests/fixtures/cli-update-boundary.mjs")).href;
 const version = (JSON.parse(await readFile(resolve("package.json"), "utf8")) as { version: string }).version;
 const nativePty = process.platform === "linux" && spawnSync("python3", ["--version"]).status === 0;
 const npmPack = process.env.npm_execpath;

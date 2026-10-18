@@ -8,6 +8,7 @@ import { resolveArkSpacePaths } from "../src/config/paths.js";
 import { initializeConfig, loadConfig, addSearxngInstance } from "../src/config/store.js";
 import { addSetupKey, type SetupSnapshot } from "../src/config/manage.js";
 import * as management from "../src/config/manage.js";
+import * as store from "../src/config/store.js";
 import * as keyTests from "../src/cli/setup-key-tests.js";
 import { loadCredentialEnvironment } from "../src/config/credentials.js";
 import { SetupTerminal, clipCells, cellWidth, type WorkbenchView } from "../src/cli/setup-terminal.js";
@@ -135,7 +136,7 @@ async function realWorkbench(provider = "exa", environment: NodeJS.ProcessEnv = 
   // Production decoder seam: write bytes instead of fabricating keypress metadata.
   const bytes = async (chunk: string, wait = 30) => { await ready(); f.input.write(chunk); await pause(wait); await ready(); };
   const text = () => f.write.mock.calls.map(c => String(c[0])).join("").replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, "");
-  return { ...f, paths, start, send, bytes, text, controller };
+  return { ...f, paths, start, ready, send, bytes, text, controller };
 }
 it.each([
   [16, 60, "en"], [24, 80, "en"], [16, 60, "zh"], [24, 80, "zh"],
@@ -574,16 +575,28 @@ it("aborts in-flight operations on Ctrl-C and waits for their settlement before 
   f.key("c", { ctrl: true }); await expect(pending).rejects.toThrow("Setup cancelled.");
   expect(aborted).toBe(true); expect(f.input.isRaw).toBe(false); f.terminal.close();
 });
-it("adds SearXNG without network, preserves disabled provider on append, and cancels URL drafts", async () => {
-  const f = await realWorkbench("searxng"); const running = f.start(); await pause();
-  await f.send("right"); await f.send("a"); f.input.write("\r"); f.input.write("https://first.example/"); f.input.write("\r"); f.input.write("\x13"); await pause(220);
-  const saved = await loadConfig(f.paths.config); expect(saved.providers.searxng!.enabled).toBe(true); expect(saved.providerOrder).not.toContain("searxng");
-  await f.send("v", { shift: true, sequence: "V" }); expect((await loadConfig(f.paths.config)).providers.searxng!.enabled).toBe(false);
-  await f.send("a"); f.input.write("\r"); f.input.write("https://second.example/"); f.input.write("\r"); f.input.write("\x13"); await pause(220);
-  expect((await loadConfig(f.paths.config)).providers.searxng!.enabled).toBe(false);
-  expect((await loadConfig(f.paths.config)).providers.searxng!.instances).toHaveLength(2);
-  await f.send("e"); f.input.write("\x1b"); await pause(80);
-  await f.send("escape"); await f.send("escape"); await running; f.terminal.close();
+it.each([0, 300])("adds SearXNG without network, preserves disabled provider on append, and cancels URL drafts (%ims save latency)", async saveDelay => {
+  const add = store.addSearxngInstance;
+  vi.spyOn(store, "addSearxngInstance").mockImplementation(async (...args) => { await pause(saveDelay); return add(...args); });
+  const fetch = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Unexpected network request"));
+  const f = await realWorkbench("searxng"); const running = f.start();
+  try {
+    await f.ready(); await f.send("right"); await f.send("a");
+    f.input.write("\r"); f.input.write("https://first.example/"); f.input.write("\r"); f.input.write("\x13");
+    await vi.waitFor(async () => expect((await loadConfig(f.paths.config)).providers.searxng?.instances).toEqual([{ baseUrl: "https://first.example", allowRanges: [] }]), { timeout: 2_000, interval: 5 });
+    await f.ready();
+    const saved = await loadConfig(f.paths.config); expect(saved.providers.searxng!.enabled).toBe(true); expect(saved.providerOrder).not.toContain("searxng");
+    await f.send("v", { shift: true, sequence: "V" }); expect((await loadConfig(f.paths.config)).providers.searxng!.enabled).toBe(false);
+    await f.send("a"); f.input.write("\r"); f.input.write("https://second.example/"); f.input.write("\r"); f.input.write("\x13");
+    await vi.waitFor(async () => expect((await loadConfig(f.paths.config)).providers.searxng?.instances).toEqual([
+      { baseUrl: "https://first.example", allowRanges: [] }, { baseUrl: "https://second.example", allowRanges: [] },
+    ]), { timeout: 2_000, interval: 5 });
+    await f.ready(); expect((await loadConfig(f.paths.config)).providers.searxng!.enabled).toBe(false);
+    await f.send("e"); f.input.write("\x1b");
+    await vi.waitFor(() => expect(f.input.listenerCount("keypress")).toBe(1), { timeout: 2_000, interval: 5 });
+    await f.send("escape"); await f.send("escape"); await running;
+    expect(fetch).not.toHaveBeenCalled();
+  } finally { f.controller.abort(); await running.catch(() => {}); f.terminal.close(); }
 });
 it("marks order dirty, keeps it after Cancel and discards only through explicit consent", async () => {
   const f = await realWorkbench(); const before = await readFile(f.paths.config, "utf8"); const views: WorkbenchView[] = [];
@@ -908,28 +921,45 @@ it("keeps newly drafted CIDRs through an invalid endpoint retry without inheriti
   expect(consent.mock.calls.filter(call => call[1] === "Network permission")).toHaveLength(1);
   expect((await loadConfig(f.paths.config)).providers.searxng!.instances[0]).toEqual({ baseUrl: "https://new.example", allowRanges: ["10.9.8.7/32"] });
 });
-it.each(["inherited", "edited"])("runs production page CIDR/endpoint validation retries with %s ranges", async kind => {
+it.each([["inherited", 0], ["edited", 0], ["inherited", 300], ["edited", 300]] as const)("runs production page CIDR/endpoint validation retries with %s ranges (%ims save latency)", async (kind, saveDelay) => {
+  const update = management.updateSetupInstance;
+  vi.spyOn(management, "updateSetupInstance").mockImplementation(async (...args) => { await pause(saveDelay); return update(...args); });
   const f = await realWorkbench("searxng"); await addSearxngInstance(f.paths.config, "https://old.example", ["10.1.2.3/32"]);
   const before = await readFile(f.paths.config, "utf8"); const form = vi.spyOn(f.terminal, "form");
-  const running = f.start(); await pause(); await f.send("right"); await f.send("return");
+  const consent = vi.spyOn(f.terminal, "confirm");
+  const running = f.start();
   const replaceField = (old: string, next: string) => {
     f.input.write("\r"); f.input.write("\x1b[H"); for (const _ of old) f.input.write("\x1b[3~"); f.input.write(next); f.input.write("\r");
   };
-  replaceField(form.mock.calls[0]![1].fields[0]!.value!, "invalid-url");
-  if (kind === "edited") { f.input.write("\x1b[B"); replaceField("10.1.2.3/32", "10.9.8.7/32"); }
-  expect(await readFile(f.paths.config, "utf8")).toBe(before);
-  f.input.write("\x13"); await pause(220);
-  expect(form.mock.calls.at(-1)![1]).toMatchObject({ presentation: "page", initialField: 0, fields: [{ value: "invalid-url" }, { value: kind === "edited" ? "10.9.8.7/32" : "10.1.2.3/32" }] });
-  expect(form.mock.calls.at(-1)![1].error).toBeTruthy();
-  replaceField("invalid-url", "https://new.example"); f.input.write("\x13"); await pause(220);
-  if (kind === "edited") {
-    await f.send("return"); // default-Cancel permission confirmation returns to draft
+  // Node's readline keypress decoder leaves a residual "data" listener on stdin
+  // (removed lazily on the next chunk), so count this terminal's own listener.
+  const ownDataListeners = () => f.input.listeners("data").filter(listener => listener.name !== "onData").length;
+  const pageReady = (count: number) => vi.waitFor(() => {
+    expect(form).toHaveBeenCalledTimes(count); expect(ownDataListeners()).toBe(1);
+  }, { timeout: 2_000, interval: 5 });
+  const permissionReady = (count: number) => vi.waitFor(() => {
+    expect(consent.mock.calls.filter(call => call[1] === "Network permission")).toHaveLength(count);
+    expect(f.input.listenerCount("keypress")).toBe(1);
+  }, { timeout: 2_000, interval: 5 });
+  try {
+    await f.ready(); await f.send("right"); await f.send("return"); await pageReady(1);
+    replaceField(form.mock.calls[0]![1].fields[0]!.value!, "invalid-url");
+    if (kind === "edited") { f.input.write("\x1b[B"); replaceField("10.1.2.3/32", "10.9.8.7/32"); }
     expect(await readFile(f.paths.config, "utf8")).toBe(before);
-    expect(form.mock.calls.at(-1)![1].fields.map(field => field.value)).toEqual(["https://new.example", "10.9.8.7/32"]);
-    f.input.write("\x13"); await pause(220); await f.send("right"); await f.send("return");
-  }
-  expect((await loadConfig(f.paths.config)).providers.searxng!.instances[0]).toEqual({ baseUrl: "https://new.example", allowRanges: kind === "edited" ? ["10.9.8.7/32"] : [] });
-  await f.send("escape"); await f.send("escape"); await running; f.terminal.close();
+    f.input.write("\x13"); await pageReady(2);
+    expect(form.mock.calls.at(-1)![1]).toMatchObject({ presentation: "page", initialField: 0, fields: [{ value: "invalid-url" }, { value: kind === "edited" ? "10.9.8.7/32" : "10.1.2.3/32" }] });
+    expect(form.mock.calls.at(-1)![1].error).toBeTruthy();
+    replaceField("invalid-url", "https://new.example"); f.input.write("\x13");
+    if (kind === "edited") {
+      await permissionReady(1); await f.send("return"); await pageReady(3); // default Cancel returns to draft
+      expect(await readFile(f.paths.config, "utf8")).toBe(before);
+      expect(form.mock.calls.at(-1)![1].fields.map(field => field.value)).toEqual(["https://new.example", "10.9.8.7/32"]);
+      f.input.write("\x13"); await permissionReady(2); await f.send("right"); await f.send("return");
+    }
+    await vi.waitFor(async () => expect((await loadConfig(f.paths.config)).providers.searxng!.instances[0]).toEqual({ baseUrl: "https://new.example", allowRanges: kind === "edited" ? ["10.9.8.7/32"] : [] }), { timeout: 2_000, interval: 5 });
+    expect(consent.mock.calls.filter(call => call[1] === "Network permission")).toHaveLength(kind === "edited" ? 2 : 0);
+    await f.ready(); await f.send("escape"); await f.send("escape"); await running;
+  } finally { f.controller.abort(); await running.catch(() => {}); f.terminal.close(); }
 });
 it("clips Chinese, combining and joined emoji by grapheme/cells", () => {
   expect(cellWidth("中e\u0301👩‍💻")).toBe(5);
