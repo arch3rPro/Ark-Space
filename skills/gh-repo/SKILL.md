@@ -23,7 +23,7 @@ Keep GitHub operations read-only. Public analysis does not require login; use ex
 
 Clone/install/authentication/execution are separate consent boundaries. Cloning requires explicit consent for destination, ownership, bounds, and cleanup; do not clone merely to avoid bounded API limits. Analyze source as data: do not execute repository scripts, hooks, builds, tests, or install dependencies without separate permission. Never remove a user-owned checkout.
 
-On the first rate-limit response, stop that route and tell the user what is blocked; follow the acquisition reference's first-limit decision and ask whether they prefer user-controlled login or continued public-source analysis. Retain gathered evidence; a qualified partial report is the last resort when eligible recovery cannot supply the missing evidence. Keep authentication, permission, primary quota, secondary limits, and network failures distinct.
+On the first rate-limit response, stop that route and follow the acquisition reference's first-limit decision: probe existing `gh` readiness once, use valid authentication when it is already there, and only then ask the user whether they prefer user-controlled login or continued public-source analysis. Retain gathered evidence; a qualified partial report is the last resort when eligible recovery cannot supply the missing evidence. Keep authentication, permission, primary quota, secondary limits, and network failures distinct.
 
 ## Report contract
 

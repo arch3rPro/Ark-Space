@@ -7,9 +7,19 @@ const read = (path: string) => readFile(resolve("skills/gh-repo", path), "utf8")
 describe("gh-repo rate-limit recovery guidance", () => {
   it("makes the first limit an explicit recovery decision at the Skill entry", async () => {
     const skill = await read("SKILL.md");
-    expect(skill).toContain("On the first rate-limit response, stop that route and tell the user");
-    expect(skill).toContain("ask whether they prefer user-controlled login or continued public-source analysis");
+    expect(skill).toContain("probe existing `gh` readiness once, use valid authentication when it is already there, and only then ask the user");
     expect(skill).not.toContain("not reasons for automatic login or transport switching");
+  });
+
+  it("probes readiness before asking the user about login", async () => {
+    const acquisition = await read("references/acquisition.md");
+    const decision = acquisition.slice(acquisition.indexOf("### First-limit decision"));
+    expect(decision).toContain("Run `gh auth status --hostname github.com` at most once per task *before* asking anything");
+    expect(decision).toContain("there is nothing to ask");
+    expect(decision).toContain("Never ask about logging in before probing readiness");
+    // Ordering: the probe precedes the first user question, so an authenticated user is never asked.
+    expect(decision).toMatch(/Probe readiness, then ask once/);
+    expect(decision.indexOf("gh auth status --hostname github.com")).toBeLessThan(decision.indexOf("ask the user once"));
   });
 
   it("offers bounded source acquisition after primary REST exhaustion, not a retry loop", async () => {
