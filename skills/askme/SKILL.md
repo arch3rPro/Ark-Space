@@ -36,15 +36,25 @@ Choose the smallest useful method:
 
 Select only methods that address the current gap. Finish this step with a question or sample that tests a specific unknown, rather than a general debate.
 
-## 3. Ask and update
+## 3. Run the interview loop
 
-Ask one consequential question at a time by default; let the answer determine the next question. Batch only independent questions when the user or host calls for it.
+When an interview is requested or a consequential gap remains, enter a loop and stay in it across turns:
+
+1. Reclassify the latest answer and update only the affected item.
+2. Check the stop conditions. If they are satisfied, state the compact understanding and continue; do not ask another question.
+3. If a consequential unknown remains, state in one sentence what the latest answer clarified and ask the next question about that unknown.
+4. Wait for the user's answer; do not summarize the task as complete or start execution while a blocking choice remains.
+5. Repeat from step 1 after the answer. Exit when the stop conditions are satisfied, the user asks to stop, gives permission to proceed with an explicit assumption, or changes the task.
+
+An answer that resolves one unknown does not end the interview if another independent unknown can still change the result. Do not ask the next question in the same message as the current question. Do not repeat a question whose answer is already clear.
+
+Ask one consequential question per turn by default; batch independent questions only when the user or host explicitly calls for it.
 
 Use a structured question tool when available and appropriate, otherwise plain text. Offer concrete options with tradeoffs and a custom-answer path. Recommend an option when its basis is clear.
 
 Before another question, briefly state what the answer clarified or changed. Update only the affected fact, preference, constraint, or decision; preserve other settled items. Correct faulty premises and their consequences when discovered.
 
-Stop when the outcome, consequential constraints, acceptance evidence, and next action are sufficiently clear. Use no fixed question count or exhaustive decision-tree requirement.
+Stop the loop when the outcome, consequential constraints, acceptance evidence, and next action are sufficiently clear. Use no fixed question count or exhaustive decision-tree requirement. If the user answers partially, mark the unanswered consequential item and ask the next question. If the answer is sufficient, state the compact understanding and continue.
 
 ## 4. Continue and verify
 
@@ -58,7 +68,7 @@ Remaining assumption or blocking choice: ...
 Next action: ...
 ```
 
-Omit empty or just-confirmed fields; use one sentence for a narrow gap. Wait for a blocking user choice or when the user requested an interview before execution. Otherwise continue the authorized task in the same turn, without an additional approval gate.
+Omit empty or just-confirmed fields; use one sentence for a narrow gap. Wait only for a blocking user choice, or when the user explicitly requires final confirmation before execution. Otherwise, once the stop conditions are satisfied, continue the authorized task in the same turn without an additional approval gate.
 
 During execution, compare consequential choices and results against the agreed requirements. Use recovery for concrete discrepancies. Complete the original task against its acceptance criteria and report actual verification and unresolved gaps.
 
