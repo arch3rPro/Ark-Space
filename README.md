@@ -63,12 +63,15 @@ These commands apply to Skills tracked by the installer, not just ArkSpace. Back
 
 | Skill | Use it to… |
 | --- | --- |
+| [`askme`](skills/askme/SKILL.md) | Clarify consequential requirements, preserve agreed constraints, and correct execution drift. |
 | [`web`](skills/web/SKILL.md) | Find, retrieve, map, crawl, or extract public Web and implementation evidence. |
 | [`research`](skills/research/SKILL.md) | Produce a bounded, cited synthesis across public sources. |
 | [`browser`](skills/browser/SKILL.md) | Inspect or change dynamic page state in an owned remote browser session. |
 | [`monitor`](skills/monitor/SKILL.md) | Manage recurring searches and site-change checks beyond the current session. |
 | [`weknora`](skills/weknora/SKILL.md) | Search, import, and answer questions over a WeKnora knowledge base through its REST API. |
 | [`gh-repo`](skills/gh-repo/SKILL.md) | Analyze GitHub project architecture, maturity, and borrowing tradeoffs with revision-pinned source evidence; inspect supporting issues/PRs. |
+
+`askme` is guidance-only: it needs conversational follow-up, with no CLI, network, credentials, or sibling Skills. It can be invoked explicitly or selected by the Agent when a consequential ambiguity or execution mismatch needs resolution. Clear tasks proceed directly; alignment does not add a universal approval step.
 
 See the [Skill, Capability, and Provider reference](docs/capabilities.md) for operation identifiers, Provider coverage, fallback behavior, and resource ownership.
 

@@ -1,0 +1,11 @@
+interface:
+  display_name: "Ask Me"
+  short_description: "Align requirements and correct execution drift"
+  default_prompt: >-
+    Use $askme to clarify consequential ambiguity, preserve agreed constraints,
+    and continue the task once the next action is clear.
+  icon_small: "./assets/icon.svg"
+  icon_large: "./assets/icon.svg"
+
+policy:
+  allow_implicit_invocation: true

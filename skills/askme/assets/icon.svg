@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Ask Me</title>
+  <desc id="desc">A question bubble overlaps a reply bubble with a check mark, representing clarification and shared understanding.</desc>
+  <rect width="256" height="256" rx="56" fill="#102A43"/>
+  <path d="M126 104h62a24 24 0 0 1 24 24v42a24 24 0 0 1-24 24h-8v22l-30-22h-24a24 24 0 0 1-24-24v-42a24 24 0 0 1 24-24Z" fill="#2DD4BF"/>
+  <path d="m143 151 14 14 25-29" fill="none" stroke="#102A43" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M64 40h78a24 24 0 0 1 24 24v48a24 24 0 0 1-24 24H94l-30 24v-24a24 24 0 0 1-24-24V64a24 24 0 0 1 24-24Z" fill="#F8FAFC"/>
+  <path d="M86 73a18 18 0 0 1 34 8c0 12-17 13-17 24" fill="none" stroke="#102A43" stroke-width="9" stroke-linecap="round"/>
+  <circle cx="103" cy="119" r="5" fill="#102A43"/>
+</svg>

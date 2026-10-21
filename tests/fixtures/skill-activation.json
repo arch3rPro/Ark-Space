@@ -1,4 +1,16 @@
 {
+  "askme": {
+    "positive": [
+      "Before implementing, ask me the questions that would change the requirements and define done.",
+      "You misunderstood my request; recover the agreed constraints and clarify the execution direction.",
+      "I need both zero downtime and removal of the existing API; clarify the conflicting requirements."
+    ],
+    "negative": [
+      "Fetch this exact public URL and return its main content.",
+      "Explain the difference between TCP and UDP with a short example.",
+      "Rename this local variable from count to itemCount without changing behavior."
+    ]
+  },
   "web": {
     "positive": [
       "Search the public web for the current Node.js release notes and return the source URLs.",

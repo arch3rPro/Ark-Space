@@ -6,11 +6,14 @@ This reference maps each canonical Skill to its public `arks` capabilities and P
 
 | Skill | User-facing abilities |
 | --- | --- |
+| [`askme`](../skills/askme/SKILL.md) | Clarify consequential requirements, preserve agreed constraints, and recover alignment after execution drift using host conversation and context tools. |
 | [`web`](../skills/web/SKILL.md) | Find public sources, retrieve exact pages, discover or crawl sites, extract schema-bound data, and collect implementation examples. |
 | [`research`](../skills/research/SKILL.md) | Synthesize public evidence into a bounded, cited comparison, landscape, or decision-ready report. |
 | [`browser`](../skills/browser/SKILL.md) | Open an owned remote browser session, inspect page state, perform confirmed structured interactions, verify results, and close the session. |
 | [`monitor`](../skills/monitor/SKILL.md) | Create and manage persistent recurring searches or site-change checks, including lifecycle operations and run history. |
 | [`weknora`](../skills/weknora/SKILL.md) | Search, ingest, inspect, and answer questions over a user's own WeKnora knowledge base through its REST API. |
+
+`askme` is guidance-only and has no `arks` capability, Provider, network, or sibling-Skill dependency. Its [canonical instructions](../skills/askme/SKILL.md) define when to ask, when to continue, and how to distinguish a challenge from a requirement change.
 
 `gh-repo` is an independent Skill for revision-pinned GitHub project analysis and supporting issue/PR inspection. It uses host tools and native GitHub CLI/API reads, not an `arks` capability or Provider. See its [canonical instructions](../skills/gh-repo/SKILL.md).
 
