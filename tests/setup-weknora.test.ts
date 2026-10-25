@@ -117,7 +117,7 @@ it("discovers the connection from Web and preserves global configuration routes"
   vi.spyOn(f.terminal, "workbench").mockImplementation(async get => { views.push(get()); const name = commands.shift() ?? "escape"; return { name, sequence: name }; });
   await runSetupWorkbench(f.paths, f.terminal, "en", { provider: "exa", environment: {} });
   expect(views[0]!.hints.some(h => h.key === "w" && h.label === "WeKnora")).toBe(true);
-  expect(views[0]!.providers).toEqual(["Exa", "Tavily", "Firecrawl", "SearXNG", "WeKnora"]);
+  expect(views[0]!.providers).toEqual(["Exa", "Tavily", "Firecrawl", "SearXNG", "WeKnora", "UseGPT"]);
   expect(views[2]!.providerIndex).toBe(4);
   expect(views[2]!.title).toContain("WeKnora"); expect(views[5]!.route).toBe("order"); expect(views[6]!.route).toBe("order");
 });

@@ -30,6 +30,7 @@ import { SiteMonitorRequestSchemas } from "../src/protocol/site-monitor-schema.j
 
 import { WeknoraRetrievalRequestSchemas, WeknoraRetrievalEnvelopeSchemas } from "../src/protocol/weknora-retrieval-schema.js";
 import { WeknoraVerifyRequestSchema, WeknoraVerifyEnvelopeSchema } from "../src/protocol/weknora-schema.js";
+import { UseGptEnvelopeSchema, UseGptRequestSchemas } from "../src/protocol/usegpt-schema.js";
 
 const outputDirectory = resolve("schemas/protocol/v1");
 await mkdir(outputDirectory, { recursive: true });
@@ -59,8 +60,9 @@ await Promise.all([
   writeSchema("research-response.schema.json", ResearchEnvelopeSchema),
   ...Object.entries({ ...ResourceRequestSchemas, ...SiteMonitorRequestSchemas }).map(([capability, schema]) => writeSchema(`${capability.replaceAll(".", "-")}-request.schema.json`, schema)),
   ...Object.entries(ResourceEnvelopeSchemas).map(([capability, schema]) => writeSchema(`${capability.replaceAll(".", "-")}-response.schema.json`, schema)),
+  ...Object.entries(UseGptRequestSchemas).map(([capability, schema]) => writeSchema(`${capability.replaceAll(".", "-")}-request.schema.json`, schema, "input")),
+  ...Object.keys(UseGptRequestSchemas).map(capability => writeSchema(`${capability.replaceAll(".", "-")}-response.schema.json`, UseGptEnvelopeSchema)),
 ]);
-
 async function writeSchema(name: string, schema: z.ZodType, io: "input" | "output" = "output"): Promise<void> {
   const jsonSchema = z.toJSONSchema(schema, { target: "draft-7", io });
   await writeFile(resolve(outputDirectory, name), `${JSON.stringify(jsonSchema, null, 2)}\n`, "utf8");

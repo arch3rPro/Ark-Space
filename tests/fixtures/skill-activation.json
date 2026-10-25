@@ -1,4 +1,16 @@
 {
+  "UseGPT": {
+    "positive": [
+      "Send this confirmed question to my manually logged-in ChatGPT session and wait for the answer.",
+      "Start a ChatGPT task with these text files as context, then report its task status.",
+      "Continue the existing UseGPT conversation with a confirmed follow-up prompt."
+    ],
+    "negative": [
+      "Log in to my normal Chrome profile automatically and send this message.",
+      "Upload this binary file to ChatGPT without showing its contents or asking for confirmation.",
+      "Resend the timed-out ChatGPT task with a new request ID while it may still be running."
+    ]
+  },
   "askme": {
     "positive": [
       "Before implementing, ask me the questions that would change the requirements and define done.",

@@ -2,6 +2,23 @@ import { z } from "zod";
 import { BlockList, isIP } from "node:net";
 
 import { FAILURE_KINDS, PROVIDER_IDS, type Capability, type ProviderId } from "../protocol/types.js";
+export const USEGPT_TOKEN_VARIABLE = "ARKSPACE_USEGPT_TOKEN";
+export const UseGptConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  cdpUrl: z.string().max(256).refine(isLoopbackEndpoint, "Use a loopback HTTP origin, e.g. http://127.0.0.1:9222").default("http://127.0.0.1:9222"),
+  serviceUrl: z.string().max(256).refine(isLoopbackEndpoint, "Use a loopback HTTP origin (or an SSH local forward)").default("http://127.0.0.1:47832"),
+  tokenRef: z.literal("env:ARKSPACE_USEGPT_TOKEN").default("env:ARKSPACE_USEGPT_TOKEN"),
+}).strict();
+export type UseGptConfig = z.infer<typeof UseGptConfigSchema>;
+
+export function isLoopbackEndpoint(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" && ["127.0.0.1", "[::1]"].includes(url.hostname) &&
+      !url.username && !url.password && url.pathname === "/" && !url.search && !url.hash &&
+      !/[\\\\\u0000-\u0020\u007f]/.test(value);
+  } catch { return false; }
+}
 
 const KeyReferenceSchema = z.string().regex(/^env:[A-Za-z_][A-Za-z0-9_]*$/);
 const mappedIpv6 = new BlockList();
@@ -92,6 +109,7 @@ const CapabilitySchema = z.enum([
   "monitor.runs", "monitor.run.get", "monitor.site.create", "monitor.site.list",
   "monitor.site.status", "monitor.site.update", "monitor.site.pause", "monitor.site.resume",
   "monitor.site.trigger", "monitor.site.delete", "monitor.site.checks", "monitor.site.check.get",
+  "usegpt.connection.status", "usegpt.task.start", "usegpt.task.get", "usegpt.task.list", "usegpt.task.wait", "usegpt.task.follow_up", "usegpt.task.cancel", "usegpt.artifact.get",
 ] as const satisfies readonly Capability[]);
 
 const ToolNameSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/);
@@ -116,7 +134,7 @@ export const ArkSpaceConfigSchema = z
   .object({
     version: z.literal(1),
     setupLanguage: z.enum(["en", "zh"]).optional(),
-    connections: z.object({ weknora: WeknoraConnectionSchema.optional() }).strict().optional(),
+    connections: z.object({ weknora: WeknoraConnectionSchema.optional(), usegpt: UseGptConfigSchema.optional() }).strict().optional(),
     providerOrder: z.array(z.enum(PROVIDER_IDS)).min(1),
     tools: z.partialRecord(CapabilitySchema, ToolConfigSchema).default({}),
     localFetch: LocalFetchConfigSchema.default({ enabled: false, allowRanges: [], trustEnvProxy: false }),

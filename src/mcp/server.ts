@@ -8,6 +8,7 @@ import { invokeCapability, type InvokeOptions } from "../protocol/invoke.js";
 import { WeknoraRetrievalRequestSchemas, WeknoraRetrievalEnvelopeSchemas } from "../protocol/weknora-retrieval-schema.js";
 import { WeknoraVerifyRequestSchema, WeknoraVerifyEnvelopeSchema } from "../protocol/weknora-schema.js";
 import { SiteMonitorInputSchemas } from "../protocol/site-monitor-schema.js";
+import { UseGptInputSchemas } from "../protocol/usegpt-schema.js";
 import { PROTOCOL_VERSION, type Capability } from "../protocol/types.js";
 
 const inputSchemas = {
@@ -26,6 +27,7 @@ const inputSchemas = {
   "research.run": ResearchRequestSchema.shape.input,
   ...ResourceInputSchemas,
   ...SiteMonitorInputSchemas,
+  ...UseGptInputSchemas,
 } as const;
 
 const descriptions: Record<Capability, string> = {
@@ -67,9 +69,17 @@ const descriptions: Record<Capability, string> = {
   "monitor.site.delete": "Delete a Firecrawl site-monitor API resource. Requires confirmed=true.",
   "monitor.site.checks": "List bounded Firecrawl checks for an owned site monitor.",
   "monitor.site.check.get": "Get one Firecrawl check and bounded page-level change results.",
+  "usegpt.connection.status": "Check the local UseGPT bridge connection.",
+  "usegpt.task.start": "Start a confirmed ChatGPT task through the local UseGPT bridge; files are text context.",
+  "usegpt.task.get": "Get one UseGPT task.",
+  "usegpt.task.list": "List local UseGPT tasks.",
+  "usegpt.task.wait": "Wait for one UseGPT task; timeout does not cancel it.",
+  "usegpt.task.follow_up": "Continue one UseGPT task with confirmed text context.",
+  "usegpt.task.cancel": "Request cancellation of one UseGPT task; requires confirmation.",
+  "usegpt.artifact.get": "Read a bounded UseGPT task artifact.",
 };
 
-const readOnly = new Set<Capability>(["weknora.knowledge-bases.list", "weknora.knowledge-bases.get", "weknora.search", "weknora.connection.verify", "web.search", "web.fetch", "web.content.get", "web.map", "web.related", "code.context", "browser.snapshot", "browser.status", "monitor.list", "monitor.status", "monitor.runs", "monitor.run.get", "monitor.site.list", "monitor.site.status", "monitor.site.checks", "monitor.site.check.get"]);
+const readOnly = new Set<Capability>(["weknora.knowledge-bases.list", "weknora.knowledge-bases.get", "weknora.search", "weknora.connection.verify", "web.search", "web.fetch", "web.content.get", "web.map", "web.related", "code.context", "browser.snapshot", "browser.status", "monitor.list", "monitor.status", "monitor.runs", "monitor.run.get", "monitor.site.list", "monitor.site.status", "monitor.site.checks", "monitor.site.check.get", "usegpt.connection.status", "usegpt.task.get", "usegpt.task.list", "usegpt.task.wait", "usegpt.artifact.get"]);
 const destructive = new Set<Capability>(["browser.close", "monitor.delete", "monitor.site.delete"]);
 
 export function createMcpServer(config?: ArkSpaceConfig, options: InvokeOptions = {}): McpServer {

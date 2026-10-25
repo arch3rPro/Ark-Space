@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { access, readFile } from "node:fs/promises";
+import { basename } from "node:path";
 import process from "node:process";
 import { Command, CommanderError } from "commander";
 import { ZodError } from "zod";
@@ -41,6 +42,7 @@ import { defaultConfig, getProviderConfig, getSearxngConfig, isToolEnabled, type
 import { addEnvironmentKey, addSearxngInstance, configureSearxng, loadConfig } from "../config/store.js";
 import { ProviderError, correctionFor } from "../errors/provider-error.js";
 import { serveArkSpaceStdio } from "../mcp/stdio.js";
+import { startUseGptServer } from "../usegpt/server.js";
 import {
   resolveCodeContextInput,
   resolveResearchInput,
@@ -69,6 +71,7 @@ import {
   parseMonitorUpdateRequest,
 } from "../protocol/resource-schema.js";
 import { invokeCapability, isCapability } from "../protocol/invoke.js";
+import { useGptFailure, type UseGptCapability } from "../protocol/usegpt-schema.js";
 import { weknoraVerifyFailure } from "../protocol/weknora-schema.js";
 import { WeknoraRetrievalEnvelopeSchemas } from "../protocol/weknora-retrieval-schema.js";
 import {
@@ -134,7 +137,7 @@ program.command("update")
     }
   });
 
-program.command("setup").argument("[service]", "exa, tavily, firecrawl, searxng or weknora")
+program.command("setup").argument("[service]", "exa, tavily, firecrawl, searxng, weknora or usegpt")
   .description("Manage service connections and credentials in a trusted terminal")
   .option("--lang <language>", "Setup language for this run: en or zh (English / 中文)")
   .action(async (provider: string | undefined, options: { lang?: string }) => {
@@ -270,6 +273,45 @@ program.command("mcp").description("Model Context Protocol transport").command("
   serveArkSpaceStdio({ originalEnvironment });
 });
 
+const useGptCommand = program.command("usegpt").description("UseGPT ChatGPT task bridge");
+useGptCommand.command("start")
+  .requiredOption("--prompt <prompt>", "Task prompt")
+  .requiredOption("--request-id <request-id>", "Stable idempotency request ID")
+  .option("--mode <mode>", "chat, search, deep-research, or image", "chat")
+  .option("--timeout-ms <milliseconds>", "Task timeout", "1200000")
+  .option("--file <path>", "Attach a text file as context; repeatable", (value: string, previous: string[]) => [...previous, value], [])
+  .requiredOption("--confirm", "Confirm sending this task to ChatGPT")
+  .option("--json", "Write the protocol JSON envelope")
+  .action(async (options: Record<string, unknown>) => {
+    try {
+      const files = await Promise.all((Array.isArray(options.file) ? options.file : []).map(async value => {
+        const path = String(value);
+        return { name: basename(path), content: await readFile(path, "utf8") };
+      }));
+      const mode = options.mode;
+      if (mode !== "chat" && mode !== "search" && mode !== "deep-research" && mode !== "image") throw new ProviderError("--mode must be chat, search, deep-research, or image.", { kind: "invalid-request" });
+      await writeCommandResult(await invokeCapability("usegpt.task.start", { protocolVersion: PROTOCOL_VERSION, capability: "usegpt.task.start", input: { requestId: String(options.requestId), prompt: String(options.prompt), mode, timeoutMs: parseIntegerOption(options.timeoutMs, "--timeout-ms"), files, confirmed: true } }, { originalEnvironment, signal: operationController.signal }), true);
+    } catch (error) { writeMachineFailure("usegpt.task.start", error); }
+  });
+useGptCommand.command("get").argument("<taskId>").option("--json", "Write the protocol JSON envelope").action(async (taskId: string) => {
+  await writeUseGptCommand("usegpt.task.get", { taskId });
+});
+useGptCommand.command("wait").argument("<taskId>").option("--timeout-ms <milliseconds>", "Wait timeout", "30000").option("--json", "Write the protocol JSON envelope").action(async (taskId: string, options: Record<string, unknown>) => {
+  await writeUseGptCommand("usegpt.task.wait", { taskId, timeoutMs: parseIntegerOption(options.timeoutMs, "--timeout-ms") });
+});
+useGptCommand.command("cancel").argument("<taskId>").requiredOption("--confirmed", "Confirm cancellation").option("--json", "Write the protocol JSON envelope").action(async (taskId: string) => {
+  await writeUseGptCommand("usegpt.task.cancel", { taskId, confirmed: true });
+});
+useGptCommand.command("status").option("--json", "Write the protocol JSON envelope").action(async () => {
+  await writeUseGptCommand("usegpt.connection.status", {});
+});
+useGptCommand.command("serve").description("Serve the local UseGPT bridge").action(async () => {
+  try {
+    const server = await startUseGptServer(resolveArkSpacePaths(originalEnvironment), { environment: originalEnvironment, signal: operationController.signal });
+    process.stdout.write(`${JSON.stringify({ ok: true, address: server.address })}\n`);
+  } catch { writeMachineFailure("usegpt.connection.status", new Error()); }
+});
+
 const browserCommand = program.command("browser").description("Owned Firecrawl Browser Sandbox sessions");
 browserCommand
   .command("open")
@@ -400,7 +442,7 @@ program
       // WeKnora resolves its connection inside the bounded operation. Web invocation
       // still loads local credentials, but bootstrap failures stay in its JSON envelope.
       let environment: NodeJS.ProcessEnv | undefined;
-      if (!capability.startsWith("weknora.")) {
+      if (!capability.startsWith("weknora.") && !capability.startsWith("usegpt.")) {
         const paths = resolveArkSpacePaths(originalEnvironment);
         const config = await loadConfig(paths.config);
         if (!isToolEnabled(config, capability)) {
@@ -602,7 +644,7 @@ webCommand
 
 try {
   // Update never reads local config/credentials; setup and invoke own their bootstrap.
-  if (!isUpdateInvocation && process.argv[2] !== "setup" && process.argv[2] !== "invoke") {
+  if (!isUpdateInvocation && process.argv[2] !== "setup" && process.argv[2] !== "invoke" && process.argv[2] !== "usegpt") {
     const paths = resolveArkSpacePaths();
     const environment = await loadCredentialEnvironment(paths.credentials);
     for (const [name, value] of Object.entries(environment)) {
@@ -846,6 +888,11 @@ async function readStandardInput(): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+async function writeUseGptCommand(capability: "usegpt.connection.status" | "usegpt.task.get" | "usegpt.task.wait" | "usegpt.task.cancel", input: Record<string, unknown>): Promise<void> {
+  try {
+    await writeCommandResult(await invokeCapability(capability, { protocolVersion: PROTOCOL_VERSION, capability, input }, { originalEnvironment, signal: operationController.signal }), true);
+  } catch (error) { writeMachineFailure(capability, error); }
+}
 async function writeCommandResult(result: { ok: boolean; data?: unknown }, json: boolean, field?: string): Promise<void> {
   if (json || !result.ok) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   else if (field && isRecord(result.data) && typeof result.data[field] === "string") process.stdout.write(`${result.data[field]}\n`);
@@ -863,6 +910,12 @@ function writeMachineResult(result: { ok: boolean }): void {
 }
 
 function writeMachineFailure(capability: Capability, error: unknown): void {
+  if (capability.startsWith("usegpt.")) {
+    const message = error instanceof ProviderError ? error.message : "UseGPT command failed.";
+    process.stdout.write(`${JSON.stringify(useGptFailure(capability as UseGptCapability, "invalid-request", message))}\n`);
+    process.exitCode = 1;
+    return;
+  }
   if (capability === "weknora.connection.verify") {
     writeMachineResult(weknoraVerifyFailure(error instanceof ProviderError && error.kind === "config" ? "config" : "invalid-request"));
     return;
