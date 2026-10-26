@@ -11,9 +11,9 @@ const root = new URL("..", import.meta.url).pathname;
 const cache = join(homedir(), ".cache", "arkspace", "usegpt-secure-mcp");
 const stateFile = join(cache, "task.json");
 const probe = join(root, "dist", "usegpt", "secure-mcp-probe.js");
+const mode = process.argv[2] ?? "run";
 const apiKey = process.env.CONTROL_PLANE_API_KEY;
 const tunnelId = process.env.CONTROL_PLANE_TUNNEL_ID;
-if (!apiKey || !tunnelId) { console.error("Set CONTROL_PLANE_TUNNEL_ID and CONTROL_PLANE_API_KEY first."); process.exit(2); }
 
 async function json(url) { const response = await fetch(url, { headers: { "user-agent": "ArkSpace-UseGPT-probe" } }); if (!response.ok) throw new Error(`Tunnel client release lookup failed (${response.status}).`); return response.json(); }
 function assetPattern() {
@@ -59,20 +59,35 @@ async function tunnelClient() {
   if (found !== path) { const bytes = await readFile(found); await writeFile(path, bytes); }
   await chmod(path, 0o755); return path;
 }
-async function run() {
-  const client = await tunnelClient();
-  await mkdir(cache, { recursive: true, mode: 0o700 });
-  const seed = spawnSync(process.execPath, [probe, "seed", process.argv.slice(2).join(" ") || "Return the marker exactly and briefly explain the result."], { env: { ...process.env, ARKSPACE_USEGPT_PROBE_TASK_FILE: stateFile }, encoding: "utf8" });
+function requireCredentials() {
+  if (!apiKey || !tunnelId) throw new Error("Set CONTROL_PLANE_TUNNEL_ID and CONTROL_PLANE_API_KEY first.");
+}
+function seedTask(prompt) {
+  const seed = spawnSync(process.execPath, [probe, "seed", prompt || "Return the marker exactly and briefly explain the result."], { env: { ...process.env, ARKSPACE_USEGPT_PROBE_TASK_FILE: stateFile }, encoding: "utf8" });
   if (seed.status !== 0) throw new Error(seed.stderr || "Could not create the probe task.");
-  let task;
-  try { task = JSON.parse(seed.stdout); } catch { throw new Error("Probe task creation returned invalid data."); }
-  console.log(JSON.stringify({ taskId: task.taskId, marker: task.marker, status: task.status }));
+  try { return JSON.parse(seed.stdout); } catch { throw new Error("Probe task creation returned invalid data."); }
+}
+async function startTunnel(client) {
+  requireCredentials();
+  await mkdir(cache, { recursive: true, mode: 0o700 });
   const tunnel = spawn(client, ["run", "--mcp.command", `node ${probe}`, "--log.level=info", "--log.format=struct-text"], { env: { ...process.env, CONTROL_PLANE_API_KEY: apiKey, CONTROL_PLANE_TUNNEL_ID: tunnelId, ARKSPACE_USEGPT_PROBE_TASK_FILE: stateFile }, stdio: ["ignore", "inherit", "inherit"] });
+  tunnel.once("exit", (code, signal) => { if (code !== 0 && signal !== "SIGTERM") process.exitCode = code ?? 1; });
+  return tunnel;
+}
+async function waitForTerminal(tunnel) {
   const deadline = Date.now() + 10 * 60_000;
   while (Date.now() < deadline) {
-    try { const state = JSON.parse(await readFile(stateFile, "utf8")); if (state.status === "completed" || state.status === "failed") { console.log(JSON.stringify(state)); tunnel.kill(); return; } } catch {}
+    try { const state = JSON.parse(await readFile(stateFile, "utf8")); if (["completed", "failed"].includes(state.status)) { console.log(JSON.stringify(state)); tunnel.kill(); return; } } catch {}
     await new Promise(resolve => setTimeout(resolve, 2_000));
   }
   tunnel.kill(); throw new Error("Secure MCP feasibility probe timed out waiting for ChatGPT.");
 }
-run().catch(error => { console.error(error instanceof Error ? error.message : "Probe failed."); process.exitCode = 1; });
+async function main() {
+  if (mode === "seed") { const task = seedTask(process.argv.slice(3).join(" ")); console.log(JSON.stringify({ taskId: task.taskId, marker: task.marker, status: task.status })); return; }
+  requireCredentials();
+  const client = await tunnelClient();
+  if (mode === "host") { await startTunnel(client); console.error("Tunnel is running. Activate usegpt_probe_present in ChatGPT once, then run this command again with seed."); await new Promise(() => {}); return; }
+  const task = seedTask(process.argv.slice(2).join(" ")); console.log(JSON.stringify({ taskId: task.taskId, marker: task.marker, status: task.status }));
+  const tunnel = await startTunnel(client); await waitForTerminal(tunnel);
+}
+main().catch(error => { console.error(error instanceof Error ? error.message : "Probe failed."); process.exitCode = 1; });
