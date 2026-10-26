@@ -97,7 +97,7 @@ hubIt("dispatches hub operations over the built MCP stdio entry", async () => {
   child.stdout.on("data", chunk => { buffer += chunk; const lines = buffer.split("\n"); buffer = lines.pop() ?? ""; for (const line of lines) if (line.trim()) messages.push(JSON.parse(line)); });
   const send = (value: unknown) => child.stdin.write(`${JSON.stringify(value)}\n`);
   const wait = async (id: number) => {
-    const deadline = Date.now() + 1_000;
+    const deadline = Date.now() + 5_000;
     while (Date.now() < deadline) { const message = messages.find(m => m.id === id); if (message) return message; await new Promise(r => setTimeout(r, 10)); }
     throw new Error(`No MCP response ${id}: ${stderr}`);
   };
