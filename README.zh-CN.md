@@ -158,7 +158,7 @@ Protocol Schema 发布在 [`schemas/protocol/v1/`](schemas/protocol/v1/) 下。
 
 当前限制：
 
-- 要求 Node.js 20 或更高版本，以及具备 Shell、网络和持久用户存储的本地 Host。
+- Node.js 20 或更高版本，以及具备 Shell、网络和持久用户存储的本地 Host 是必需的。可选的 UseGPT Artifact Hub 使用无需标志的 `node:sqlite`，因此要求 Node.js 22.13.0 或更高版本。
 - Exa、Tavily、Firecrawl 操作需要对应账号，并可能产生 Provider 费用；SearXNG 搜索则需要显式配置实例。
 - 免 Key 的 Exa MCP 接入与 Tavily/Firecrawl OAuth 仅为研究主题，尚未实现为认证后端。
 - Hosted Cross-platform 与 Credentialed Live-provider Qualification 仍属于[发布后待办](docs/migration.md#post-release-01-qualification-backlog)。

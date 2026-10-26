@@ -42,7 +42,6 @@ import { defaultConfig, getProviderConfig, getSearxngConfig, isToolEnabled, type
 import { addEnvironmentKey, addSearxngInstance, configureSearxng, loadConfig } from "../config/store.js";
 import { ProviderError, correctionFor } from "../errors/provider-error.js";
 import { serveArkSpaceStdio } from "../mcp/stdio.js";
-import { startUseGptServer } from "../usegpt/server.js";
 import {
   resolveCodeContextInput,
   resolveResearchInput,
@@ -342,13 +341,6 @@ useGptCommand.command("cancel").argument("<taskId>").requiredOption("--confirmed
 useGptCommand.command("status").option("--json", "Write the protocol JSON envelope").action(async () => {
   await writeUseGptCommand("usegpt.connection.status", {});
 });
-useGptCommand.command("serve").description("Serve the local UseGPT bridge").action(async () => {
-  try {
-    const server = await startUseGptServer(resolveArkSpacePaths(originalEnvironment), { environment: originalEnvironment, signal: operationController.signal });
-    process.stdout.write(`${JSON.stringify({ ok: true, address: server.address })}\n`);
-  } catch { writeMachineFailure("usegpt.connection.status", new Error()); }
-});
-
 const browserCommand = program.command("browser").description("Owned Firecrawl Browser Sandbox sessions");
 browserCommand
   .command("open")

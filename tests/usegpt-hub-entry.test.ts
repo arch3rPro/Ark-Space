@@ -3,8 +3,12 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, expect, it } from "vitest";
+
+const hubSupported = (() => { const [major = 0, minor = 0, patch = 0] = process.versions.node.split(".").map(Number); return major > 22 || major === 22 && (minor > 13 || minor === 13 && patch >= 0); })();
+const hubIt = it.skipIf(!hubSupported);
 import { defaultConfig } from "../src/config/schema.js";
 import { resolveArkSpacePaths } from "../src/config/paths.js";
+import { executeUseGpt } from "../src/capabilities/usegpt.js";
 import { invokeCapability, isCapability } from "../src/protocol/invoke.js";
 import { UseGptInputSchemas } from "../src/protocol/usegpt-schema.js";
 import { createMcpServer } from "../src/mcp/server.js";
@@ -40,7 +44,16 @@ it("registers hub operations with matching MCP and generated request schemas", a
   }
 });
 
-it("dispatches locally without tunnel credentials and rejects legacy browser execution", async () => {
+it("reports a sanitized runtime error without loading the Hub on Node20", async () => {
+  const f = await fixture();
+  const originalNode = process.versions.node;
+  Object.defineProperty(process.versions, "node", { value: "20.19.0", configurable: true });
+  try {
+    await expect(executeUseGpt({ protocolVersion: 1, capability: "usegpt.connection.status", input: {} }, f.paths, f.environment)).resolves.toMatchObject({ ok: false, error: { kind: "runtime-unsupported", message: "Artifact Hub requires Node.js 22.13.0 or newer." } });
+  } finally { Object.defineProperty(process.versions, "node", { value: originalNode, configurable: true }); }
+});
+
+hubIt("dispatches locally without tunnel credentials and rejects legacy browser execution", async () => {
   const f = await fixture();
   const call = (capability: string, input = {}) => invokeCapability(capability as Parameters<typeof invokeCapability>[0], { protocolVersion: 1, capability, input }, f) as Promise<{ ok: boolean; data?: Record<string, unknown>; error?: { kind: string } }>;
   const project = await call("usegpt.project.create", { name: "Launch" });
@@ -55,7 +68,7 @@ it("dispatches locally without tunnel credentials and rejects legacy browser exe
   expect(UseGptInputSchemas["usegpt.task.wait"].safeParse({ taskId: task.data!.id, timeoutMs: 60_001 }).success).toBe(false);
 });
 
-it("uses the built CLI from outside the repository with isolated hub data", async () => {
+hubIt("uses the built CLI from outside the repository with isolated hub data", async () => {
   const f = await fixture();
   const created = await cli(["usegpt", "project", "create", "--name", "CLI project", "--json"], f.environment);
   expect(created.code, created.stderr + created.stdout).toBe(0);
@@ -76,7 +89,7 @@ it("uses the built CLI from outside the repository with isolated hub data", asyn
   expect(oversized.code).toBe(1); expect(oversized.stdout + oversized.stderr).not.toContain(contentPath);
 });
 
-it("dispatches hub operations over the built MCP stdio entry", async () => {
+hubIt("dispatches hub operations over the built MCP stdio entry", async () => {
   const f = await fixture();
   const child = spawn(process.execPath, [resolve("dist/cli/main.js"), "mcp", "serve"], { cwd: tmpdir(), env: f.environment, stdio: ["pipe", "pipe", "pipe"] });
   const messages: Array<Record<string, unknown>> = []; let buffer = "", stderr = "";

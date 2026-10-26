@@ -5,7 +5,7 @@ ArkSpace has two installable surfaces:
 1. **Agent Skills** provide operation guidance for `web`, `research`, `browser`, `monitor`, and `weknora`.
 2. **`arks` CLI** provides shared Provider execution, credential handling, owned resources, and MCP stdio.
 
-Provider-backed Skills need both surfaces. `weknora` can run independently with `WEKNORA_BASE_URL` and `WEKNORA_API_KEY`, without the CLI. Version 0.1.4 additionally offers an optional managed connection for supported retrieval operations. Node.js 20 or newer is required for the CLI and the Skill's SSE script.
+Provider-backed Skills need both surfaces. `weknora` can run independently with `WEKNORA_BASE_URL` and `WEKNORA_API_KEY`, without the CLI. Version 0.1.4 additionally offers an optional managed connection for supported retrieval operations. Node.js 20 or newer is required for the CLI and the Skill's SSE script. The optional UseGPT Artifact Hub requires Node.js 22.13.0 or newer because it uses unflagged `node:sqlite`; other CLI capabilities remain available on Node.js 20.
 
 ## Give this to your Agent
 

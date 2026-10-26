@@ -158,7 +158,7 @@ Build the checkout as described in [INSTALL.md](INSTALL.md#source-development), 
 
 Current limits:
 
-- Node.js 20 or newer and a local host with shell, network, and persistent user storage are required.
+- Node.js 20 or newer and a local host with shell, network, and persistent user storage are required. The optional UseGPT Artifact Hub requires Node.js 22.13.0 or newer because it uses unflagged `node:sqlite`.
 - Exa, Tavily, and Firecrawl operations require the applicable account and may incur Provider charges; SearXNG search instead requires an explicitly configured instance.
 - Keyless Exa MCP access and Tavily/Firecrawl OAuth are research topics, not implemented authentication backends.
 - Hosted cross-platform and credentialed live-Provider qualification remains part of the [post-release backlog](docs/migration.md#post-release-01-qualification-backlog).

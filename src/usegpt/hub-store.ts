@@ -175,9 +175,12 @@ export class UseGptHubStore {
     return this.transaction(() => { this.project(projectId); return (this.taskList({ projectId }).tasks as Row[]).map(row => this.task(String(row.id))); }) as unknown as HubTask[];
   }
   private taskList(input: Row): Row {
-    const projectId = id(input, "projectId", "project"); this.project(projectId);
+    const projectId = input.projectId === undefined ? undefined : id(input, "projectId", "project");
+    if (projectId) this.project(projectId);
     const limit = integer(input, "limit", 50, 1, 100), offset = integer(input, "offset", 0, 0, 1_000_000);
-    const tasks = this.all("SELECT id,project_id AS projectId,title,status,created_at AS createdAt,updated_at AS updatedAt FROM tasks WHERE project_id=? AND (? OR status<>'deleted') ORDER BY created_at,id LIMIT ? OFFSET ?", projectId, input.includeDeleted === true ? 1 : 0, limit, offset);
+    const tasks = projectId
+      ? this.all("SELECT id,project_id AS projectId,title,status,created_at AS createdAt,updated_at AS updatedAt FROM tasks WHERE project_id=? AND (? OR status<>'deleted') ORDER BY created_at,id LIMIT ? OFFSET ?", projectId, input.includeDeleted === true ? 1 : 0, limit, offset)
+      : this.all("SELECT id,project_id AS projectId,title,status,created_at AS createdAt,updated_at AS updatedAt FROM tasks WHERE (? OR status<>'deleted') ORDER BY created_at,id LIMIT ? OFFSET ?", input.includeDeleted === true ? 1 : 0, limit, offset);
     return { tasks, nextOffset: tasks.length === limit ? offset + limit : null };
   }
 
@@ -395,7 +398,9 @@ export class UseGptHubStore {
       if (isTask && !["queued", "active", "waiting", status].includes(String(object.status))) fail("invalid_transition");
       if (status === "completed" && this.get("SELECT 1 FROM uploads WHERE task_id=? LIMIT 1", objectId)) fail("upload_busy");
       if (status === "completed" && this.get(`SELECT 1 FROM handoffs WHERE task_id=? AND status IN ${ACTIVE_HANDOFF} LIMIT 1`, objectId)) fail("handoff_busy");
+      const completionRefs = status === "completed" && isTask ? this.refs(input, projectId) : [];
       this.run(`UPDATE ${table} SET status=?,updated_at=? WHERE id=?`, status, now(), objectId);
+      for (const ref of completionRefs) this.run("INSERT OR IGNORE INTO task_artifacts VALUES(?,?,?)", objectId, ref.artifactId, ref.revision);
     }
     this.event(operation.replace(/\.restore$/, ".restored").replace(/\.delete$/, ".deleted").replace(/\.complete$/, ".completed").replace(/\.cancel$/, ".cancelled"), projectId, objectId, isTask ? objectId : undefined);
     return isTask ? this.task(objectId, true) : this.project(objectId, true);

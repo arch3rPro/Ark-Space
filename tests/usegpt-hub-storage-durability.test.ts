@@ -1,13 +1,19 @@
 import { mkdtemp, mkdir, rm, writeFile, readdir, readFile, symlink, stat } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
-import { DatabaseSync } from "node:sqlite";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
-import { UseGptHubStore } from "../src/usegpt/hub-store.js";
+import type { DatabaseSync as DatabaseSyncType } from "node:sqlite";
+import type { UseGptHubStore as UseGptHubStoreType } from "../src/usegpt/hub-store.js";
 
-const homes: string[] = [], stores: UseGptHubStore[] = [];
+const hubSupported = (() => { const [major = 0, minor = 0, patch = 0] = process.versions.node.split(".").map(Number); return major > 22 || major === 22 && (minor > 13 || minor === 13 && patch >= 0); })();
+const hubIt = it.skipIf(!hubSupported);
+const { DatabaseSync, UseGptHubStore } = hubSupported
+  ? { ...(await import("node:sqlite")), ...(await import("../src/usegpt/hub-store.js")) }
+  : { DatabaseSync: undefined as unknown as typeof DatabaseSyncType, UseGptHubStore: undefined as unknown as typeof UseGptHubStoreType };
+
+const homes: string[] = [], stores: UseGptHubStoreType[] = [];
 afterEach(async () => {
   vi.useRealTimers();
   await Promise.all(stores.splice(0).map(store => store.close()));
@@ -23,7 +29,7 @@ async function fixture() {
   return { home, dataDir, store, project, task, call };
 }
 
-it("preserves another project's shared blob through purge and binds deletion previews to state", async () => {
+hubIt("preserves another project's shared blob through purge and binds deletion previews to state", async () => {
   const { store, call, project, task } = await fixture();
   const a = await call("artifact.publish_inline", { projectId: project.id, taskId: task.id, name: "a", content: "same" });
   const p2 = store.createProject("Second");
@@ -40,7 +46,7 @@ it("preserves another project's shared blob through purge and binds deletion pre
   expect(await call("storage.usage")).toMatchObject({ physicalBytes: 4, blobs: 1 });
 });
 
-it("cleans a newly published blob and staging file if the metadata transaction fails", async () => {
+hubIt("cleans a newly published blob and staging file if the metadata transaction fails", async () => {
   const { store, call, project, dataDir } = await fixture();
   store.database.exec("CREATE TRIGGER reject_revision BEFORE INSERT ON artifact_revisions BEGIN SELECT RAISE(ABORT,'injected failure'); END");
   await expect(call("artifact.publish_inline", { projectId: project.id, name: "failure", content: "not committed" })).rejects.toThrow("injected failure");
@@ -50,7 +56,7 @@ it("cleans a newly published blob and staging file if the metadata transaction f
   expect(store.database.prepare("SELECT count(*) AS n FROM artifacts").get()).toMatchObject({ n: 0 });
 });
 
-it("cleans abandoned staging under the database lock and reports missing content", async () => {
+hubIt("cleans abandoned staging under the database lock and reports missing content", async () => {
   const { store, call, project, dataDir } = await fixture();
   const a = await call("artifact.publish_inline", { projectId: project.id, name: "a", content: "saved" });
   await store.close();
@@ -61,7 +67,7 @@ it("cleans abandoned staging under the database lock and reports missing content
   await expect(restored.execute("artifact.read", { artifactId: a.id })).rejects.toMatchObject({ code: "artifact_content_missing" });
 });
 
-it("serializes publishing from independent Node processes", async () => {
+hubIt("serializes publishing from independent Node processes", async () => {
   const { dataDir, project, task, call } = await fixture();
   const a = await call("artifact.publish_inline", { projectId: project.id, taskId: task.id, name: "report", content: "one" });
   const source = `import { UseGptHubStore } from ${JSON.stringify(resolve("src/usegpt/hub-store.ts"))};
@@ -80,7 +86,7 @@ finally { await store.close(); }`;
   expect(revisions).toEqual([2, 3]);
 }, 15_000);
 
-it("rejects symlinked managed parent directories and restricts file permissions", async () => {
+hubIt("rejects symlinked managed parent directories and restricts file permissions", async () => {
   const { store, call, project, dataDir, home } = await fixture();
   const bytes = "new bytes", digest = createHash("sha256").update(bytes).digest("hex");
   const outside = join(home, "outside"); await mkdir(outside);
@@ -93,13 +99,13 @@ it("rejects symlinked managed parent directories and restricts file permissions"
   }
 });
 
-it("refuses a future schema version", async () => {
+hubIt("refuses a future schema version", async () => {
   const { store, dataDir } = await fixture(); await store.close();
   const db = new DatabaseSync(join(dataDir, "index.sqlite")); db.exec("PRAGMA user_version=999"); db.close();
   await expect(UseGptHubStore.open(dataDir)).rejects.toThrow("schema_too_new");
 });
 
-it("migrates the prototype schema without losing projects, tasks, or blob bytes", async () => {
+hubIt("migrates the prototype schema without losing projects, tasks, or blob bytes", async () => {
   const home = await mkdtemp(join(tmpdir(), "arks-hub-migration-")); homes.push(home);
   const dataDir = join(home, "data"); await mkdir(dataDir);
   const projectId = `project_${randomUUID()}`, taskId = `task_${randomUUID()}`, artifactId = `artifact_${randomUUID()}`;
@@ -122,7 +128,7 @@ CREATE INDEX tasks_project_idx ON tasks(project_id,created_at); CREATE INDEX art
   expect(store.database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
 });
 
-it("streams binary larger than inline limits and exports verified bytes across purge", async () => {
+hubIt("streams binary larger than inline limits and exports verified bytes across purge", async () => {
   const { store, project, task, call } = await fixture();
   const chunk = Buffer.alloc(65_536, 0x89), count = 20;
   const input = { projectId: project.id, taskId: task.id, name: "../image.png", mediaType: "image/png", declaredSize: chunk.length * count, idempotencyKey: "binary-1" };
@@ -145,7 +151,7 @@ it("streams binary larger than inline limits and exports verified bytes across p
   await expect(store.exportArtifact({ artifactId: String(artifact.id) })).rejects.toMatchObject({ code: "artifact_not_found" });
 });
 
-it("cleans staging and reservations on stream failure and size mismatch", async () => {
+hubIt("cleans staging and reservations on stream failure and size mismatch", async () => {
   const { store, project, dataDir } = await fixture();
   const input = { projectId: project.id, name: "binary" };
   await expect(store.publishStream(input, (async function* () { yield Buffer.from("start"); throw new Error("source failed"); })())).rejects.toThrow("source failed");
@@ -160,7 +166,7 @@ it("cleans staging and reservations on stream failure and size mismatch", async 
   expect(store.database.prepare("SELECT count(*) AS n FROM blobs").get()).toMatchObject({ n: 0 });
 });
 
-it("reserves concurrent stream quotas, survives another open, and rechecks task state before commit", async () => {
+hubIt("reserves concurrent stream quotas, survives another open, and rechecks task state before commit", async () => {
   const { project, task, dataDir, call } = await fixture();
   const other = await UseGptHubStore.open(dataDir, { maxStorageBytes: 8, maxFileBytes: 8 }); stores.push(other);
   let release!: () => void, started!: () => void;
@@ -177,7 +183,7 @@ it("reserves concurrent stream quotas, survives another open, and rechecks task 
   expect(await readdir(join(dataDir, "staging"))).toEqual([]);
 });
 
-it("filters paginated task/project history and scopes publish receipts", async () => {
+hubIt("filters paginated task/project history and scopes publish receipts", async () => {
   const { store, project, task, call } = await fixture();
   await call("artifact.publish_inline", { projectId: project.id, taskId: task.id, name: "a", content: "secret", idempotencyKey: "receipt" });
   const other = store.createProject("Other");
@@ -190,7 +196,7 @@ it("filters paginated task/project history and scopes publish receipts", async (
   await expect(call("artifact.publish_status", { projectId: project.id, idempotencyKey: "receipt" })).rejects.toMatchObject({ code: "artifact_not_found" });
 });
 
-it("retries binary revisions without overwriting history and detects same-size corruption", async () => {
+hubIt("retries binary revisions without overwriting history and detects same-size corruption", async () => {
   const { store, project, call } = await fixture();
   const input = { projectId: project.id, name: "data.bin", mediaType: "application/octet-stream", idempotencyKey: "one" };
   const a = await store.publishBytes(input, Buffer.from([0, 255, 1]));
@@ -204,7 +210,7 @@ it("retries binary revisions without overwriting history and detects same-size c
   await expect(call("artifact.export", { artifactId: a.id })).rejects.toMatchObject({ code: "artifact_content_corrupt" });
 });
 
-it("times out stalled streams, closes the iterator, and releases reservations", async () => {
+hubIt("times out stalled streams, closes the iterator, and releases reservations", async () => {
   const { store, project, dataDir } = await fixture();
   vi.useFakeTimers();
   const cleanup = vi.fn(async () => ({ done: true as const, value: undefined }));
@@ -218,7 +224,7 @@ it("times out stalled streams, closes the iterator, and releases reservations", 
   expect(await readdir(join(dataDir, "staging"))).toEqual([]);
 });
 
-it("upgrades schema version one while preserving scoped text and its byte offsets", async () => {
+hubIt("upgrades schema version one while preserving scoped text and its byte offsets", async () => {
   const { store, project, dataDir, call } = await fixture();
   const a = await call("artifact.publish_inline", { projectId: project.id, name: "bom.txt", content: "\uFEFFhello" });
   store.database.exec("DROP TABLE uploads; PRAGMA user_version=1"); await store.close();

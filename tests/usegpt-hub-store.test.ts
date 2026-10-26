@@ -2,10 +2,14 @@ import { mkdtemp, mkdir, rm, writeFile, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
-import { UseGptHubStore } from "../src/usegpt/hub-store.js";
+import type { UseGptHubStore as UseGptHubStoreType } from "../src/usegpt/hub-store.js";
+
+const hubSupported = (() => { const [major = 0, minor = 0, patch = 0] = process.versions.node.split(".").map(Number); return major > 22 || major === 22 && (minor > 13 || minor === 13 && patch >= 0); })();
+const hubIt = it.skipIf(!hubSupported);
+const { UseGptHubStore } = hubSupported ? await import("../src/usegpt/hub-store.js") : { UseGptHubStore: undefined as unknown as typeof UseGptHubStoreType };
 
 const homes: string[] = [];
-const stores: UseGptHubStore[] = [];
+const stores: UseGptHubStoreType[] = [];
 afterEach(async () => {
   await Promise.all(stores.splice(0).map(store => store.close()));
   await Promise.all(homes.splice(0).map(home => rm(home, { recursive: true, force: true })));
@@ -25,7 +29,7 @@ async function objects() {
   return { ...f, project, task, artifact };
 }
 
-it("persists compatibility methods and immutable revisions across restart", async () => {
+hubIt("persists compatibility methods and immutable revisions across restart", async () => {
   const { store, dataDir, call } = await fixture();
   const project = store.createProject("Launch", "Launch materials");
   const task = store.createTask(project.id, "Research", "Prepare a report");
@@ -41,7 +45,7 @@ it("persists compatibility methods and immutable revisions across restart", asyn
   expect(history.events).toEqual(expect.arrayContaining([expect.objectContaining({ type: "artifact.revision_created" })]));
 });
 
-it("deduplicates bytes, preserves shared references, and collects only the final reference", async () => {
+hubIt("deduplicates bytes, preserves shared references, and collects only the final reference", async () => {
   const { call, store, project, task, artifact } = await objects();
   const other = await call("task.create", { projectId: project.id, title: "Consumer", request: "Use report", artifactRefs: [{ artifactId: artifact.id, revision: 1 }] });
   const copy = await call("artifact.publish_inline", { projectId: project.id, name: "shared.md", content: "first" });
@@ -57,7 +61,7 @@ it("deduplicates bytes, preserves shared references, and collects only the final
   expect(store.database.prepare("SELECT count(*) AS n FROM blobs").get()).toMatchObject({ n: 0 });
 });
 
-it("serializes concurrent publishes and enforces idempotency across restart", async () => {
+hubIt("serializes concurrent publishes and enforces idempotency across restart", async () => {
   const { call, dataDir, project, artifact, task } = await objects();
   const second = new UseGptHubStore(dataDir); stores.push(second);
   const input = { projectId: project.id, taskId: task.id, artifactId: artifact.id, name: "report.md", content: "updated" };
@@ -68,16 +72,18 @@ it("serializes concurrent publishes and enforces idempotency across restart", as
   await expect(call("artifact.publish_inline", { ...input, content: "different", idempotencyKey: "publish-1" })).rejects.toMatchObject({ code: "idempotency_conflict" });
 });
 
-it("rejects invalid ownership, missing references, and publication to terminal tasks", async () => {
+hubIt("rejects invalid ownership, missing references, and publication to terminal tasks", async () => {
   const { call, project, task, artifact } = await objects();
   const other = await call("project.create", { name: "Other" });
   await expect(call("artifact.publish_inline", { projectId: other.id, taskId: task.id, name: "x", content: "x" })).rejects.toMatchObject({ code: "project_mismatch" });
   await expect(call("handoff.create", { projectId: project.id, taskId: task.id, to: "agent:a", instruction: "Work", artifactRefs: [{ artifactId: artifact.id, revision: 99 }] })).rejects.toMatchObject({ code: "artifact_not_found" });
-  await call("task.complete", { taskId: task.id });
+  const completionArtifact = await call("artifact.publish_inline", { projectId: project.id, name: "completion.md", content: "delivered" });
+  await call("task.complete", { taskId: task.id, artifactRefs: [{ artifactId: completionArtifact.id, revision: completionArtifact.revision }] });
+  expect(await call("artifact.read", { artifactId: completionArtifact.id, taskId: task.id })).toMatchObject({ content: "delivered" });
   await expect(call("artifact.publish_inline", { projectId: project.id, taskId: task.id, name: "late", content: "x" })).rejects.toMatchObject({ code: "task_terminal" });
 });
 
-it("restores a project without reviving previously deleted tasks or artifacts", async () => {
+hubIt("restores a project without reviving previously deleted tasks or artifacts", async () => {
   const { call, project, task, artifact } = await objects();
   const live = await call("task.create", { projectId: project.id, title: "Live", request: "Continue" });
   await call("task.delete", { taskId: task.id });
@@ -90,7 +96,7 @@ it("restores a project without reviving previously deleted tasks or artifacts", 
   expect(await call("artifact.read", { artifactId: artifact.id })).toMatchObject({ content: "first" });
 });
 
-it("pins handoff revisions, fences completion, and blocks purge while work is active", async () => {
+hubIt("pins handoff revisions, fences completion, and blocks purge while work is active", async () => {
   const { call, project, task, artifact } = await objects();
   const h = await call("handoff.create", { projectId: project.id, taskId: task.id, to: "agent:a", instruction: "Use report", artifactRefs: [{ artifactId: artifact.id, revision: 1 }] });
   const claim = await call("handoff.claim", { handoffId: h.id, to: "agent:a" });
@@ -107,7 +113,7 @@ it("pins handoff revisions, fences completion, and blocks purge while work is ac
   await call("task.complete", { taskId: task.id });
 });
 
-it("bounds reads on UTF-8 byte boundaries and rejects corruption instead of overwriting it", async () => {
+hubIt("bounds reads on UTF-8 byte boundaries and rejects corruption instead of overwriting it", async () => {
   const { call, store, project } = await objects();
   const a = await call("artifact.publish_inline", { projectId: project.id, name: "unicode", content: "A你B" });
   expect(await call("artifact.read", { artifactId: a.id, limit: 4 })).toMatchObject({ content: "A你", nextOffset: 4, eof: false });
@@ -118,7 +124,7 @@ it("bounds reads on UTF-8 byte boundaries and rejects corruption instead of over
   await expect(call("artifact.publish_inline", { projectId: project.id, name: "copy", content: "A你B" })).rejects.toMatchObject({ code: "artifact_content_corrupt" });
 });
 
-it("enforces quota and input bounds without leaking failed staging files", async () => {
+hubIt("enforces quota and input bounds without leaking failed staging files", async () => {
   const { call, store } = await fixture({ maxInlineBytes: 10, maxProjectBytes: 6, maxTaskBytes: 5, maxStorageBytes: 20 });
   const p = await call("project.create", { name: "Quota" });
   const t = await call("task.create", { projectId: p.id, title: "Task", request: "Work" });
@@ -129,7 +135,7 @@ it("enforces quota and input bounds without leaking failed staging files", async
   expect(store.database.prepare("SELECT count(*) AS n FROM artifact_revisions").get()).toMatchObject({ n: 1 });
 });
 
-it("rejects managed-directory and blob symlinks", async () => {
+hubIt("rejects managed-directory and blob symlinks", async () => {
   const { call, store, project, artifact, home } = await objects();
   const hash = String(artifact.sha256); const target = join(store.blobDir, hash.slice(0, 2), hash.slice(2, 4), hash);
   const outside = join(home, "outside"); await writeFile(outside, "first");

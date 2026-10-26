@@ -3,11 +3,18 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { loadConfig } from "../config/store.js";
 import type { ArkSpacePaths } from "../config/paths.js";
-import { UseGptHubStore } from "../usegpt/hub-store.js";
+import type { UseGptHubStore } from "../usegpt/hub-store.js";
 import { useGptFailure, useGptSuccess, type UseGptEnvelope, type UseGptCapability } from "../protocol/usegpt-schema.js";
 import { MAX_REQUEST_BYTES, capabilityOf, parseRequest } from "../usegpt/contracts.js";
 
 // Store failures are deliberately mapped without interpolating filesystem or input details.
+const HUB_RUNTIME = [22, 13, 0] as const;
+
+function supportsUseGptHub(): boolean {
+  const [major = 0, minor = 0, patch = 0] = process.versions.node.split(".").map(Number);
+  return major > HUB_RUNTIME[0] || major === HUB_RUNTIME[0] && (minor > HUB_RUNTIME[1] || minor === HUB_RUNTIME[1] && patch >= HUB_RUNTIME[2]);
+}
+
 const hubErrors: Record<string, string> = {
   invalid_input: "Invalid Artifact Hub input.", invalid_range: "Invalid artifact byte range.",
   project_not_found: "Project not found.", project_deleted: "Project is deleted; restore it before use.",
@@ -35,6 +42,7 @@ export async function executeUseGpt(request: unknown, paths: ArkSpacePaths, _env
   if (capability === "usegpt.task.start" || capability === "usegpt.task.follow_up" || capability === "usegpt.artifact.get") {
     return useGptFailure(capability, "unsupported", "Legacy ChatGPT browser execution is unsupported. Use project.create, task.create, and artifact.publish_inline with the Artifact Hub.");
   }
+  if (!supportsUseGptHub()) return useGptFailure(capability, "runtime-unsupported", "Artifact Hub requires Node.js 22.13.0 or newer.");
   let dataDir: string;
   try {
     const config = await loadConfig(paths.config);
@@ -45,6 +53,7 @@ export async function executeUseGpt(request: unknown, paths: ArkSpacePaths, _env
   let store: UseGptHubStore | undefined;
   try {
     signal?.throwIfAborted();
+    const { UseGptHubStore } = await import("../usegpt/hub-store.js");
     store = await UseGptHubStore.open(dataDir);
     if (capability === "usegpt.connection.status") return useGptSuccess(capability, { ready: true, storage: "local", browserExecution: "unsupported" });
     const operation = capability.slice("usegpt.".length);
