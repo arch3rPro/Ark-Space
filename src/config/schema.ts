@@ -1,13 +1,21 @@
 import { z } from "zod";
 import { BlockList, isIP } from "node:net";
+import { isAbsolute } from "node:path";
 
 import { FAILURE_KINDS, PROVIDER_IDS, type Capability, type ProviderId } from "../protocol/types.js";
 export const USEGPT_TOKEN_VARIABLE = "ARKSPACE_USEGPT_TOKEN";
+export const USEGPT_API_KEY_VARIABLE = "CONTROL_PLANE_API_KEY";
+export const USEGPT_TUNNEL_ID_VARIABLE = "CONTROL_PLANE_TUNNEL_ID";
+const AbsolutePathSchema = z.string().max(4_096).refine(value => isAbsolute(value) && !/[\\\\\u0000-\u001f\u007f]/.test(value), "Use an absolute local data directory.");
 export const UseGptConfigSchema = z.object({
   enabled: z.boolean().default(true),
-  cdpUrl: z.string().max(256).refine(isLoopbackEndpoint, "Use a loopback HTTP origin, e.g. http://127.0.0.1:9222").default("http://127.0.0.1:9222"),
-  serviceUrl: z.string().max(256).refine(isLoopbackEndpoint, "Use a loopback HTTP origin (or an SSH local forward)").default("http://127.0.0.1:47832"),
-  tokenRef: z.literal("env:ARKSPACE_USEGPT_TOKEN").default("env:ARKSPACE_USEGPT_TOKEN"),
+  tunnelId: z.string().regex(/^tunnel_[A-Za-z0-9_-]{8,128}$/).optional(),
+  apiKeyRef: z.literal(`env:${USEGPT_API_KEY_VARIABLE}`).optional(),
+  dataDir: AbsolutePathSchema.optional(),
+  // Legacy CDP fields are load-compatible only and are not used by the new Hub.
+  cdpUrl: z.string().max(256).refine(isLoopbackEndpoint, "Use a loopback HTTP origin, e.g. http://127.0.0.1:9222").optional(),
+  serviceUrl: z.string().max(256).refine(isLoopbackEndpoint, "Use a loopback HTTP origin (or an SSH local forward)").optional(),
+  tokenRef: z.literal(`env:${USEGPT_TOKEN_VARIABLE}`).optional(),
 }).strict();
 export type UseGptConfig = z.infer<typeof UseGptConfigSchema>;
 

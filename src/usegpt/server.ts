@@ -68,6 +68,7 @@ export async function startUseGptServer(paths: ArkSpacePaths, options: {
 }): Promise<{ address: string; close: () => Promise<void> }> {
   options.signal?.throwIfAborted();
   const config = await loadUseGptConfig(paths);
+  if (!config.serviceUrl || !config.cdpUrl) throw new Error("The legacy CDP UseGPT service is not configured on the Artifact Hub branch.");
   const tokenHash = createHash("sha256").update(tokenFrom(options.environment)).digest();
   let endpoint: URL;
   try { endpoint = new URL(config.serviceUrl); }
