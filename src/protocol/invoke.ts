@@ -15,12 +15,13 @@ import { executeWeknoraVerify } from "../capabilities/weknora-verify.js";
 import { executeUseGpt } from "../capabilities/usegpt.js";
 import { resolveArkSpacePaths, type ArkSpacePaths } from "../config/paths.js";
 import { loadConfig } from "../config/store.js";
+import { loadCredentialEnvironment } from "../config/credentials.js";
 import { ProviderError } from "../errors/provider-error.js";
 import { createCodeContextProviderRegistry, createCrawlProviderRegistry, createExtractProviderRegistry, createFetchProviderRegistry, createMapProviderRegistry, createRelatedProviderRegistry, createResearchProviderRegistry, createSearchProviderRegistry } from "../providers/registry.js";
 import { parseBrowserCloseRequest, parseBrowserInteractRequest, parseBrowserOpenRequest, parseBrowserSnapshotRequest, parseBrowserStatusRequest, parseMonitorCreateRequest, parseMonitorDeleteRequest, parseMonitorListRequest, parseMonitorPauseRequest, parseMonitorResumeRequest, parseMonitorRunGetRequest, parseMonitorRunsRequest, parseMonitorStatusRequest, parseMonitorTriggerRequest, parseMonitorUpdateRequest } from "./resource-schema.js";
 import { parseCodeContextRequest, parseResearchRequest, parseWebCrawlRequest, parseWebExtractRequest, parseWebContentGetRequest, parseWebFetchRequest, parseWebMapRequest, parseWebRelatedRequest, parseWebSearchRequest } from "./schema.js";
 import { parseSiteMonitorCheckGetRequest, parseSiteMonitorChecksRequest, parseSiteMonitorCreateRequest, parseSiteMonitorDeleteRequest, parseSiteMonitorListRequest, parseSiteMonitorPauseRequest, parseSiteMonitorResumeRequest, parseSiteMonitorStatusRequest, parseSiteMonitorTriggerRequest, parseSiteMonitorUpdateRequest } from "./site-monitor-schema.js";
-import { USEGPT_CAPABILITIES } from "./usegpt-schema.js";
+import { USEGPT_CAPABILITIES, useGptFailure, type UseGptCapability } from "./usegpt-schema.js";
 import type { Capability } from "./types.js";
 
 export const CAPABILITIES = [
@@ -41,10 +42,14 @@ export interface InvokeOptions {
 
 export async function invokeCapability(capability: Capability, request: unknown, options: InvokeOptions = {}): Promise<{ ok: boolean }> {
   const paths = options.paths ?? resolveArkSpacePaths(capability.startsWith("weknora.") || capability.startsWith("usegpt.") ? options.originalEnvironment ?? options.environment : options.environment);
-  if (capability.startsWith("usegpt.")) return executeUseGpt(request, paths, options.environment ?? options.originalEnvironment ?? process.env, options.signal);
+  if (capability.startsWith("usegpt.")) {
+    if (!request || typeof request !== "object" || !("capability" in request) || request.capability !== capability) return useGptFailure(capability as UseGptCapability, "invalid-request", "UseGPT request capability must match the invoked capability.");
+    return executeUseGpt(request, paths, options.environment ?? options.originalEnvironment ?? process.env, options.signal);
+  }
   if (capability === "weknora.connection.verify") return executeWeknoraVerify(request, paths, options.originalEnvironment, options.signal);
   if (capability === "weknora.knowledge-bases.list" || capability === "weknora.knowledge-bases.get" || capability === "weknora.search") return executeWeknoraRetrieval(capability, request, paths, options.originalEnvironment, options.signal);
   const config = await loadConfig(paths.config);
+  options = { ...options, environment: options.environment ?? await loadCredentialEnvironment(paths.credentials, options.originalEnvironment ?? process.env) };
   const providerContext = { config, statePath: paths.state, ...(options.environment ? { environment: options.environment } : {}), ...(options.signal ? { signal: options.signal } : {}) };
   switch (capability) {
     case "web.search": return executeWebSearch(parseWebSearchRequest(request).input, { config, statePath: paths.state, providers: createSearchProviderRegistry(), ...(options.environment ? { environment: options.environment } : {}), ...(options.signal ? { signal: options.signal } : {}) });

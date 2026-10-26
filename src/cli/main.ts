@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { access, readFile } from "node:fs/promises";
+import { access, open, readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import process from "node:process";
 import { Command, CommanderError } from "commander";
@@ -71,7 +71,7 @@ import {
   parseMonitorUpdateRequest,
 } from "../protocol/resource-schema.js";
 import { invokeCapability, isCapability } from "../protocol/invoke.js";
-import { useGptFailure, type UseGptCapability } from "../protocol/usegpt-schema.js";
+import { UseGptInputSchemas, useGptFailure, type UseGptCapability } from "../protocol/usegpt-schema.js";
 import { weknoraVerifyFailure } from "../protocol/weknora-schema.js";
 import { WeknoraRetrievalEnvelopeSchemas } from "../protocol/weknora-retrieval-schema.js";
 import {
@@ -273,7 +273,44 @@ program.command("mcp").description("Model Context Protocol transport").command("
   serveArkSpaceStdio({ originalEnvironment });
 });
 
-const useGptCommand = program.command("usegpt").description("UseGPT ChatGPT task bridge");
+const useGptCommand = program.command("usegpt").description("UseGPT local Artifact Hub");
+// Schema fields stay identical across the human CLI, invoke, and MCP tools.
+for (const group of ["project", "task", "artifact", "handoff", "storage", "delete"]) {
+  const namespace = useGptCommand.command(group).description(`Artifact Hub ${group} operations`);
+  for (const capability of Object.keys(UseGptInputSchemas) as UseGptCapability[]) {
+    const [, capabilityGroup, operation] = capability.split(".");
+    if (capabilityGroup !== group || !operation || ["start", "follow_up"].includes(operation) || capability === "usegpt.artifact.get") continue;
+    const schema = UseGptInputSchemas[capability];
+    const command = namespace.command(operation.replaceAll("_", "-")).option("--input <path>", "JSON input object, or - for stdin").option("--json", "Write the protocol JSON envelope");
+    const idField = ["get", "archive", "delete", "restore", "purge", "complete", "wait", "cancel", "describe", "read", "claim", "fail"].includes(operation) && ["project", "task", "artifact", "handoff"].includes(group) ? `${group}Id` : undefined;
+    if (idField) command.argument("[id]", `${group} ID (or supply it with --input)`);
+    const numericFields = new Set(["limit", "offset", "timeoutMs", "revision", "generation", "eventCursor"]);
+    const booleanFields = new Set(["confirmed", "includeDeleted"]);
+    for (const field of Object.keys(schema.shape)) {
+      if (field === idField) continue;
+      const flag = field === "confirmed" ? "confirm" : field.replace(/[A-Z]/g, value => `-${value.toLowerCase()}`);
+      command.option(`--${flag}${booleanFields.has(field) ? "" : " <value>"}`, field === "artifactRefs" ? "JSON array of fixed artifact revisions" : `Set ${field}`);
+    }
+    if (capability === "usegpt.artifact.publish_inline") command.option("--input-file <path>", "Read at most 1 MiB of UTF-8 artifact content");
+    command.action(async (...args: unknown[]) => {
+      const options = command.opts<Record<string, unknown>>();
+      try {
+        const input = typeof options.input === "string" ? await readObjectInput(options.input) : {};
+        if (idField && typeof args[0] === "string") input[idField] = args[0];
+        for (const field of Object.keys(schema.shape)) {
+          const value = options[field === "confirmed" ? "confirm" : field];
+          if (value !== undefined) input[field] = numericFields.has(field) ? parseIntegerOption(value, field) : field === "artifactRefs" ? JSON.parse(String(value)) : value;
+        }
+        if (typeof options.inputFile === "string") {
+          if (input.content !== undefined) throw new Error("Choose content or input-file.");
+          input.content = await readUseGptContent(options.inputFile);
+        }
+        await writeUseGptCommand(capability, input);
+      } catch (error) { writeMachineFailure(capability, error); }
+    });
+  }
+}
+
 useGptCommand.command("start")
   .requiredOption("--prompt <prompt>", "Task prompt")
   .requiredOption("--request-id <request-id>", "Stable idempotency request ID")
@@ -433,7 +470,8 @@ program
   .command("invoke")
   .argument("<capability>", "Capability name")
   .requiredOption("--input <path>", "Versioned JSON request file, or - for stdin")
-  .action(async (capability: string, options: { input: string }) => {
+  .option("--input-file <path>", "UTF-8 content file for usegpt.artifact.publish_inline only (at most 1 MiB)")
+  .action(async (capability: string, options: { input: string; inputFile?: string }) => {
     if (!isCapability(capability)) {
       writeMachineFailure("web.search", new ProviderError(`Unsupported capability: ${capability}`, { kind: "invalid-request" }));
       return;
@@ -452,6 +490,10 @@ program
         environment = await loadCredentialEnvironment(paths.credentials, originalEnvironment);
       }
       const value = await readJsonInput(options.input);
+      if (options.inputFile !== undefined) {
+        if (capability !== "usegpt.artifact.publish_inline" || !isRecord(value) || !isRecord(value.input) || value.input.content !== undefined) throw new Error("Invalid content file request.");
+        value.input.content = await readUseGptContent(options.inputFile);
+      }
       writeMachineResult(await invokeCapability(capability, value, { originalEnvironment, ...(environment ? { environment } : {}), signal: operationController.signal }));
     } catch (error) {
       writeMachineFailure(capability, error);
@@ -644,7 +686,7 @@ webCommand
 
 try {
   // Update never reads local config/credentials; setup and invoke own their bootstrap.
-  if (!isUpdateInvocation && process.argv[2] !== "setup" && process.argv[2] !== "invoke" && process.argv[2] !== "usegpt") {
+  if (!isUpdateInvocation && process.argv[2] !== "setup" && process.argv[2] !== "invoke" && process.argv[2] !== "usegpt" && process.argv[2] !== "mcp") {
     const paths = resolveArkSpacePaths();
     const environment = await loadCredentialEnvironment(paths.credentials);
     for (const [name, value] of Object.entries(environment)) {
@@ -865,6 +907,21 @@ async function runWebMap(input: WebMapInput) {
   });
 }
 
+async function readUseGptContent(path: string): Promise<string> {
+  const handle = await open(path, "r");
+  try {
+    const bytes = Buffer.alloc(MAX_INPUT_BYTES + 1);
+    let length = 0;
+    while (length < bytes.length) {
+      const result = await handle.read(bytes, length, bytes.length - length, null);
+      if (result.bytesRead === 0) break;
+      length += result.bytesRead;
+    }
+    if (length > MAX_INPUT_BYTES) throw new Error("Inline content exceeds 1 MiB.");
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, length));
+  } finally { await handle.close(); }
+}
+
 async function readJsonInput(path: string): Promise<unknown> {
   const content = path === "-" ? await readStandardInput() : await readFile(path, "utf8");
   if (Buffer.byteLength(content, "utf8") > MAX_INPUT_BYTES) {
@@ -888,7 +945,7 @@ async function readStandardInput(): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-async function writeUseGptCommand(capability: "usegpt.connection.status" | "usegpt.task.get" | "usegpt.task.wait" | "usegpt.task.cancel", input: Record<string, unknown>): Promise<void> {
+async function writeUseGptCommand(capability: UseGptCapability, input: Record<string, unknown>): Promise<void> {
   try {
     await writeCommandResult(await invokeCapability(capability, { protocolVersion: PROTOCOL_VERSION, capability, input }, { originalEnvironment, signal: operationController.signal }), true);
   } catch (error) { writeMachineFailure(capability, error); }

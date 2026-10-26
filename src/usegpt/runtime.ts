@@ -166,6 +166,7 @@ export class UseGptRuntime {
           return useGptSuccess(capability, this.taskData(this.find(value.taskId).task));
         }
       }
+      return useGptFailure(capability, "unsupported", "Artifact Hub operations are handled by the local capability dispatcher.");
     } catch (e) {
       return useGptFailure(capability, e instanceof RuntimeFailure ? e.kind : "request", e instanceof RuntimeFailure ? e.message : "Invalid UseGPT request or result.");
     }

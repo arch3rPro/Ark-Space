@@ -1,10 +1,12 @@
-import { readFile, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile, mkdtemp, rm, stat } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { resolveArkSpacePaths } from "../src/config/paths.js";
 import { initializeConfig, loadConfig } from "../src/config/store.js";
 import { loadUseGptConfig } from "../src/config/usegpt.js";
+import { loadCredentialStore, storeCredential } from "../src/config/credentials.js";
+import { SetupUseGpt } from "../src/cli/setup-usegpt.js";
 import { SetupTerminal, type WorkbenchView } from "../src/cli/setup-terminal.js";
 import { runSetupWorkbench } from "../src/cli/setup-workbench.js";
 
@@ -29,7 +31,7 @@ it("stores the Tunnel ID and data directory without storing the API key", async 
   f.form.mockResolvedValueOnce(["tunnel_6adf656e25b0819193d9b98204ac4ced", "/tmp/arkspace-usegpt"]);
   await f.run();
   expect(f.views[0]!.title).toBe("UseGPT Artifact Hub");
-  expect(f.form.mock.calls[0]![1].fields.map(field => field.value)).toEqual(["", "/root/.arkspace/usegpt"]);
+  expect(f.form.mock.calls[0]![1].fields.map(field => field.value)).toEqual(["", join(homedir(), ".arkspace", "usegpt")]);
   expect(await loadUseGptConfig(f.paths)).toEqual({ enabled: true, tunnelId: "tunnel_6adf656e25b0819193d9b98204ac4ced", apiKeyRef: "env:CONTROL_PLANE_API_KEY", dataDir: "/tmp/arkspace-usegpt" });
   const config = await readFile(f.paths.config, "utf8");
   expect(config).not.toContain("fixture-private-key");
@@ -40,8 +42,8 @@ it("shows API key readiness without displaying or editing the secret", async () 
   const f = await fixture({ CONTROL_PLANE_API_KEY: "fixture-private-key" });
   await f.run();
   expect(f.views[0]!.cells[2]![1]).toContain("CONTROL_PLANE_API_KEY");
-  expect(f.views[0]!.cells[2]![1]).toContain("configured");
-  expect(f.form.mock.calls[0]![1].notes).toContain("API key is read from the environment");
+  expect(f.views[0]!.cells[2]![1]).toContain("environment override");
+  expect(f.form.mock.calls[0]![1].notes).toContain("API key is entered hidden");
   expect(vi.spyOn(f.terminal, "previewSecret")).not.toHaveBeenCalled();
 });
 
@@ -52,6 +54,46 @@ it("rejects invalid Tunnel IDs and paths without writing configuration", async (
   await f.run();
   expect(f.form.mock.calls[1]![1].error).toContain("tunnel");
   expect(await readFile(f.paths.config, "utf8")).toBe(before);
+});
+
+it("saves a key with a masked field and private permissions without placing it in config", async () => {
+  const f = await fixture();
+  f.commands.splice(0, f.commands.length, "right", "down", "down", "e", "escape", "escape");
+  f.form.mockResolvedValueOnce(["local-private-key"]);
+  await f.run();
+  expect(f.form.mock.calls[0]![1].fields[0]).toEqual({ label: "*API key", value: "", secret: true });
+  expect((await loadCredentialStore(f.paths.credentials)).values.CONTROL_PLANE_API_KEY).toBe("local-private-key");
+  expect(await readFile(f.paths.config, "utf8")).not.toContain("local-private-key");
+  if (process.platform !== "win32") expect((await stat(f.paths.credentials)).mode & 0o777).toBe(0o600);
+  expect(JSON.stringify([f.views, f.notice.mock.calls])).not.toContain("local-private-key");
+});
+
+it("preloads the saved key masked, preserves it on cancel, and confirms replacement", async () => {
+  const f = await fixture();
+  await storeCredential(f.paths.credentials, "CONTROL_PLANE_API_KEY", "original-private-key");
+  f.commands.splice(0, f.commands.length, "right", "down", "down", "e", "escape", "escape");
+  await f.run();
+  expect(f.form.mock.calls[0]![1].fields[0]).toEqual({ label: "*API key", value: "original-private-key", secret: true });
+  expect((await loadCredentialStore(f.paths.credentials)).values.CONTROL_PLANE_API_KEY).toBe("original-private-key");
+  const page = new SetupUseGpt(f.paths, f.terminal, {}, () => "en");
+  f.form.mockResolvedValueOnce(["replacement-private-key"]);
+  f.confirm.mockResolvedValueOnce(false);
+  await page.act("edit", () => f.views[0]!, 2);
+  expect(f.confirm.mock.calls.at(-1)?.[1]).toBe("Replace saved API key");
+  expect((await loadCredentialStore(f.paths.credentials)).values.CONTROL_PLANE_API_KEY).toBe("original-private-key");
+  f.form.mockResolvedValueOnce(["replacement-private-key"]);
+  await page.act("edit", () => f.views[0]!, 2);
+  expect((await loadCredentialStore(f.paths.credentials)).values.CONTROL_PLANE_API_KEY).toBe("replacement-private-key");
+});
+
+it("retries invalid key input without exposing it in errors", async () => {
+  const f = await fixture();
+  f.commands.splice(0, f.commands.length, "right", "down", "down", "e", "escape", "escape");
+  f.form.mockResolvedValueOnce(["bad\u0000key"]).mockResolvedValueOnce(undefined);
+  await f.run();
+  expect(f.form.mock.calls[1]![1].error).toContain("control characters");
+  expect(f.form.mock.calls[1]![1].fields[0]!.value).toBe("");
+  expect((await loadCredentialStore(f.paths.credentials)).values).toEqual({});
 });
 
 it("unlinks only the binding and keeps the configured data directory untouched", async () => {

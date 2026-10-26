@@ -5,6 +5,7 @@ import { afterEach, expect, it } from "vitest";
 import { resolveArkSpacePaths } from "../src/config/paths.js";
 import { initializeConfig } from "../src/config/store.js";
 import { saveUseGptConfig } from "../src/config/usegpt.js";
+import { loadCredentialStore, storeCredential } from "../src/config/credentials.js";
 import { loadUseGptHubConfig } from "../src/usegpt/secure-config.js";
 
 const homes: string[] = [];
@@ -25,6 +26,13 @@ it("loads the Tunnel ID, resolves the API key from the environment, and defaults
   expect(config.dataDir).toMatch(/\.arkspace[\\/]usegpt$/);
 });
 
+it("loads a saved API key when the environment does not override it", async () => {
+  const paths = await fixture();
+  await saveUseGptConfig(paths, { enabled: true, tunnelId: "tunnel_6adf656e25b0819193d9b98204ac4ced", apiKeyRef: "env:CONTROL_PLANE_API_KEY" });
+  await storeCredential(paths.credentials, "CONTROL_PLANE_API_KEY", "saved-private-key");
+  await expect(loadUseGptHubConfig(paths, {})).resolves.toMatchObject({ apiKey: "saved-private-key" });
+  expect((await loadCredentialStore(paths.credentials)).values.CONTROL_PLANE_API_KEY).toBe("saved-private-key");
+});
 it("rejects a missing or invalid API key without exposing it", async () => {
   const paths = await fixture();
   await saveUseGptConfig(paths, { enabled: true, tunnelId: "tunnel_6adf656e25b0819193d9b98204ac4ced", apiKeyRef: "env:CONTROL_PLANE_API_KEY" });

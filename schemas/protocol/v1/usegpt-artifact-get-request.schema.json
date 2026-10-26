@@ -19,7 +19,9 @@
         },
         "artifactId": {
           "type": "string",
-          "pattern": "^[a-zA-Z0-9_-]{1,80}$"
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9_-]+$"
         },
         "offset": {
           "default": 0,

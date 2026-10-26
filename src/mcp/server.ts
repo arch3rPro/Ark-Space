@@ -70,17 +70,27 @@ const descriptions: Record<Capability, string> = {
   "monitor.site.checks": "List bounded Firecrawl checks for an owned site monitor.",
   "monitor.site.check.get": "Get one Firecrawl check and bounded page-level change results.",
   "usegpt.connection.status": "Check the local UseGPT bridge connection.",
-  "usegpt.task.start": "Start a confirmed ChatGPT task through the local UseGPT bridge; files are text context.",
+  "usegpt.task.start": "Unsupported legacy browser execution. Create a local Artifact Hub task and publish artifacts instead.",
   "usegpt.task.get": "Get one UseGPT task.",
   "usegpt.task.list": "List local UseGPT tasks.",
   "usegpt.task.wait": "Wait for one UseGPT task; timeout does not cancel it.",
-  "usegpt.task.follow_up": "Continue one UseGPT task with confirmed text context.",
+  "usegpt.task.follow_up": "Unsupported legacy browser execution. Create a new Artifact Hub task instead.",
   "usegpt.task.cancel": "Request cancellation of one UseGPT task; requires confirmation.",
-  "usegpt.artifact.get": "Read a bounded UseGPT task artifact.",
+  "usegpt.artifact.get": "Unsupported legacy artifact access. Use artifact.describe and artifact.read for Hub revisions.",
+  "usegpt.project.create": "Create a local Artifact Hub project.", "usegpt.project.list": "List local Artifact Hub projects.", "usegpt.project.get": "Read a local Artifact Hub project and events.",
+  "usegpt.project.archive": "Archive a local Artifact Hub project.", "usegpt.project.delete": "Move a local Artifact Hub project to the recycle state.", "usegpt.project.restore": "Restore a local Artifact Hub project.", "usegpt.project.purge": "Permanently purge a deleted Artifact Hub project.",
+  "usegpt.task.create": "Create a local Artifact Hub task.", "usegpt.task.complete": "Complete a local Artifact Hub task.", "usegpt.task.delete": "Move a local Artifact Hub task to the recycle state.", "usegpt.task.restore": "Restore a local Artifact Hub task.", "usegpt.task.purge": "Permanently purge a deleted Artifact Hub task.",
+  "usegpt.artifact.publish_inline": "Publish inline text as an immutable local Artifact Hub revision.", "usegpt.artifact.list": "List local Artifact Hub artifacts.", "usegpt.artifact.describe": "Describe a local Artifact Hub artifact revision.", "usegpt.artifact.read": "Read bounded bytes from a local Artifact Hub artifact.", "usegpt.artifact.delete": "Delete a local Artifact Hub artifact.",
+  "usegpt.handoff.create": "Create a local Artifact Hub handoff.", "usegpt.handoff.list": "List local Artifact Hub handoffs.", "usegpt.handoff.get": "Read a local Artifact Hub handoff.", "usegpt.handoff.claim": "Claim a local Artifact Hub handoff.", "usegpt.handoff.complete": "Complete a claimed local Artifact Hub handoff.", "usegpt.handoff.fail": "Fail a claimed local Artifact Hub handoff.", "usegpt.handoff.cancel": "Cancel a local Artifact Hub handoff.",
+  "usegpt.storage.usage": "Read local Artifact Hub storage usage.", "usegpt.delete.preview": "Preview local Artifact Hub deletion effects.",
 };
 
 const readOnly = new Set<Capability>(["weknora.knowledge-bases.list", "weknora.knowledge-bases.get", "weknora.search", "weknora.connection.verify", "web.search", "web.fetch", "web.content.get", "web.map", "web.related", "code.context", "browser.snapshot", "browser.status", "monitor.list", "monitor.status", "monitor.runs", "monitor.run.get", "monitor.site.list", "monitor.site.status", "monitor.site.checks", "monitor.site.check.get", "usegpt.connection.status", "usegpt.task.get", "usegpt.task.list", "usegpt.task.wait", "usegpt.artifact.get"]);
 const destructive = new Set<Capability>(["browser.close", "monitor.delete", "monitor.site.delete"]);
+for (const capability of Object.keys(UseGptInputSchemas) as Capability[]) {
+  if (/\.(?:list|get|read|describe|wait|status)$/.test(capability) || capability === "usegpt.storage.usage" || capability === "usegpt.delete.preview") readOnly.add(capability);
+  if (/\.(?:delete|purge)$/.test(capability)) destructive.add(capability);
+}
 
 export function createMcpServer(config?: ArkSpaceConfig, options: InvokeOptions = {}): McpServer {
   const server = new McpServer({ name: "arkspace", version: "0.1.5" });
@@ -112,7 +122,7 @@ function registerCapability(server: McpServer, capability: Capability, name: str
         readOnlyHint: readOnly.has(capability),
         destructiveHint: destructive.has(capability),
         idempotentHint: readOnly.has(capability) || capability === "browser.close" || capability === "monitor.pause" || capability === "monitor.resume" || capability === "monitor.delete" || capability === "monitor.site.pause" || capability === "monitor.site.resume" || capability === "monitor.site.delete",
-        openWorldHint: true,
+        openWorldHint: !capability.startsWith("usegpt."),
       },
     },
     async (input, context) => {
