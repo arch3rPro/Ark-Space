@@ -128,6 +128,10 @@ Example response:
 
 Failures use the same envelope and include a stable error kind, retryability, and actionable correction. Raw credentials never appear in output.
 
+### UseGPT artifact hub proposal
+
+The experimental Secure MCP direction is documented in the [UseGPT Artifact Hub design](usegpt-artifact-hub.md) and [implementation plan](usegpt-artifact-hub-implementation.md). Consult these before implementing ChatGPT artifact intake, Project/Task storage, history retention, deletion, Agent handoffs, or replacing the historical CDP entry path. These documents describe planned behavior, not installed capabilities; the new branch is based on `experiment/usegpt-secure-mcp`.
+
 ### Capability handlers
 
 A capability handler owns provider-neutral request resolution, provider selection, fallback order, result normalization, and completion semantics. Defaults are resolved before provider execution.
