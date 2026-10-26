@@ -26,7 +26,14 @@ async function download(url, destination) {
   if (!response.ok || !response.body) throw new Error("Official tunnel-client download failed.");
   await pipeline(response.body, createWriteStream(destination));
 }
+const candidateClients = [
+  join(process.cwd(), "reference", "tunnel-client", "tunnel-client-runtime"),
+  join(root, "..", "reference", "tunnel-client", "tunnel-client-runtime"),
+];
+const suppliedClient = process.env.USEGPT_TUNNEL_CLIENT;
 async function tunnelClient() {
+  if (suppliedClient) { await chmod(suppliedClient, 0o755); return suppliedClient; }
+  for (const candidate of candidateClients) { try { await chmod(candidate, 0o755); return candidate; } catch {} }
   const path = join(cache, process.platform === "win32" ? "tunnel-client.exe" : "tunnel-client");
   try { await chmod(path, 0o755); return path; } catch {}
   const release = await json("https://api.github.com/repos/openai/tunnel-client/releases/latest");
