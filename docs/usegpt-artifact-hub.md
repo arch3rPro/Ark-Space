@@ -622,7 +622,7 @@ arks usegpt task purge task_456 --confirm
 新增的 Skill 应负责使用流程，而不是复制存储实现：
 
 ```text
-skills/UseGPT/SKILL.md
+skills/usegpt/SKILL.md
 ```
 
 它指导 Agent：

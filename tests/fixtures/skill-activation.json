@@ -1,5 +1,5 @@
 {
-  "UseGPT": {
+  "usegpt": {
     "positive": [
       "Send this confirmed question to my manually logged-in ChatGPT session and wait for the answer.",
       "Start a ChatGPT task with these text files as context, then report its task status.",

@@ -45,7 +45,7 @@
 | `src/usegpt/secure-mcp-probe.ts` | 实验参考，不能作为生产队列或常驻服务直接扩展 |
 | `scripts/usegpt-secure-mcp-probe.mjs` | 保留实验说明；生产 Setup 不依赖临时 npm 安装目录 |
 | `src/providers/usegpt-cdp.ts` | 不被新入口调用；最终移除或只保留迁移文档说明 |
-| `skills/UseGPT/SKILL.md` | 保持 canonical Skill 路径，更新成成果提交与取用流程 |
+| `skills/usegpt/SKILL.md` | 保持 canonical Skill 路径，更新成成果提交与取用流程 |
 | `schemas/protocol/v1/` | 由仓库生成器生成新 schema，不手工复制 |
 | `tests/usegpt-*.test.ts` | 拆分新合同测试和历史测试，明确撤销旧行为 |
 | `README.md`、`README.zh-CN.md`、`INSTALL.md`、`docs/architecture.md`、`docs/capabilities.md` | 实现交付时同步当前行为、安装方式与限制 |
@@ -203,7 +203,7 @@ npm run test:usegpt-host-files
 - Project + Task + 固定 Revision 输入。
 - 原子领取，token 与 fencing generation 校验。
 - 有界 wait 和 cursor-based events，独立消费者 cursor。
-- 更新 canonical `skills/UseGPT/SKILL.md`，将 ChatGPT 生产与本地 Agent 消费拆为操作分支并链接相应参考。
+- 更新 canonical `skills/usegpt/SKILL.md`，将 ChatGPT 生产与本地 Agent 消费拆为操作分支并链接相应参考。
 - 通过现有 manifests 引用 canonical Skill，不生成镜像、不改版本。
 
 Agent 接入：只支持 MCP 的 Agent 使用工具；只支持 shell 的 Agent 使用 `arks invoke`；Skill 提供操作策略。安装 Skill 不表示 Agent 会自动运行。

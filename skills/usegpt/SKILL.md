@@ -1,5 +1,5 @@
 ---
-name: UseGPT
+name: usegpt
 description: Publish and consume ChatGPT outputs through ArkSpace's local UseGPT Artifact Hub. Use when ChatGPT produces research, conclusions, Markdown, datasets, images, files, URLs, or collections that an Agent must reuse.
 compatibility: Requires the arks CLI and Node.js 20+ for general ArkSpace commands. Artifact Hub storage operations require Node.js 22.13+ because they use node:sqlite. A configured Secure MCP Tunnel is required only for ChatGPT-to-Hub publishing; local Agent reads do not require a tunnel or API key.
 ---
