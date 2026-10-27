@@ -43,6 +43,7 @@
     "test": "npm run build && vitest run",
     "test:e2e": "npm run build && node scripts/e2e-providers.mjs",
     "test:hosts": "node scripts/test-installed-hosts.mjs",
+    "test:usegpt-host-files": "npm run build && vitest run tests/usegpt-host-files.test.ts",
     "test:setup": "npm run build && node scripts/test-setup-pty.mjs",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",

@@ -36,6 +36,7 @@ import { executeWebMap } from "../capabilities/web-map.js";
 import { executeWebRelated } from "../capabilities/web-related.js";
 import { executeWebSearch } from "../capabilities/web-search.js";
 import { serveUseGptDaemon, daemonRequest, daemonStatus, defaultDaemonDataDir, normalizeDaemonDataDir, stopUseGptDaemon } from "../usegpt/daemon.js";
+import { runWorker } from "../usegpt/worker.js";
 import { runSetup } from "./setup.js";
 import { CliUpdateError, runCliUpdate } from "./update.js";
 import { buildDiagnosticPlan, renderDiagnostic } from "./diagnostics.js";
@@ -276,6 +277,24 @@ program.command("mcp").description("Model Context Protocol transport").command("
 });
 
 const useGptCommand = program.command("usegpt").description("UseGPT local Artifact Hub");
+const workerCommand = useGptCommand.command("worker").description("Run a fixed locally configured child for pending handoffs");
+for (const mode of ["once", "run"] as const) workerCommand.command(mode)
+  .requiredOption("--config <file>", "Protected local worker JSON configuration")
+  .action(async (options: { config: string }) => {
+    try {
+      await runWorker(options.config, mode, operationController.signal, result => {
+        process.stdout.write(`${JSON.stringify(result)}\n`);
+        if (!result.ok) {
+          process.stderr.write(`arks usegpt worker: ${result.data.status}; inspect protected recovery files before taking further action.\n`);
+          if (mode === "once") process.exitCode = 1;
+        }
+      });
+    } catch {
+      process.stdout.write(`${JSON.stringify({ ok: false, command: "usegpt.worker", error: { code: "worker_error", message: "Worker configuration or hub request failed; inspect local configuration and durable records.", retryable: false } })}\n`);
+      process.stderr.write("arks usegpt worker: configuration or hub request failed.\n");
+      process.exitCode = 1;
+    }
+  });
 // Schema fields stay identical across the human CLI, invoke, and MCP tools.
 for (const group of ["project", "task", "artifact", "handoff", "storage", "delete"]) {
   const namespace = useGptCommand.command(group).description(`Artifact Hub ${group} operations`);

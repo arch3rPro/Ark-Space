@@ -181,7 +181,21 @@ ChatGPT 创建或关联 task
 
 完成标准：至少一个真实 PNG 和一个真实文档/数据文件，确认本地哈希、大小、重启后读取，以及另一个 Agent 的读取结果。Mock URL 下载只证明本地传输合同。
 
-## 8. Phase 5：交接发现与 Skill
+## 本地 Host 文件合同验证
+
+使用下面的 focused fixture 验证本地传输合同。它会在测试进程中合成一个受允许域名的响应，覆盖 native `fileParams` 对象和 MCP `resource_link` 对象，重开 Hub 后通过 `artifact.export` 读取二进制，再独立计算 SHA-256，并确认 `artifact.read` 对二进制返回 `binary_artifact`。这项测试证明本地校验、持久化和导出行为，不证明 ChatGPT 真的生成或调用了文件。
+
+```bash
+npm run test:usegpt-host-files
+```
+
+真实 ChatGPT Host 验收必须单独执行：
+
+1. 构建并启动实际部署的 MCP/Tunnel 入口，确认 `tools/list` 中 `usegpt_artifact_publish_file` 带有 `_meta.openai/fileParams: ["file"]`。
+2. 在真实 ChatGPT Connector/App 会话中选择或生成一个 PNG，以及一个 CSV、JSON 或 PDF；让 ChatGPT 调用 `usegpt_artifact_publish_file`，分别记录脱敏 receipt、artifact ID、revision、size 和 sha256。不要把 `file_id`、`download_url`、cookie、token 或真实正文写入 Git。
+3. 在本地 Agent 侧用 receipt 的固定 `artifactId + revision` 调用 `usegpt_artifact.describe`，二进制用 `artifact.export` 分页读取并对导出的原始字节计算 SHA-256；文本才使用 `artifact.read`。导出 hash 和 receipt hash 必须一致。
+4. 重启 Hub 后重复 describe/export 校验，并记录 Host、ChatGPT 模式、文件类型、工具是否可见和任何 unsupported 组合。合成 fixture、MCP metadata 检查或 Tunnel 连通性都不能替代这项真实验收。
+
 
 交付：
 

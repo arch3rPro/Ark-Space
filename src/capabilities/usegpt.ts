@@ -17,7 +17,7 @@ function supportsUseGptHub(): boolean {
 }
 
 const hubErrors: Record<string, string> = {
-  invalid_input: "Invalid Artifact Hub input.", invalid_range: "Invalid artifact byte range.",
+  invalid_input: "Invalid Artifact Hub input.", invalid_range: "Invalid artifact byte range.", binary_artifact: "Binary artifacts must be read with artifact.export.",
   project_not_found: "Project not found.", project_deleted: "Project is deleted; restore it before use.",
   project_mismatch: "Objects must belong to the same project.", project_archived: "Project is archived.",
   task_not_found: "Task not found.", task_deleted: "Task is deleted; restore it before use.", task_terminal: "Task is already terminal.",

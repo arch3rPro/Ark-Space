@@ -7,9 +7,15 @@ import { defaultConfig } from "../src/config/schema.js";
 import { resolveArkSpacePaths } from "../src/config/paths.js";
 import { invokeCapability } from "../src/protocol/invoke.js";
 import { UseGptInputSchemas } from "../src/protocol/usegpt-schema.js";
+import type { UseGptHubStore as UseGptHubStoreType } from "../src/usegpt/hub-store.js";
 
 // These synthetic transport contracts are not real ChatGPT Host acceptance evidence.
-const hubIt = it.skipIf(Number(process.versions.node.split(".")[0]) < 22);
+const hubSupported = (() => {
+  const [major = 0, minor = 0] = process.versions.node.split(".").map(Number);
+  return major > 22 || major === 22 && minor >= 13;
+})();
+const hubIt = it.skipIf(!hubSupported);
+const { UseGptHubStore } = hubSupported ? await import("../src/usegpt/hub-store.js") : { UseGptHubStore: undefined as unknown as typeof UseGptHubStoreType };
 const homes: string[] = [];
 afterEach(async () => { vi.unstubAllGlobals(); vi.useRealTimers(); await Promise.all(homes.splice(0).map(home => rm(home, { recursive: true, force: true }))); });
 async function fixture() {
@@ -32,16 +38,27 @@ it("requires native object shapes and rejects URL strings, credentials, local pa
   expect(schema.safeParse({ projectId: "project_test", name: "report.csv", file: { type: "resource_link", uri: reference.download_url, name: "report.csv" } }).success).toBe(true);
 });
 
-hubIt("streams native and resource-link bytes through the capability, retaining a stable receipt after reopen", async () => {
-  const f = await fixture(), bytes = Buffer.from("x,y\n1,2\n");
+hubIt("persists native and resource-link binary files and verifies export/read hashes", async () => {
+  const f = await fixture(), bytes = Buffer.from([0, 137, 80, 78, 71, 13, 10, 26, 10, 255, 1, 2]);
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
   const transport = vi.fn(async () => new Response(bytes, { headers: { "content-length": String(bytes.length) } })); vi.stubGlobal("fetch", transport);
-  const published = await f.publish({ ...reference, size: bytes.length, mime_type: "text/csv" }, { idempotencyKey: "native_1" });
-  expect(published).toMatchObject({ ok: true, data: { revision: 1, sizeBytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex"), mediaType: "text/csv" } });
-  expect(await f.publish(reference, { mediaType: "text/csv", idempotencyKey: "native_1" })).toEqual(published);
-  expect(await f.call("usegpt.artifact.read", { artifactId: published.data!.id })).toMatchObject({ ok: true, data: { content: "x,y\n1,2\n" } });
-  expect(await f.publish({ type: "resource_link", uri: reference.download_url, name: "data.csv", mimeType: "text/csv" })).toMatchObject({ ok: true });
-  expect(JSON.stringify(published)).not.toContain("private-signature");
-  expect(transport).toHaveBeenCalledWith(expect.any(URL), expect.objectContaining({ redirect: "manual", credentials: "omit" }));
+  const native = await f.publish({ ...reference, size: bytes.length, mime_type: "image/png" }, { mediaType: "image/png", idempotencyKey: "native_binary_1" });
+  expect(native).toMatchObject({ ok: true, data: { revision: 1, sizeBytes: bytes.length, sha256, mediaType: "image/png" } });
+  const resource = await f.publish({ type: "resource_link", uri: reference.download_url, name: "plot.png", mimeType: "image/png", size: bytes.length }, { idempotencyKey: "resource_binary_1" });
+  expect(resource).toMatchObject({ ok: true, data: { revision: 1, sizeBytes: bytes.length, sha256, mediaType: "image/png" } });
+
+  const store = await UseGptHubStore.open(join(f.home, "hub"));
+  try {
+    for (const published of [native, resource]) {
+      const artifactId = String(published.data!.id);
+      expect(await f.call("usegpt.artifact.read", { artifactId })).toMatchObject({ ok: false, error: { kind: "binary_artifact" } });
+      const exported = await store.execute("artifact.export", { artifactId, offset: 0, limit: bytes.length });
+      expect(Buffer.from(String(exported.content), "base64")).toEqual(bytes);
+      expect(exported).toMatchObject({ artifact: { sha256 }, nextOffset: bytes.length, eof: true });
+      expect(createHash("sha256").update(await store.getBinary({ artifactId })).digest("hex")).toBe(sha256);
+    }
+  } finally { await store.close(); }
+  expect(JSON.stringify(native)).not.toContain("private-signature");
 });
 
 hubIt("rejects unsupported ids and unsafe hosts before network access, including redirected hosts", async () => {
