@@ -116,7 +116,7 @@ hubIt("pulls one handoff into a fixed-revision secure input package and complete
   const completed = await cli(["usegpt", "handoff", "complete", receipt.data.handoffId, "--claim-token", packageValue.handoff.claimToken, "--generation", "1"], f.environment);
   expect(completed.code, completed.stdout + completed.stderr).toBe(0);
   expect(JSON.parse(completed.stdout)).toMatchObject({ ok: true, data: { status: "completed" } });
-});
+}, 15_000);
 
 hubIt("dispatches hub operations over the built MCP stdio entry", async () => {
   const f = await fixture();

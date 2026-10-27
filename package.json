@@ -22,6 +22,7 @@
   },
   "files": [
     "dist",
+    "scripts/usegpt-hub-tunnel.mjs",
     "skills",
     ".agents",
     ".claude-plugin",
@@ -38,7 +39,9 @@
     "build": "tsc -p tsconfig.build.json",
     "check": "npm run validate && npm run typecheck && npm test",
     "dev": "tsx src/cli/main.ts",
-    "usegpt:tunnel": "npm run build && node scripts/usegpt-hub-tunnel.mjs",
+    "usegpt:tunnel": "npm run build && node dist/cli/main.js usegpt tunnel start",
+    "usegpt:tunnel:status": "npm run build && node dist/cli/main.js usegpt tunnel status",
+    "usegpt:tunnel:stop": "npm run build && node dist/cli/main.js usegpt tunnel stop",
     "generate:schemas": "tsx scripts/generate-protocol-schemas.ts",
     "test": "npm run build && vitest run",
     "test:e2e": "npm run build && node scripts/e2e-providers.mjs",

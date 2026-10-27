@@ -2,14 +2,25 @@
 
 The worker is a POSIX-only executable adapter. It requires Node 22.13+, a running Hub daemon, and an owner-controlled configuration file with mode 0600. It is not a bundled AI model. The operator chooses an installed executable; no Agent CLI was installed during verification.
 
-Start the daemon for the same `dataDir`, then run:
+The Hub and Tunnel can run in the background, so the terminal can be closed after startup:
 
 ```bash
 arks usegpt daemon start --data-dir /absolute/private/hub
+arks usegpt tunnel start --data-dir /absolute/private/hub
+arks usegpt tunnel status --data-dir /absolute/private/hub
+arks usegpt tunnel stop --data-dir /absolute/private/hub
+```
+
+`start` writes Tunnel logs to `dataDir/.tunnel/tunnel.log` and stores only local process state there. The operating system does not restart these processes after a machine reboot yet; use the platform service manager for that.
+
+Then run the worker:
+
+```bash
 arks usegpt worker once --config /absolute/private/worker.json
 # Poll for later handoffs until interrupted:
 arks usegpt worker run --config /absolute/private/worker.json
 ```
+
 
 Configuration:
 
