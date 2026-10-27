@@ -1,4 +1,4 @@
-import { startUseGptServices } from "../usegpt/services.js";
+import { diagnoseUseGpt, startUseGptServices, stopUseGptServices } from "../usegpt/services.js";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ArkSpacePaths } from "../config/paths.js";
@@ -16,6 +16,7 @@ export class SetupUseGpt {
   private keyAvailable = false;
   private pending: string[] | undefined;
   private result = "";
+  private service = { daemonRunning: false, tunnelRunning: false };
   constructor(private readonly paths: ArkSpacePaths, private readonly terminal: SetupTerminal,
     private readonly environment: NodeJS.ProcessEnv, private readonly language: () => SetupLanguage,
     private readonly signal?: AbortSignal) {}
@@ -23,7 +24,7 @@ export class SetupUseGpt {
   discardDraft() { this.pending = undefined; }
   private t(en: string, zh: string) { return this.language() === "zh" ? zh : en; }
   private values() { return this.pending ?? [this.saved?.tunnelId ?? "", this.saved?.dataDir ?? defaultDataDir()]; }
-  async refresh() { this.saved = (await loadConfig(this.paths.config)).connections?.usegpt; this.keyAvailable = Boolean((await loadCredentialStore(this.paths.credentials)).values[USEGPT_API_KEY_VARIABLE]); }
+  async refresh() { this.saved = (await loadConfig(this.paths.config)).connections?.usegpt; this.keyAvailable = Boolean((await loadCredentialStore(this.paths.credentials)).values[USEGPT_API_KEY_VARIABLE]); const status = await diagnoseUseGpt({ ...this.environment, ARKSPACE_HOME: this.paths.home }); this.service = status; }
   private apiKeyState() {
     if (Object.hasOwn(this.environment, USEGPT_API_KEY_VARIABLE)) return validateCredentialValue(this.environment[USEGPT_API_KEY_VARIABLE] ?? "")
       ? this.t("environment override", "环境覆盖") : this.t("invalid environment override", "环境覆盖无效");
@@ -40,14 +41,19 @@ export class SetupUseGpt {
         [this.t("Tunnel ID", "隧道ID"), tunnelId || this.t("missing", "缺失")],
         [this.t("Data directory", "数据目录"), dataDir!],
         [this.t("API key", "API密钥"), `${USEGPT_API_KEY_VARIABLE} · ${this.apiKeyState()}`],
+        [this.t("Service status", "服务状态"), `Hub: ${this.service.daemonRunning ? this.t("running", "运行中") : this.t("stopped", "已停止")} · Tunnel: ${this.service.tunnelRunning ? this.t("running", "运行中") : this.t("stopped", "已停止")}`],
+        [this.t("Start services", "启动服务"), this.t("Enter: start Hub and Tunnel in background", "Enter：后台启动产物中心和隧道")],
+        [this.t("Stop services", "停止服务"), this.t("Enter: stop Hub and Tunnel", "Enter：停止产物中心和隧道")],
       ],
-      rowTones: ["neutral", "neutral", "neutral"] as SetupTone[],
+      rowTones: ["neutral", "neutral", "neutral", "neutral", "neutral", "neutral"] as SetupTone[],
     };
   }
   hints(_selectedRow = 0) {
     return [
-      { intent: "edit" as const, keys: ["return", "enter", "e"], key: "Enter/e", label: this.t("Edit selected setting", "编辑所选设置"), reason: "" },
-      { intent: "test" as const, keys: ["t"], key: "t", label: this.t("Start services", "启动服务"), reason: this.saved ? "" : this.t("Save Tunnel settings first.", "请先保存隧道配置。") },
+      { intent: "edit" as const, keys: ["return", "enter", "e"], key: "Enter/e", label: this.t("Open selected setting or action", "打开所选设置或操作"), reason: "" },
+      { intent: "start" as const, keys: ["s"], key: "s", label: this.t("Start services", "启动服务"), reason: this.saved ? "" : this.t("Save Tunnel settings first.", "请先保存隧道配置。") },
+      { intent: "stop" as const, keys: ["x"], key: "x", label: this.t("Stop services", "停止服务") },
+      { intent: "status" as const, keys: ["v"], key: "v", label: this.t("Service status", "服务状态") },
       { intent: "details" as const, keys: ["i"], key: "i", label: this.t("Details", "详情") },
       { intent: "remove" as const, keys: ["d"], key: "d", label: this.t("Unlink local config", "解绑本地配置"), reason: this.saved ? "" : this.t("No local UseGPT configuration to remove.", "没有可删除的本地UseGPT配置。"), tone: "danger" as const },
     ];
@@ -58,10 +64,33 @@ export class SetupUseGpt {
     const t = this.t.bind(this);
     const confirm = (title: string, body: string, accept: string, tone: SetupTone = "warning") => this.terminal.confirm(view, title, body, accept, t("Cancel", "取消"), this.signal, tone);
     const notice = (body: string, tone: SetupTone = "info") => this.terminal.notice(view, t("UseGPT details", "UseGPT详情"), body, t("Close", "关闭"), this.signal, tone);
-    if (intent === "test") {
+    if (intent === "edit" && selectedRow >= 3) intent = ["status", "start", "stop"][selectedRow - 3] ?? "status";
+    if (intent === "status") {
+      const status = await diagnoseUseGpt({ ...this.environment, ARKSPACE_HOME: this.paths.home });
+      this.service = status;
+      await notice([
+        `${t("Configuration", "配置")}: ${status.configured ? t("complete", "完整") : t("incomplete", "不完整")}`,
+        `Hub: ${status.daemonRunning ? t("running", "运行中") : t("stopped", "已停止")}`,
+        `Tunnel: ${status.tunnelRunning ? t("running", "运行中") : t("stopped", "已停止")}`,
+        t("Process status only. Publish a file from ChatGPT to verify the connection.", "此处检查本地进程；通过 ChatGPT 发布文件可验证实际连通性。"),
+      ].join("\n"));
+      return;
+    }
+    if (intent === "stop") {
+      if (!await confirm(t("Stop UseGPT services", "停止UseGPT服务"), t("Stop the local Hub and Tunnel? ChatGPT publishing will be unavailable until restarted. Stored files and credentials are kept.", "停止本地产物中心和隧道？重新启动前 ChatGPT 无法发布。已保存的文件和凭据会保留。"), t("Stop", "停止"))) return;
+      try {
+        const status = await stopUseGptServices({ ...this.environment, ARKSPACE_HOME: this.paths.home });
+        this.service = status;
+        this.result = !status.daemonRunning && !status.tunnelRunning ? t("Services stopped", "服务已停止") : t("Service shutdown incomplete", "服务停止未完成");
+        await notice(this.result);
+      } catch { await notice(t("Unable to stop services. Run arks usegpt diagnose --json.", "无法停止服务。运行 arks usegpt diagnose --json 查看诊断。"), "warning"); }
+      return;
+    }
+    if (intent === "start") {
       if (!await confirm(t("Start UseGPT services", "启动UseGPT服务"), t("Start the Hub and Tunnel in the background. Tunnel will connect to the configured service. You can close the terminal afterwards.", "在后台启动产物中心和隧道，隧道将连接已配置的服务。启动后可关闭终端。"), t("Start", "启动"))) return;
       try {
         const result = await startUseGptServices({ ...this.environment, ARKSPACE_HOME: this.paths.home });
+        this.service = result;
         this.result = result.ok ? t("Services running", "服务已运行") : t("Service startup incomplete", "服务启动未完成");
         await notice(this.result);
       } catch { await notice(t("Unable to start. Check saved Tunnel ID, API key, and Tunnel client; run arks usegpt diagnose --json.", "无法启动。请检查隧道ID、API密钥和隧道客户端；运行 arks usegpt diagnose --json 查看诊断。"), "warning"); }

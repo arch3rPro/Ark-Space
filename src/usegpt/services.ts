@@ -56,3 +56,18 @@ export async function startUseGptServices(environment: NodeJS.ProcessEnv = proce
   }
   return diagnoseUseGpt(environment);
 }
+
+export async function stopUseGptServices(environment: NodeJS.ProcessEnv = process.env) {
+  const before = await diagnoseUseGpt(environment);
+  const entry = process.argv[1];
+  if (!entry) throw new Error("Cannot locate the arks entry point.");
+  for (const service of ["tunnel", "daemon"]) {
+    await new Promise<void>((done, reject) => {
+      const child = spawn(process.execPath, [resolve(entry), "usegpt", service, "stop", "--data-dir", before.dataDir], { stdio: ["ignore", "pipe", "pipe"], env: environment, shell: false });
+      child.stdout.resume(); child.stderr.resume();
+      child.once("error", () => reject(new Error(`UseGPT ${service} could not stop.`)));
+      child.once("close", code => code === 0 ? done() : reject(new Error(`UseGPT ${service} could not stop.`)));
+    });
+  }
+  return diagnoseUseGpt(environment);
+}

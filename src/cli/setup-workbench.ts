@@ -19,7 +19,7 @@ import { ProviderError } from "../errors/provider-error.js";
 import { setupMessage, setupSafeError, type SetupLanguage } from "./setup-language.js";
 import { SetupTerminal, setupFocusHelp, type WorkbenchView, type SetupTone, type SetupFocus, type SetupRoute, type SetupHint } from "./setup-terminal.js";
 
-type PageIntent = "connection" | "add" | "edit" | "details" | "preview" | "remove" | "toggleKey" | "toggleProvider" | "test" | "up" | "down" | "include" | "save" | "apply";
+type PageIntent = "start" | "stop" | "status" | "connection" | "add" | "edit" | "details" | "preview" | "remove" | "toggleKey" | "toggleProvider" | "test" | "up" | "down" | "include" | "save" | "apply";
 type PageBinding = SetupHint & { intent: PageIntent; keys: string[] };
 
 const providers = ["exa", "tavily", "firecrawl", "searxng"] as const;

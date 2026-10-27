@@ -1,3 +1,4 @@
+import * as services from "../src/usegpt/services.js";
 import { readFile, mkdtemp, rm, stat } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,7 +12,7 @@ import { SetupTerminal, type WorkbenchView } from "../src/cli/setup-terminal.js"
 import { runSetupWorkbench } from "../src/cli/setup-workbench.js";
 
 const homes: string[] = [];
-afterEach(async () => { await Promise.all(homes.splice(0).map(home => rm(home, { recursive: true, force: true }))); });
+afterEach(async () => { vi.restoreAllMocks(); await Promise.all(homes.splice(0).map(home => rm(home, { recursive: true, force: true }))); });
 
 async function fixture(environment: NodeJS.ProcessEnv = {}) {
   const home = await mkdtemp(join(tmpdir(), "arks-setup-usegpt-")); homes.push(home);
@@ -25,6 +26,45 @@ async function fixture(environment: NodeJS.ProcessEnv = {}) {
   const run = () => runSetupWorkbench(paths, terminal, "en", { provider: "usegpt", environment });
   return { paths, terminal, views, commands, form, confirm, notice, run, environment };
 }
+
+it("shows service rows and starts services through the selected row", async () => {
+  const f = await fixture();
+  const status = { ok: true, configured: true, configFile: f.paths.config, dataDir: join(f.paths.home, "hub"), daemonRunning: true, tunnelRunning: true, issues: [], next: "ready", evidence: "local" };
+  vi.spyOn(services, "diagnoseUseGpt").mockResolvedValue(status);
+  const start = vi.spyOn(services, "startUseGptServices").mockResolvedValue(status);
+  f.commands.splice(0, f.commands.length, "right", "down", "down", "down", "down", "enter", "escape", "escape");
+  await f.run();
+  expect(f.views[0]!.cells.slice(3).map(row => row[0])).toEqual(["Service status", "Start services", "Stop services"]);
+  expect(start).toHaveBeenCalledWith({ ARKSPACE_HOME: f.paths.home });
+  expect(f.confirm.mock.calls.some(call => call[1] === "Start UseGPT services")).toBe(true);
+  expect(f.form).not.toHaveBeenCalled();
+});
+
+it("cancels stopping services and stops only after confirmation", async () => {
+  const f = await fixture();
+  const status = { ok: false, configured: true, configFile: f.paths.config, dataDir: join(f.paths.home, "hub"), daemonRunning: false, tunnelRunning: false, issues: [], next: "ready", evidence: "local" };
+  vi.spyOn(services, "diagnoseUseGpt").mockResolvedValue(status);
+  const stop = vi.spyOn(services, "stopUseGptServices").mockResolvedValue(status);
+  const page = new SetupUseGpt(f.paths, f.terminal, {}, () => "en");
+  f.confirm.mockResolvedValueOnce(false);
+  await page.act("edit", () => ({} as WorkbenchView), 5);
+  expect(stop).not.toHaveBeenCalled();
+  await page.act("edit", () => ({} as WorkbenchView), 5);
+  expect(stop).toHaveBeenCalledOnce();
+  expect(page.page().summary).toBe("Services stopped");
+  expect(f.form).not.toHaveBeenCalled();
+});
+
+it("shows separate Hub and Tunnel states without starting a service", async () => {
+  const f = await fixture();
+  vi.spyOn(services, "diagnoseUseGpt").mockResolvedValue({ ok: false, configured: true, configFile: f.paths.config, dataDir: f.paths.home, daemonRunning: true, tunnelRunning: false, issues: ["tunnel_stopped"], next: "start", evidence: "local" });
+  const start = vi.spyOn(services, "startUseGptServices").mockRejectedValue(new Error("unexpected start"));
+  const page = new SetupUseGpt(f.paths, f.terminal, {}, () => "zh");
+  await page.act("edit", () => ({} as WorkbenchView), 3);
+  expect(page.page().cells[3]).toEqual(["服务状态", "Hub: 运行中 · Tunnel: 已停止"]);
+  expect(f.notice.mock.calls.at(-1)?.[2]).toContain("Tunnel: 已停止");
+  expect(start).not.toHaveBeenCalled();
+});
 
 it("stores the Tunnel ID and data directory without storing the API key", async () => {
   const f = await fixture({ CONTROL_PLANE_API_KEY: "fixture-private-key" });
