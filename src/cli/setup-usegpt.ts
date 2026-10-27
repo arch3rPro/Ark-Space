@@ -36,9 +36,9 @@ export class SetupUseGpt {
       summaryTone: (this.pending ? "warning" : "muted") as SetupTone,
       columns: [this.t("Setting", "设置"), this.t("Value", "值")],
       cells: [
-        [this.t("Tunnel ID", "Tunnel ID"), tunnelId || this.t("missing", "缺失")],
+        [this.t("Tunnel ID", "隧道ID"), tunnelId || this.t("missing", "缺失")],
         [this.t("Data directory", "数据目录"), dataDir!],
-        [this.t("Control-plane API key", "Control-plane API key"), `${USEGPT_API_KEY_VARIABLE} · ${this.apiKeyState()}`],
+        [this.t("API key", "API密钥"), `${USEGPT_API_KEY_VARIABLE} · ${this.apiKeyState()}`],
       ],
       rowTones: ["neutral", "neutral", "neutral"] as SetupTone[],
     };
@@ -62,11 +62,11 @@ export class SetupUseGpt {
     }
     if (intent === "details") {
       await notice([
-        `${t("Tunnel ID", "Tunnel ID")}: ${this.values()[0] || t("missing", "缺失")}`,
+        `${t("Tunnel ID", "隧道ID")}: ${this.values()[0] || t("missing", "缺失")}`,
         `${t("Data directory", "数据目录")}: ${this.values()[1]}`,
-        `${t("Control-plane API key", "Control-plane API key")}: ${USEGPT_API_KEY_VARIABLE} · ${this.apiKeyState()}`,
+        `${t("API key", "API密钥")}: ${USEGPT_API_KEY_VARIABLE} · ${this.apiKeyState()}`,
         `${t("Local credential file", "本地凭证文件")}: ${this.paths.credentials}`,
-        t("Select the API key row and press Enter to save a masked key locally. The credential store is plaintext with restrictive permissions. Environment values override saved credentials.", "选择API key行并按Enter，以遮罩输入保存本地密钥。凭证库为受限权限的明文存储，环境变量优先于已保存凭据。"),
+        t("Select the API key row and press Enter to save a masked key locally. The credential store is plaintext with restrictive permissions. Environment values override saved credentials.", "选择API密钥行并按Enter，以遮罩输入保存本地密钥。凭证库为受限权限的明文存储，环境变量优先于已保存凭据。"),
       ].join("\n")); return;
     }
     if (intent !== "edit") return;
@@ -75,10 +75,10 @@ export class SetupUseGpt {
       let draft = original; let error = "";
       for (;;) {
         const values = await this.terminal.form(view, {
-          presentation: "page", title: t("Control-plane API key", "Control-plane API key"), dirty: draft !== original, error, initialField: 0,
-          fields: [{ label: "*API key", value: draft, secret: true }],
+          presentation: "page", title: t("API key", "API密钥"), dirty: draft !== original, error, initialField: 0,
+          fields: [{ label: t("*API key", "*API密钥"), value: draft, secret: true }],
           notes: `${t("Local credential file", "本地凭证文件")}: ${this.paths.credentials}\n` + t("Saved as plaintext with restrictive local permissions. Environment CONTROL_PLANE_API_KEY overrides the saved key. Existing content is loaded masked; cancel leaves it unchanged.", "密钥以明文保存在受限权限文件中。环境变量CONTROL_PLANE_API_KEY优先于已保存密钥。已保存内容以遮罩加载，取消不更改。"),
-          save: t("Save", "保存"), cancel: t("Cancel", "取消"), rejected: t("Invalid API key", "API key无效"),
+          save: t("Save", "保存"), cancel: t("Cancel", "取消"), rejected: t("Invalid API key", "API密钥无效"),
         }, this.signal);
         if (!values) return;
         this.signal?.throwIfAborted();
@@ -86,7 +86,7 @@ export class SetupUseGpt {
         if (!normalized) { draft = ""; error = t("Enter a non-empty key without control characters or placeholders.", "请输入不含控制字符或占位值的非空密钥。"); continue; }
         draft = normalized;
         if (draft === original) return;
-        if (original && !await confirm(t("Replace saved API key", "替换已保存API key"), t("Replace the locally saved control-plane key? Environment values remain unchanged.", "替换本地已保存的control-plane密钥？环境变量保持不变。"), t("Replace", "替换"))) return;
+        if (original && !await confirm(t("Replace saved API key", "替换已保存API密钥"), t("Replace the locally saved API key? Environment values remain unchanged.", "替换本地已保存的API密钥？环境变量保持不变。"), t("Replace", "替换"))) return;
         this.signal?.throwIfAborted();
         try { await storeCredential(this.paths.credentials, USEGPT_API_KEY_VARIABLE, draft, { overwrite: true }); }
         catch { error = t("Unable to save the credential; retry or cancel.", "无法保存凭据；请重试或取消。"); continue; }
@@ -97,14 +97,14 @@ export class SetupUseGpt {
     for (;;) {
       const values = await this.terminal.form(view, {
         presentation: "page", title: t("UseGPT Artifact Hub", "UseGPT产物中心"), dirty: draft.some((value, index) => value !== original[index]), error, initialField: selectedRow,
-        fields: [{ label: "*Tunnel ID", value: draft[0]! }, { label: "*Data directory", value: draft[1]! }],
-        notes: t("Save the Tunnel ID and data directory offline. API key is entered hidden and saved in the private credential store.", "离线保存Tunnel ID和数据目录。API key以隐藏输入保存到私密凭证库。"),
-        save: t("Save", "保存"), cancel: t("Cancel", "取消"), rejected: t("Invalid Tunnel ID or absolute data directory", "Tunnel ID或绝对数据目录无效"),
+        fields: [{ label: t("*Tunnel ID", "*隧道ID"), value: draft[0]! }, { label: t("*Data directory", "*数据目录"), value: draft[1]! }],
+        notes: t("Save the Tunnel ID and data directory offline. API key is entered hidden and saved in the private credential store.", "离线保存隧道ID和数据目录。API密钥以隐藏输入保存到私密凭证库。"),
+        save: t("Save", "保存"), cancel: t("Cancel", "取消"), rejected: t("Invalid Tunnel ID or absolute data directory", "隧道ID或绝对数据目录无效"),
       }, this.signal);
       if (!values) return;
       draft = values.map(value => value.trim());
       const parsed = UseGptConfigSchema.safeParse({ enabled: this.saved?.enabled ?? true, tunnelId: draft[0], apiKeyRef: `env:${USEGPT_API_KEY_VARIABLE}`, dataDir: draft[1] });
-      if (!parsed.success) { error = t("Use a tunnel_ ID and an absolute local data directory.", "请输入tunnel_ ID和绝对本地数据目录。"); continue; }
+      if (!parsed.success) { error = t("Use a tunnel_ ID and an absolute local data directory.", "请输入以tunnel_开头的隧道ID和绝对本地数据目录。"); continue; }
       this.pending = [...draft];
       try { await saveUseGptConfig(this.paths, parsed.data); }
       catch { error = t("Unable to save local configuration; retry or cancel.", "无法保存本地配置；请重试或取消。"); continue; }
