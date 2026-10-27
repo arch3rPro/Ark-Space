@@ -22,6 +22,14 @@ import {
 } from "./view.js";
 import { getSetupSnapshot, loadPreview } from "./data.js";
 import { runOp } from "./commands.js";
+import { loadConfig } from "../config/store.js";
+import { loadCredentialEnvironment } from "../config/credentials.js";
+import { executeWebSearch } from "../capabilities/web-search.js";
+import { resolveWebSearchInput } from "../protocol/schema.js";
+import { createSearchProviderRegistry } from "../providers/registry.js";
+import { testSetupKeys, type SetupKeyTestResult } from "../cli/setup-key-tests.js";
+import type { FailureKind } from "../protocol/types.js";
+import type { DiagEntry, Effect } from "./controller.js";
 
 export interface SetupTuiOptions {
   paths: ArkSpacePaths;
@@ -32,6 +40,12 @@ export interface SetupTuiOptions {
 }
 
 const PASTE_RE = /^\u001b\[200~([\s\S]*)\u001b\[201~$/;
+const REASON_KEYS: Record<FailureKind, string> = {
+  auth: "reasonAuth", permission: "reasonPermission", "rate-limit": "reasonRateLimit", quota: "reasonQuota",
+  transient: "reasonTransient", network: "reasonNetwork", "invalid-request": "reasonInvalidRequest",
+  "invalid-response": "reasonInvalidResponse", config: "reasonConfig", unknown: "reasonUnknown",
+};
+const stamp = () => new Date().toTimeString().slice(0, 8);
 const printable = (data: string) => [...data].filter(ch => {
   const cp = ch.codePointAt(0)!;
   return cp >= 33 && cp !== 127; // secrets are token-like; spaces/controls refused at input
@@ -45,6 +59,8 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
   let closed = false;
   let exitResolve: (() => void) | undefined;
   let ioBusy = false; // serialise async reads/writes; keys during IO are dropped (local IO, sub-100ms)
+  const registry = createSearchProviderRegistry();
+  let testAbort: AbortController | undefined;
 
   // --- components read live `state`; the engine only asks them to render ---
   const strip: Component = {
@@ -127,6 +143,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     state = result.state;
     for (const effect of result.effects) {
       if (effect.type === "exit") close();
+      else if (effect.type === "testRun") void runTest(effect);
       else void applyOp(effect.op);
     }
     syncModal();
@@ -136,6 +153,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
   function close(): void {
     if (closed) return;
     closed = true;
+    testAbort?.abort(); // never leave a live provider request after the terminal restores
     options.signal?.removeEventListener("abort", close);
     tui.stop(); // restores alt-screen, cursor, mouse, bracketed paste on every path
     exitResolve?.();
@@ -178,6 +196,68 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     }
   }
 
+  function toDiag(row: SetupKeyTestResult): DiagEntry {
+    const status = row.status === "success" ? "stSuccess" : row.status === "failure" ? "stFailure"
+      : row.status === "skipped" ? "stSkipped" : row.status === "cancelled" ? "stCancelled" : "stNotTested";
+    const out = msg(state.lang, status) + (row.errorKind ? " / " + msg(state.lang, REASON_KEYS[row.errorKind]!) : "");
+    return { when: stamp(), ref: row.reference, out, dur: row.durationMs ?? 0 };
+  }
+
+  async function runTest(effect: Extract<Effect, { type: "testRun" }>): Promise<void> {
+    if (state.testing || testAbort) return; // single runner; controller also fences testIntent
+    const ac = new AbortController();
+    testAbort = ac;
+    try {
+      const config = await loadConfig(options.paths.config);
+      const environment = await loadCredentialEnvironment(options.paths.credentials, options.environment);
+      if (effect.mode === "allKeys") {
+        const entry = config.providers[effect.provider];
+        if (!entry?.enabled || effect.references.some(r => !(entry.keyRefs as string[]).includes(r))) {
+          dispatch({ type: "notice", text: msg(state.lang, "configChanged"), warn: true });
+          return;
+        }
+        dispatch({ type: "testBegin", provider: effect.provider, mode: "allKeys", total: effect.references.length });
+        const report = await testSetupKeys({
+          config: { ...config, providers: { ...config.providers, [effect.provider]: { ...entry, keyRefs: effect.references } } },
+          provider: effect.provider as "exa" | "tavily" | "firecrawl",
+          environment, providers: registry, signal: ac.signal,
+          onStart: (reference, index, total) => dispatch({ type: "testProgress", completed: index - 1, total, current: reference }),
+          onResult: (row, completed, total) => {
+            dispatch({ type: "testResult", provider: effect.provider, entry: toDiag(row) });
+            dispatch({ type: "testProgress", completed, total, current: null });
+          },
+        });
+        for (const row of report.results) dispatch({ type: "testResult", provider: effect.provider, entry: toDiag(row) }); // cache tail/not-tested rows too
+        const passed = report.results.filter(r => r.status === "success").length;
+        dispatch({ type: "testEnd", cancelled: report.cancelled });
+        dispatch({ type: "notice", text: msg(state.lang, "testPassed", {
+          passed, total: report.results.length, stopped: report.cancelled ? msg(state.lang, "stoppedSuffix") : "",
+        }), warn: report.cancelled || passed < report.results.length });
+      } else {
+        dispatch({ type: "testBegin", provider: effect.provider, mode: "pool", total: 1 });
+        const startedAt = Date.now();
+        const result = await executeWebSearch(resolveWebSearchInput({ query: "Agent Skills documentation", provider: effect.provider, maxResults: 1, timeoutMs: 5_000 }), {
+          config, statePath: options.paths.state, providers: registry, environment, signal: ac.signal,
+        });
+        const kind = result.ok ? "stSuccess" : "stFailure";
+        dispatch({ type: "testResult", provider: effect.provider, entry: {
+          when: stamp(), ref: effect.provider, dur: Date.now() - startedAt,
+          out: msg(state.lang, kind) + (!result.ok && result.error ? " / " + msg(state.lang, REASON_KEYS[result.error.kind]!) : ""),
+        } });
+        dispatch({ type: "testEnd", cancelled: ac.signal.aborted });
+        dispatch({ type: "notice", text: msg(state.lang, "testPoolSummary", { res: msg(state.lang, kind), n: result.attempts.length })
+          + "\n" + result.attempts.map(a => `${a.provider} / ${a.ok ? msg(state.lang, "stSuccess") : msg(state.lang, REASON_KEYS[(a.errorKind ?? "unknown") as FailureKind]!)}`).join("\n"), warn: !result.ok });
+      }
+    } catch {
+      // testSetupKeys/executeWebSearch sanitize their own failures, but display nothing raw from here (ADR 0016)
+      dispatch({ type: "testEnd", cancelled: true });
+      dispatch({ type: "notice", text: msg(state.lang, "testInfra"), warn: true });
+    } finally {
+      testAbort = undefined;
+      await refresh();
+    }
+  }
+
   async function openDetails(): Promise<void> {
     const item = currentRowItems(state)[state.row];
     if (!item || !("reference" in item)) return;
@@ -211,6 +291,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
       case "keyEdit": dispatch({ type: "keyEdit" }); break;
       case "keyRemove": dispatch({ type: "keyRemoveStart" }); break;
       case "keyToggle": dispatch({ type: "keyToggle" }); break;
+      case "testIntent": dispatch({ type: "testIntent" }); break;
       case "details": void openDetails(); break;
       case "preview": void openPreview(); break;
       default: dispatch({ type: "notice", text: msg(state.lang, "pendingP3"), warn: true });
@@ -243,6 +324,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     }
 
     if (ioBusy) return { consume: true }; // keys during in-flight IO: drop, never queue
+    if (state.testing && matchesKey(data, Key.escape)) { testAbort?.abort(); return { consume: true }; } // Esc stops the run, keeps partial rows
     const onConfig = state.region === "content" && state.page === "config";
     if (data === "q") dispatch({ type: "quitIntent" });
     else if (matchesKey(data, "tab")) dispatch({ type: "tab", delta: 1 });
@@ -267,7 +349,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     else if (data === "d") dispatch({ type: "keyRemoveStart" });
     else if (data === " ") dispatch({ type: "keyToggle" });
     else if (data === "v" || data === "V") dispatch({ type: "providerToggle" });
-    else if (data === "t") dispatch({ type: "notice", text: msg(state.lang, "pendingP3"), warn: true });
+    else if (data === "t") dispatch({ type: "testIntent" });
     return { consume: true };
   });
 

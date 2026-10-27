@@ -16,7 +16,15 @@ export const CONTEXT_COUNT = 6;                       // 4 web providers + WeKno
 export const MENU_VALUES = ["providers", "config", "settings", "diagnostics", "exit"] as const;
 
 export interface PreviewSource { label: string; value: string }
-export interface DiagEntry { when: string; ref: string; out: string }
+export interface DiagEntry { when: string; ref: string; out: string; dur: number }
+
+export interface TestRun {
+  provider: string;
+  mode: "pool" | "allKeys";
+  total: number;
+  completed: number;
+  current: string | null;
+}
 
 export interface FormState {
   provider: ProviderId;
@@ -31,6 +39,7 @@ export interface ModalState {
   items: { value: string; label: string }[];
   cursor: number;            // confirm: 0 = Cancel default
   tag: string;               // outcome routing, see modalPick below
+  note?: string;             // consent body shown under the title (split on \n by the view)
   context?: { provider?: ProviderId; reference?: string; variable?: string };
 }
 
@@ -53,6 +62,7 @@ export interface State {
   form: FormState | null;
   orderDraft: ProviderId[] | null;
   diagnostics: DiagEntry[];
+  testing: TestRun | null;   // live key/pool test in flight (host owns the abort)
 }
 
 export type Op =
@@ -99,16 +109,25 @@ export type Event =
   | { type: "rowSet"; row: number }
   | { type: "opDone"; kind: Op["kind"] }
   | { type: "quitIntent" }
-  | { type: "language"; lang: TuiLang };
+  | { type: "language"; lang: TuiLang }
+  // P3 test flow (host feeds runner callbacks back as events; Esc stop lives in the host)
+  | { type: "testIntent" }
+  | { type: "testBegin"; provider: string; mode: "pool" | "allKeys"; total: number }
+  | { type: "testProgress"; completed: number; total: number; current: string | null }
+  | { type: "testResult"; provider: string; entry: DiagEntry }
+  | { type: "testEnd"; cancelled: boolean };
 
-export type Effect = { type: "exit" } | { type: "op"; op: Op };
+export type Effect =
+  | { type: "exit" }
+  | { type: "op"; op: Op }
+  | { type: "testRun"; provider: ProviderId; mode: "pool" | "allKeys"; references: string[] };
 
 export function initialState(lang: TuiLang, status: string): State {
   return {
     lang, region: "top", menuCursor: 0, page: "providers", context: 0, row: 0,
     mode: "browse", status, statusWarn: false, loading: true, snapshot: null,
     detailRef: null, preview: null, revealed: false, modal: null, form: null,
-    orderDraft: null, diagnostics: [],
+    orderDraft: null, diagnostics: [], testing: null,
   };
 }
 
@@ -211,11 +230,37 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
           return picked.value === "yes"
             ? { state: { ...closed, orderDraft: null, status: msg(state.lang, "draftDiscarded"), statusWarn: false }, effects: [] }
             : { state: closed, effects: [] };
+        case "test-scope": {
+          if (picked.value === "cancel") return { state: closed, effects: [] };
+          const provider = currentProvider(state);
+          if (!provider) return { state: closed, effects: [] };
+          const references = provider.keys.map(k => k.reference);
+          if (picked.value === "all" && !references.length) return { state: closed, effects: [] };
+          return { state: closed, effects: [{ type: "testRun", provider: provider.id, mode: picked.value === "pool" ? "pool" : "allKeys", references }] };
+        }
+        case "test-live": {
+          if (picked.value !== "yes" || !modal.context?.provider) return { state: closed, effects: [] };
+          return { state: closed, effects: [{ type: "testRun", provider: modal.context.provider, mode: "pool", references: [] }] };
+        }
         default:
           return { state: closed, effects: [] };
       }
     }
     return { state, effects: [] };
+  }
+
+  // ---- an in-flight test owns the mutation keys; read-only navigation stays live ----
+  if (state.testing) {
+    switch (event.type) {
+      case "testBegin": case "testProgress": case "testResult": case "testEnd":
+      case "notice": case "data": case "language": case "tab": case "context":
+      case "contextSet": case "move": case "pageSet": case "rowSet":
+        break; // handled by the main switch below
+      case "testIntent":
+        return notice(state, msg(state.lang, "testBusy"), true);
+      default:
+        return { state, effects: [] }; // mutations/preview/details are fenced until the run ends
+    }
   }
 
   // ---- form owns the keyboard while open ----
@@ -280,8 +325,10 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
       return { state: { ...state, region: "content", row: Math.max(0, Math.min(max, event.row)) }, effects: [] };
     }
     case "opDone": {
-      if (event.kind === "saveOrder") return { state: { ...state, orderDraft: null }, effects: [] };
-      return { state, effects: [] };
+      // any attempted managed write invalidates session diagnostics conservatively (ADR 0017 semantics)
+      const cleared = { ...state, diagnostics: [] };
+      if (event.kind === "saveOrder") return { state: { ...cleared, orderDraft: null }, effects: [] };
+      return { state: cleared, effects: [] };
     }
 
     case "move": {
@@ -322,6 +369,47 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
     case "detailsOpen": return { state: { ...state, mode: "details", detailRef: event.reference }, effects: [] };
     case "previewOpen": return { state: { ...state, mode: "preview", revealed: false, preview: { variable: event.variable, sources: event.sources } }, effects: [] };
     case "reveal": return state.mode === "preview" ? { state: { ...state, revealed: !state.revealed }, effects: [] } : { state, effects: [] };
+
+    case "testIntent": {
+      if (state.context >= 4) return notice(state, msg(state.lang, "connPending"), true);
+      const provider = currentProvider(state);
+      if (!provider) return notice(state, msg(state.lang, "noRows"), true);
+      const name = PROV_LABELS[provider.id] ?? provider.id;
+      if (provider.id === "searxng") {
+        if (!provider.instances.length) return notice(state, msg(state.lang, "searxngNoInst"), true);
+        const modal: ModalState = { kind: "confirm", title: msg(state.lang, "testLive", { name }), note: msg(state.lang, "testLiveNote"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "test-live", context: { provider: provider.id } };
+        return { state: { ...state, modal }, effects: [] };
+      }
+      const references = provider.keys.map(k => k.reference);
+      if (!references.length) return notice(state, msg(state.lang, "noKeysToTest"), true);
+      const items = [
+        { value: "cancel", label: msg(state.lang, "cancelDefault") },
+        { value: "pool", label: msg(state.lang, "poolTest") },
+        { value: "all", label: msg(state.lang, "allKeysTest", { n: references.length }) },
+      ];
+      const modal: ModalState = { kind: "choose", title: msg(state.lang, "testScope", { name }), note: msg(state.lang, "testScopeNote"), items, cursor: 0, tag: "test-scope" };
+      return { state: { ...state, modal }, effects: [] };
+    }
+    case "testBegin": {
+      const testing: TestRun = { provider: event.provider, mode: event.mode, total: event.total, completed: 0, current: null };
+      // a pool run moves global health/cursor, so earlier session rows are stale by contract
+      const diagnostics = event.mode === "pool" ? [] : state.diagnostics;
+      const status = event.mode === "pool" ? msg(state.lang, "testingPool") : msg(state.lang, "testingKeys", { done: 0, total: event.total });
+      return { state: { ...state, testing, diagnostics, status, statusWarn: false }, effects: [] };
+    }
+    case "testProgress": {
+      if (!state.testing) return { state, effects: [] };
+      const status = event.current
+        ? msg(state.lang, "testCurrent", { ref: event.current.slice(4), done: event.completed, total: event.total })
+        : msg(state.lang, "testingKeys", { done: event.completed, total: event.total });
+      return { state: { ...state, testing: { ...state.testing, completed: event.completed, total: event.total, current: event.current }, status }, effects: [] };
+    }
+    case "testResult": {
+      const kept = state.diagnostics.filter(d => d.ref !== event.entry.ref); // cache per reference, newest wins
+      return { state: { ...state, diagnostics: [...kept, event.entry].slice(-60) }, effects: [] };
+    }
+    case "testEnd":
+      return { state: { ...state, testing: null }, effects: [] };
 
     case "quitIntent":
       return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "exitConfirm"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "exit" } }, effects: [] };

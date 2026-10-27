@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ProviderId } from "../src/protocol/types.js";
 import type { SetupKeySnapshot, SetupProviderSnapshot, SetupSnapshot } from "../src/config/manage.js";
 import { Framed } from "../src/tui/components/framed.js";
-import { CONTEXT_COUNT, MENU_VALUES, dirtyOrder, initialState, reduce, type Event, type State } from "../src/tui/controller.js";
+import { CONTEXT_COUNT, MENU_VALUES, dirtyOrder, initialState, reduce, type DiagEntry, type Event, type State } from "../src/tui/controller.js";
 import { assertWidthSafe, visibleWidth } from "../src/tui/port.js";
 import { messageKeys, msg } from "../src/tui/messages.js";
 import { menuLines, stripLine } from "../src/tui/view.js";
@@ -277,5 +277,91 @@ describe("P2 order draft", () => {
   it("language page Enter maps to setLanguage by row", () => {
     const settings = { ...loaded(), region: "content" as const, page: "settings" as const, row: 1 };
     expect(reduce(settings, { type: "enter" }).effects).toEqual([{ type: "op", op: { kind: "setLanguage", lang: "en" } }]);
+  });
+});
+
+describe("P3 test flow", () => {
+  const content = (): State => ({ ...loaded(), region: "content" });
+  const diag = (ref: string, out = "success"): DiagEntry => ({ when: "01:02:03", ref, out, dur: 12 });
+  const withDiag = (s: State, n: number): State => ({ ...s, diagnostics: Array.from({ length: n }, (_, i) => diag(`env:OLD${i}`)) });
+
+  it("keyed context opens a chooser with Cancel first and consent note", () => {
+    const r = reduce(content(), { type: "testIntent" });
+    expect(r.state.modal?.tag).toBe("test-scope");
+    expect(r.state.modal?.cursor).toBe(0);
+    expect(r.state.modal?.items.map(i => i.value)).toEqual(["cancel", "pool", "all"]);
+    expect(r.state.modal?.note).toContain("5");
+  });
+
+  it("pool choice emits testRun; all choice carries the snapshot references", () => {
+    const open = reduce(content(), { type: "testIntent" }).state;
+    const pool = reduce({ ...open, modal: { ...open.modal!, cursor: 1 } }, { type: "modalPick" });
+    expect(pool.effects).toEqual([{ type: "testRun", provider: "exa", mode: "pool", references: ["env:EXA_API_KEY", "env:EXA_API_KEY_1"] }]);
+    const all = reduce({ ...open, modal: { ...open.modal!, cursor: 2 } }, { type: "modalPick" });
+    expect(all.effects[0]).toMatchObject({ mode: "allKeys", references: ["env:EXA_API_KEY", "env:EXA_API_KEY_1"] });
+  });
+
+  it("searxng uses a single live-confirm (no key chooser)", () => {
+    const searxng = { ...loaded(), region: "content" as const, context: 3 };
+    const r = reduce(searxng, { type: "testIntent" });
+    expect(r.state.modal?.tag).toBe("test-live");
+    const yes = reduce({ ...r.state, modal: { ...r.state.modal!, cursor: 1 } }, { type: "modalPick" });
+    expect(yes.effects).toEqual([{ type: "testRun", provider: "searxng", mode: "pool", references: [] }]);
+    const no = reduce(r.state, { type: "modalPick" });
+    expect(no.effects).toEqual([]);
+  });
+
+  it("pool runs clear stale diagnostics; allKeys runs keep them", () => {
+    const seeded = withDiag(content(), 3);
+    expect(reduce(seeded, { type: "testBegin", provider: "exa", mode: "pool", total: 1 }).state.diagnostics).toEqual([]);
+    expect(reduce(seeded, { type: "testBegin", provider: "exa", mode: "allKeys", total: 2 }).state.diagnostics.length).toBe(3);
+  });
+
+  it("during a run: mutations fence off, navigation stays live, second testIntent refuses", () => {
+    const running = reduce(content(), { type: "testBegin", provider: "exa", mode: "allKeys", total: 2 }).state;
+    expect(reduce(running, { type: "keyAdd" }).state.mode).toBe("browse");
+    expect(reduce(running, { type: "keyRemoveStart" }).state.modal).toBeNull();
+    expect(reduce(running, { type: "testIntent" }).state.status).toContain("测试进行中");
+    expect(reduce(running, { type: "move", delta: 1 }).state.row).toBe(1);
+    expect(reduce(running, { type: "escape" }).state.testing).not.toBeNull(); // host owns Esc-abort; reducer never cancels the run here
+  });
+
+  it("progress updates status with the bare variable; results cache one row per reference", () => {
+    const running = reduce(content(), { type: "testBegin", provider: "exa", mode: "allKeys", total: 2 }).state;
+    const prog = reduce(running, { type: "testProgress", completed: 0, total: 2, current: "env:EXA_API_KEY" });
+    expect(prog.state.status).toContain("EXA_API_KEY");
+    expect(prog.state.status).not.toContain("env:");
+    let s = reduce(prog.state, { type: "testResult", provider: "exa", entry: diag("env:EXA_API_KEY", "failure") }).state;
+    s = reduce(s, { type: "testResult", provider: "exa", entry: diag("env:EXA_API_KEY", "success") }).state;
+    expect(s.diagnostics.filter(d => d.ref === "env:EXA_API_KEY").length).toBe(1);
+    expect(s.diagnostics[0]!.out).toBe("success");
+  });
+
+  it("result list caps at 60 entries keeping the newest", () => {
+    let s = withDiag(content(), 59);
+    s = reduce(s, { type: "testResult", provider: "exa", entry: diag("env:A") }).state;
+    s = reduce(s, { type: "testResult", provider: "exa", entry: diag("env:B") }).state;
+    expect(s.diagnostics.length).toBe(60);
+    expect(s.diagnostics.at(-1)!.ref).toBe("env:B");
+    expect(s.diagnostics.some(d => d.ref === "env:OLD0")).toBe(false);
+  });
+
+  it("testEnd unlocks management ops", () => {
+    const running = reduce(content(), { type: "testBegin", provider: "exa", mode: "allKeys", total: 2 }).state;
+    const done = reduce(running, { type: "testEnd", cancelled: false }).state;
+    expect(done.testing).toBeNull();
+    expect(reduce(done, { type: "keyAdd" }).state.mode).toBe("form");
+  });
+
+  it("any managed write invalidates session diagnostics conservatively", () => {
+    const seeded = withDiag(content(), 2);
+    expect(reduce(seeded, { type: "opDone", kind: "toggleProvider" }).state.diagnostics).toEqual([]);
+  });
+
+  it("modal note lines render above the items", async () => {
+    const { modalLines } = await import("../src/tui/view.js");
+    const open = reduce(content(), { type: "testIntent" }).state.modal!;
+    const lines = modalLines(open, 40);
+    expect(lines.length).toBe(open.items.length + 1 + open.note!.split("\n").length);
   });
 });

@@ -130,7 +130,7 @@ export function providerButtons(state: State): ButtonDef[] {
     { key: "e", label: msg(state.lang, "keyEdit"), event: "keyEdit" },
     { key: "i", label: msg(state.lang, "keyDetails"), event: "details" },
     { key: "p", label: msg(state.lang, "keyPreview"), event: "preview" },
-    { key: "t", label: msg(state.lang, "keyTest"), event: "pendingP3" },
+    { key: "t", label: msg(state.lang, "keyTest"), event: "testIntent" },
     { key: "d", label: msg(state.lang, "keyRemove"), event: "keyRemove" },
     { key: "Space", label: msg(state.lang, "keyToggle"), event: "keyToggle" },
   ];
@@ -205,7 +205,7 @@ function diagnosticLines(state: State, width: number): string[] {
   const out = [DIM(" " + msg(state.lang, "diagNote"))];
   if (!state.diagnostics.length) out.push(DIM(" " + msg(state.lang, "diagEmpty")));
   state.diagnostics.forEach((entry, i) => {
-    const line = padV(` ${entry.when}  ${entry.ref}`, width - 10) + entry.out;
+    const line = padV(` ${entry.when}  ${entry.ref}`, width - 24) + padV(entry.out, 12) + `+${entry.dur}ms`;
     out.push(i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width));
   });
   return out;
@@ -258,7 +258,7 @@ function formLines(state: State, width: number): string[] {
   const masked = "*".repeat(Math.min(form.draft.length, Math.max(0, width - 24)));
   const field = ` ${msg(state.lang, "fieldSecretLabel")}: ${masked}${form.typing ? "|" : ""}`;
   const out = [
-    form.reference ? ` ${msg(state.lang, "formTitleEdit")} · ${form.reference}` : ` ${msg(state.lang, "formTitleAdd")}`,
+    form.reference ? ` ${msg(state.lang, "formTitleEdit")} / ${form.reference}` : ` ${msg(state.lang, "formTitleAdd")}`,
     "",
     form.draft || !form.typing ? field : ` ${msg(state.lang, "fieldSecretLabel")}: |`,
     " " + DIM(msg(state.lang, "chars", { n: [...form.draft].length })),
@@ -270,17 +270,21 @@ function formLines(state: State, width: number): string[] {
 
 // ---------------- modal ----------------
 export function modalLines(modal: ModalState, width: number): string[] {
-  return modal.items.map((item, i) => {
+  const out: string[] = [];
+  if (modal.note) for (const line of modal.note.split("\n")) out.push(DIM(padV(" " + line, width)));
+  if (modal.note) out.push(padV("", width));
+  modal.items.forEach((item, i) => {
     const line = (i === modal.cursor ? "> " : "  ") + item.label;
-    return i === modal.cursor ? SEL(padV(line, width)) : padV(line, width);
+    out.push(i === modal.cursor ? SEL(padV(line, width)) : padV(line, width));
   });
+  return out;
 }
 
 // ---------------- titles + key bar ----------------
 export function contentTitle(state: State): string {
-  if (state.mode === "details") return msg(state.lang, "detailsTitle") + " · " + (state.detailRef ?? "");
-  if (state.mode === "preview") return msg(state.lang, "previewTitle") + " · " + (state.preview?.variable ?? "");
-  if (state.mode === "form" && state.form) return msg(state.lang, state.form.reference ? "formTitleEdit" : "formTitleAdd") + " · " + contextLabel(state, state.context);
+  if (state.mode === "details") return msg(state.lang, "detailsTitle") + " / " + (state.detailRef ?? "");
+  if (state.mode === "preview") return msg(state.lang, "previewTitle") + " / " + (state.preview?.variable ?? "");
+  if (state.mode === "form" && state.form) return msg(state.lang, state.form.reference ? "formTitleEdit" : "formTitleAdd") + " / " + contextLabel(state, state.context);
   if (state.page === "providers") return contextLabel(state, state.context);
   if (state.page === "config") {
     return msg(state.lang, "pageConfig") + " / " + (dirtyOrder(state) ? FG(33, msg(state.lang, "unsaved")) : msg(state.lang, "unchanged"));

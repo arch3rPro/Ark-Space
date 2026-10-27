@@ -149,4 +149,9 @@ Pi worker handoff 故障诊断、全局安装/`/usr/bin/arks` 切换、systemd �
   - 单测 26/26（新 14）：表单事件序列、env 密钥只读拒绝、覆盖确认、dirty-cancel、草稿保存/丢弃、consent 门（新增未路由 Provider 才触发）、语言映射。全量 **800/800**、validate 0、非 TTY 逐字节不变。
   - PTY 沙箱（隔离 `XDG_CONFIG_HOME`）实测通过：掩码输入不落屏、add/overwrite-confirm/replace/toggle/remove(cancel-default) 全部持久化且 credentials `0600`、order d/换+Ctrl-S 落盘、退出五连恢复、**输出流全文无明文密钥**。
   - 遗留（归 P5）：PTY 脚本的按键-异步同步策略（ioBusy 丢键需 ack/等待网格稳定后再断言）；order 光标不随条目移动的 vim 式手感待用户试用反馈；`setupSafeError` 对新 form 错误串的覆盖率待 P3 诊断联调时补测。
-- **P3 测试流 / P4 连接 / P5 资格 / P6 清场**：未开始，判据见 §5。
+- **P3 测试流（完成，2026-11 验收）**：
+  - controller：testIntent（keyed 用 chooser，Cancel 默认 + 计费/日志同意正文；SearXNG 单条 live-confirm）+ testBegin/Progress/Result/End；运行中围栏：变更键全拦、导航只读放行、二次 testIntent 拒绝；pool 起点清空历史（动全局健康），allKeys 保留；testResult 按引用去重上限 60；任意托管写 opDone 保守清空全部诊断。
+  - host：复用 `testSetupKeys`（runner 层已有中断/超时/429 参数化测）与池测 `executeWebSearch`；运行中 Esc 触发 abort 保留部分结果；退出（含 ctrl+C）先 abort 再恢复终端；结果行只出引用/分类，无密钥无原始错误。
+  - CIDR：provider 层既有强约束（私有地址仅实例授权段可达）直接生效；实例增删/授权 UI 归 P4 专属页。
+  - 验收：reducer +10 测（共 36），全量 **810/810**；PTY 沙箱 11 断言全过（黑洞端点确定性中止，不外联）；非 TTY 逐字节不变；发现并清除 view 标题拼接遗留的 `·`（消息表扫描不覆盖拼接串，已归一 ASCII 分隔）。
+  - 遗留（归 P5）：旧 workbench PTY 测满载偶发 1 例超时 flaky（重跑必绿）；pool 模式 e2e 样本入 P5 套件。
