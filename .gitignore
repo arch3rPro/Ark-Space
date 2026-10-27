@@ -8,6 +8,8 @@ release/artifacts/
 
 # Logs and caches
 __pycache__/
+.pytest_cache/
+.ruff_cache/
 *.log
 .cache/
 .tmp/
