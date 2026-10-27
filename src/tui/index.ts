@@ -20,8 +20,10 @@ import {
   buttonHits, contentTitle, currentProvider, currentRowItems, keyBar, menuHitPage,
   menuLines, modalLines, pageLines, stripHits, stripLine,
 } from "./view.js";
-import { getSetupSnapshot, loadPreview } from "./data.js";
+import { getSetupSnapshot, getConnections, loadPreview } from "./data.js";
 import { runOp } from "./commands.js";
+import { executeWeknoraVerify } from "../capabilities/weknora-verify.js";
+import { startUseGptServices, stopUseGptServices, diagnoseUseGpt } from "../usegpt/services.js";
 import { loadConfig } from "../config/store.js";
 import { loadCredentialEnvironment } from "../config/credentials.js";
 import { executeWebSearch } from "../capabilities/web-search.js";
@@ -35,6 +37,7 @@ export interface SetupTuiOptions {
   paths: ArkSpacePaths;
   environment: NodeJS.ProcessEnv;
   language: () => TuiLang;
+  provider?: string | undefined; // `arks setup <id>` deep-link: opens that context directly
   onLanguageChange?: ((lang: TuiLang) => void) | undefined;
   signal?: AbortSignal | undefined;
 }
@@ -51,8 +54,10 @@ const printable = (data: string) => [...data].filter(ch => {
   return cp >= 33 && cp !== 127; // secrets are token-like; spaces/controls refused at input
 }).join("");
 
+const CONTEXT_BY_ID: Record<string, number> = { exa: 0, tavily: 1, firecrawl: 2, searxng: 3, weknora: 4, usegpt: 5 };
+
 export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
-  let state = initialState(options.language(), msg(options.language(), "loading"));
+  let state = initialState(options.language(), msg(options.language(), "loading"), options.provider ? CONTEXT_BY_ID[options.provider] ?? 0 : 0);
   const terminal = new ProcessTerminal();
   const tui = new TuiAltScreen(terminal, false, undefined, { mouse: true });
   let modal: OverlayHandle | undefined;
@@ -144,6 +149,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     for (const effect of result.effects) {
       if (effect.type === "exit") close();
       else if (effect.type === "testRun") void runTest(effect);
+      else if (effect.type === "service") void runService(effect.action);
       else void applyOp(effect.op);
     }
     syncModal();
@@ -161,7 +167,11 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
   options.signal?.addEventListener("abort", close);
 
   async function refresh(): Promise<void> {
-    try { dispatch({ type: "data", snapshot: await getSetupSnapshot(options.paths, options.environment) }); }
+    try {
+      const [snapshot, conn] = await Promise.all([getSetupSnapshot(options.paths, options.environment), getConnections(options.paths, options.environment)]);
+      dispatch({ type: "data", snapshot });
+      dispatch({ type: "connData", weknora: conn.weknora, usegpt: conn.usegpt });
+    }
     catch { dispatch({ type: "loadError", text: msg(state.lang, "dataError") }); }
   }
 
@@ -188,11 +198,51 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
         break;
       }
       case "saveOrder": dispatch({ type: "notice", text: msg(state.lang, "opOrderSaved") }); break;
+      case "addInstance": dispatch({ type: "notice", text: msg(state.lang, "instAdded") }); break;
+      case "editInstance": dispatch({ type: "notice", text: msg(state.lang, "instUpdated") }); break;
+      case "removeInstance": dispatch({ type: "notice", text: msg(state.lang, "instRemoved") }); break;
+      case "wekSave":
+        if (op.field === "key" || (op.field === "url" && op.secret === undefined)) dispatch({ type: "formDone" });
+        dispatch({ type: "notice", text: msg(state.lang, "wekSaved") });
+        break;
       case "setLanguage":
         options.onLanguageChange?.(op.lang);
         dispatch({ type: "language", lang: op.lang });
         dispatch({ type: "notice", text: msg(state.lang, "opLangSaved") });
         break;
+    }
+  }
+
+  /** Connection service actions run outside the op lane: busy fence + notice + refresh. */
+  async function runService(action: "wekVerify" | "usegptStart" | "usegptStop" | "usegptDiagnose"): Promise<void> {
+    if (ioBusy) return;
+    ioBusy = true;
+    dispatch({ type: "serviceBusy", on: true });
+    let detail = "";
+    try {
+      if (action === "wekVerify") {
+        const envelope = await executeWeknoraVerify({ protocolVersion: 1, capability: "weknora.connection.verify", input: { confirmed: true, timeoutMs: 5000 } }, options.paths, options.environment);
+        detail = envelope.ok ? `2xx/${envelope.data.status}` : `${envelope.error.kind}${envelope.error.status ? `/${envelope.error.status}` : ""}`;
+        dispatch({ type: "notice", text: msg(state.lang, "wekVerifyResult", { res: msg(state.lang, envelope.ok ? "wekVerifyOk" : "wekVerifyBad"), detail: `: ${detail}` }), warn: !envelope.ok });
+      } else if (action === "usegptDiagnose") {
+        const d = await diagnoseUseGpt(options.environment);
+        detail = d.issues.length ? d.issues.join(", ") : "clean";
+        dispatch({ type: "notice", text: d.issues.length ? msg(state.lang, "svcDiag", { issues: detail }) : msg(state.lang, "svcDiagClean"), warn: d.issues.length > 0 });
+      } else {
+        if (action === "usegptStart") await startUseGptServices(options.environment); else await stopUseGptServices(options.environment);
+        const d = await diagnoseUseGpt(options.environment);
+        const good = action === "usegptStart" ? d.daemonRunning && d.tunnelRunning : !d.daemonRunning && !d.tunnelRunning;
+        detail = `daemon:${d.daemonRunning ? "up" : "down"} tunnel:${d.tunnelRunning ? "up" : "down"}`;
+        dispatch({ type: "notice", text: msg(state.lang, action === "usegptStart" ? (good ? "svcStartOk" : "svcStartBad") : (good ? "svcStopOk" : "svcStopBad")) + ` (${detail})`, warn: !good });
+        await refresh();
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unexpected error";
+      const reason = message.startsWith("Setup:") ? message.slice(6).trim() : "(details suppressed)";
+      dispatch({ type: "notice", text: msg(state.lang, action === "usegptStop" ? "stopBad" : "startBad", { reason }), warn: true });
+    } finally {
+      ioBusy = false;
+      dispatch({ type: "serviceBusy", on: false });
     }
   }
 

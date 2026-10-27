@@ -2,12 +2,28 @@
  * Read-only data access for the workbench. Everything here re-reads disk and
  * never writes, probes, or logs secret material (ADR 0016 boundary).
  */
-import { loadCredentialStore, validateCredentialValue } from "../config/credentials.js";
-import { getSetupSnapshot } from "../config/manage.js";
+import { loadCredentialStore, loadCredentialEnvironment, validateCredentialValue } from "../config/credentials.js";
+import { getSetupSnapshot, getWeknoraConnectionSnapshot } from "../config/manage.js";
+import { diagnoseUseGpt } from "../usegpt/services.js";
 import type { ArkSpacePaths } from "../config/paths.js";
-import type { PreviewSource } from "./controller.js";
+import type { PreviewSource, UseGptStatus } from "./controller.js";
+import type { WeknoraConnectionSnapshot } from "../config/manage.js";
 
 export { getSetupSnapshot };
+
+export interface ConnectionSnapshot { weknora: WeknoraConnectionSnapshot | null; usegpt: UseGptStatus }
+
+/** Connection state for contexts 4/5. Reads disk + liveness signals only; never writes or probes the network. */
+export async function getConnections(paths: ArkSpacePaths, environment: NodeJS.ProcessEnv): Promise<ConnectionSnapshot> {
+  const weknora = await getWeknoraConnectionSnapshot(paths, environment) ?? null;
+  const d = await diagnoseUseGpt(environment);
+  return {
+    weknora,
+    usegpt: { configured: d.configured, daemonRunning: d.daemonRunning, tunnelRunning: d.tunnelRunning, issues: d.issues },
+  };
+}
+
+export { loadCredentialEnvironment };
 
 export type PreviewOutcome =
   | { kind: "ok"; variable: string; sources: PreviewSource[] }

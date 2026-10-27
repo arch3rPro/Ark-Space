@@ -64,7 +64,7 @@ export async function runSetup(paths: ArkSpacePaths, injected?: SetupPrompts, op
   if (!injected && environment.ARKS_TUI === "v2") {
     // Staged migration entry (ADR 0023 plan P0): old workbench stays the default until P5 qualification passes.
     const { runSetupTui } = await import("../tui/index.js");
-    await runSetupTui({ paths, environment, language: () => language, onLanguageChange: (next) => { language = next; }, signal: options.signal });
+    await runSetupTui({ paths, environment, language: () => language, provider: options.provider, onLanguageChange: (next) => { language = next; }, signal: options.signal });
     return;
   }
   if (!injected) {

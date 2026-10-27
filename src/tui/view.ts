@@ -123,8 +123,12 @@ export type ButtonDef = { key: string; label: string; event: string };
 
 export function providerButtons(state: State): ButtonDef[] {
   const provider = currentProvider(state);
-  if (!provider || provider.id === "searxng") return [];
-  void state;
+  if (provider?.id === "searxng") return [
+    { key: "a", label: msg(state.lang, "keyAdd"), event: "keyAdd" },
+    { key: "e", label: msg(state.lang, "keyEdit"), event: "keyEdit" },
+    { key: "d", label: msg(state.lang, "keyRemove"), event: "keyRemove" },
+  ];
+  if (!provider) return [];
   return [
     { key: "a", label: msg(state.lang, "keyAdd"), event: "keyAdd" },
     { key: "e", label: msg(state.lang, "keyEdit"), event: "keyEdit" },
@@ -149,17 +153,19 @@ export function buttonHits(state: State): { event: string; start: number; end: n
 
 function providerLines(state: State, width: number): string[] {
   const provider = currentProvider(state);
-  if (!provider) return [" " + contextLabel(state, state.context) + " / " + msg(state.lang, "connNote")];
+  if (!provider) return state.context === 4 ? weknoraLines(state, width) : usegptLines(state, width);
   if (provider.id === "searxng") {
-    const out = [DIM(` ${padV(msg(state.lang, "colUrl"), 16)}${msg(state.lang, "colStatus")}     ${msg(state.lang, "colCidr")}`)];
+    const out = [DIM(padV(" " + msg(state.lang, "colUrl"), 28) + padV("  " + msg(state.lang, "colStatus"), 14) + msg(state.lang, "colCidr"))];
     if (!provider.instances.length) out.push(DIM(" " + msg(state.lang, "noInstances")));
     provider.instances.forEach((instance, i) => {
       const icon: readonly [string, number] = instance.status === "disabled" ? ["-", 2] : instance.status === "cooldown" ? ["~", 33] : ["?", 2];
       const text = instance.status === "disabled" ? msg(state.lang, "stDisabled") : instance.status === "cooldown" ? msg(state.lang, "stCooldown") : msg(state.lang, "stNotProbed");
-      const line = padV(" " + truncateToWidth(instance.baseUrl, 32), 34) + FG(icon[1], `${icon[0]} `) + padV(text, 18) + (instance.source === "environment" ? DIM(msg(state.lang, "externalEnv")) : DIM(msg(state.lang, "srcLocal") + " / " + instance.allowRanges.length));
+      const line = padV(" " + truncateToWidth(instance.baseUrl, 26), 28) + FG(icon[1], `${icon[0]} `) + padV(text, 12) + (instance.source === "environment" ? DIM(msg(state.lang, "externalEnv")) : DIM(msg(state.lang, "srcLocal") + " / " + instance.allowRanges.length));
       out.push(i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width));
     });
     out.push("", DIM(" " + msg(state.lang, "searxngNote")));
+    const buttons = providerButtons(state);
+    out.push(" "+buttons.map(b => c("1;36", `[${b.key}]`) + " " + b.label).join("  "));
     return out;
   }
   const out = [DIM(padV(` ${msg(state.lang, "colKey")}`, 22) + padV(msg(state.lang, "colStatus"), 12) + padV(msg(state.lang, "colSource"), 12) + msg(state.lang, "colOwner"))];
@@ -255,17 +261,65 @@ function previewLines(state: State, width: number): string[] {
 // ---------------- form page ----------------
 function formLines(state: State, width: number): string[] {
   const form = state.form!;
-  const masked = "*".repeat(Math.min(form.draft.length, Math.max(0, width - 24)));
-  const field = ` ${msg(state.lang, "fieldSecretLabel")}: ${masked}${form.typing ? "|" : ""}`;
+  const secret = form.field === "secret";
+  const labelKey = secret ? "fieldSecretLabel" : form.field === "url" ? "fieldUrlLabel" : form.field === "cidr" ? "fieldCidrLabel" : "fieldTextLabel";
+  const shown = secret ? "*".repeat(Math.min(form.draft.length, Math.max(0, width - 24))) : form.draft;
+  const field = ` ${msg(state.lang, labelKey)}: ${shown}${form.typing ? "|" : ""}`;
+  const titleKey = form.intent === "key" ? (form.reference ? "formTitleEdit" : "formTitleAdd")
+    : form.intent === "instAdd" ? "formInstAdd" : form.intent === "instEdit" ? "formInstEdit"
+    : form.intent === "cidrAdd" || form.intent === "cidrEdit" ? "formCidr"
+    : form.intent === "wekUrl" ? "wekUrlFormTitle" : form.intent === "wekKey" ? "wekKeyFormTitle" : "wekKbFormTitle";
+  const titleRef = form.intent === "key" || form.intent === "instEdit" ? form.reference : form.intent.startsWith("cidr") ? form.pending?.url : null;
+  const title = " " + msg(state.lang, titleKey) + (titleRef ? " / " + titleRef : "");
+  const hintKey = secret ? (form.typing ? "fieldSecretTyping" : "fieldSecretHint") : "fieldPlainHint";
   const out = [
-    form.reference ? ` ${msg(state.lang, "formTitleEdit")} / ${form.reference}` : ` ${msg(state.lang, "formTitleAdd")}`,
+    title,
     "",
-    form.draft || !form.typing ? field : ` ${msg(state.lang, "fieldSecretLabel")}: |`,
+    form.draft || !form.typing ? field : ` ${msg(state.lang, labelKey)}: |`,
     " " + DIM(msg(state.lang, "chars", { n: [...form.draft].length })),
     "",
-    DIM(" " + (form.typing ? msg(state.lang, "fieldSecretTyping") : msg(state.lang, "fieldSecretHint"))),
+    DIM(" " + msg(state.lang, hintKey)),
   ];
   return out.map(line => padV(line, width));
+}
+
+/** Connection pages: label/value rows; Enter on a row triggers its action (contexts 4/5). */
+function connRows(state: State, width: number, rows: [string, string][], note: string): string[] {
+  const out = rows.map((r, i) => {
+    const line = " " + padV(r[0], 16) + r[1];
+    return i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width);
+  });
+  out.push("", DIM(" " + note));
+  return out;
+}
+
+function weknoraLines(state: State, width: number): string[] {
+  const wk = state.weknora;
+  const keyText = !wk ? msg(state.lang, "wekMissing")
+    : wk.source === "environment" || wk.source === "environment-override" ? msg(state.lang, "wekEnv")
+    : wk.hasLocal ? msg(state.lang, "wekManaged") : msg(state.lang, "wekMissing");
+  const note = wk?.status === "conflict" ? msg(state.lang, "wekConflictGuard")
+    : wk && wk.source !== "managed" ? msg(state.lang, "wekExternalGuard")
+    : wk?.status === "missing" ? msg(state.lang, "wekMissing") : msg(state.lang, "wekNote");
+  return connRows(state, width, [
+    [msg(state.lang, "rowEndpoint"), wk?.baseUrl ? truncateToWidth(wk.baseUrl, Math.max(8, width - 20)) : msg(state.lang, "wekMissing")],
+    [msg(state.lang, "rowKey"), keyText],
+    [msg(state.lang, "rowKb"), wk?.defaultKnowledgeBaseId ?? msg(state.lang, "wekMissing")],
+    [msg(state.lang, "rowVerify"), msg(state.lang, "wekVerifyHint")],
+  ], note);
+}
+
+function usegptLines(state: State, width: number): string[] {
+  const u = state.usegpt;
+  const run = (b: boolean | undefined) => b ? FG(32, msg(state.lang, "svcRunning")) : msg(state.lang, "svcStopped");
+  const note = !u?.configured ? msg(state.lang, "usegptNotConfigured") : msg(state.lang, "usegptNote");
+  return connRows(state, width, [
+    [msg(state.lang, "rowHub"), run(u?.daemonRunning)],
+    [msg(state.lang, "rowTunnel"), run(u?.tunnelRunning)],
+    [msg(state.lang, "rowStart"), msg(state.lang, "startHint")],
+    [msg(state.lang, "rowStop"), msg(state.lang, "stopHint")],
+    [msg(state.lang, "rowDiagnose"), msg(state.lang, "diagHint")],
+  ], note);
 }
 
 // ---------------- modal ----------------
@@ -300,7 +354,11 @@ export function keyBar(state: State): string {
   else if (state.mode === "form") parts.push(kb("Enter", msg(state.lang, "keyCommit")), kb("Ctrl-S", msg(state.lang, "keySave")), kb("Esc", msg(state.lang, "keyBack")));
   else if (state.mode === "details") parts.push(kb("...", msg(state.lang, "keyAnyBack")));
   else if (state.mode === "preview") parts.push(kb("r", msg(state.lang, "keyReveal")), kb("...", msg(state.lang, "keyAnyBack")));
-  else if (state.region === "content" && state.page === "providers") parts.push(kb("a", msg(state.lang, "keyAdd")), kb("e", msg(state.lang, "keyEdit")), kb("i", msg(state.lang, "keyDetails")), kb("p", msg(state.lang, "keyPreview")), kb("d", msg(state.lang, "keyRemove")), kb("Space", msg(state.lang, "keyToggle")));
+  else if (state.region === "content" && state.page === "providers") {
+    if (state.context >= 4) parts.push(kb("Enter", msg(state.lang, "keyRowOp")));
+    else if (state.context === 3) parts.push(kb("a", msg(state.lang, "keyAdd")), kb("e", msg(state.lang, "keyEdit")), kb("d", msg(state.lang, "keyRemove")));
+    else parts.push(kb("a", msg(state.lang, "keyAdd")), kb("e", msg(state.lang, "keyEdit")), kb("i", msg(state.lang, "keyDetails")), kb("p", msg(state.lang, "keyPreview")), kb("d", msg(state.lang, "keyRemove")), kb("Space", msg(state.lang, "keyToggle")));
+  }
   else if (state.region === "content" && state.page === "config") parts.push(kb("u/d", msg(state.lang, "keyMoveRow")), kb("Del", msg(state.lang, "keyDrop")), kb("I", msg(state.lang, "keyInclude")), kb("Ctrl-S", state.orderDraft ? FG(33, msg(state.lang, "keySaveStar")) : msg(state.lang, "keySave")));
   else if (state.region === "menu") parts.push(kb("Enter", msg(state.lang, "keyOpen")), kb("Esc", msg(state.lang, "keyBack")));
   parts.push(kb("[ ]", msg(state.lang, "keyContext")), kb("v", msg(state.lang, "keyEnable")), kb("q", msg(state.lang, "keyQuit")));

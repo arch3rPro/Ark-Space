@@ -5,7 +5,7 @@
  * transition (including all form/draft/modal flows) is unit-testable.
  */
 import type { ProviderId } from "../protocol/types.js";
-import type { SetupSnapshot } from "../config/manage.js";
+import type { SetupSnapshot, WeknoraConnectionSnapshot } from "../config/manage.js";
 import { msg } from "./messages.js";
 import type { TuiLang } from "./messages.js";
 
@@ -27,10 +27,13 @@ export interface TestRun {
 }
 
 export interface FormState {
-  provider: ProviderId;
-  reference: string | null;  // null = add, otherwise edit existing local key
-  draft: string;             // typed secret; only ever held in memory (ADR 0016)
+  provider: ProviderId | "weknora";
+  reference: string | null;  // null = add, otherwise edit existing local key (or old instance URL)
+  draft: string;             // typed value; secrets only ever held in memory (ADR 0016)
   typing: boolean;           // Enter starts editing, Enter commits, Esc reverts
+  intent: "key" | "instAdd" | "instEdit" | "cidrAdd" | "cidrEdit" | "wekUrl" | "wekKey" | "wekKb";
+  field: "secret" | "url" | "cidr" | "text";
+  pending?: { url: string; oldUrl?: string | undefined }; // cidr second step carries the staged endpoint
 }
 
 export interface ModalState {
@@ -40,7 +43,7 @@ export interface ModalState {
   cursor: number;            // confirm: 0 = Cancel default
   tag: string;               // outcome routing, see modalPick below
   note?: string;             // consent body shown under the title (split on \n by the view)
-  context?: { provider?: ProviderId; reference?: string; variable?: string };
+  context?: { provider?: ProviderId; reference?: string | undefined; variable?: string | undefined };
 }
 
 export interface State {
@@ -63,7 +66,12 @@ export interface State {
   orderDraft: ProviderId[] | null;
   diagnostics: DiagEntry[];
   testing: TestRun | null;   // live key/pool test in flight (host owns the abort)
+  svcBusy: string | null;    // connection service action in flight (start/stop/verify)
+  weknora: WeknoraConnectionSnapshot | null;
+  usegpt: UseGptStatus | null;
 }
+
+export interface UseGptStatus { configured: boolean; daemonRunning: boolean; tunnelRunning: boolean; issues: string[] }
 
 export type Op =
   | { kind: "addKey"; provider: ProviderId; secret: string }
@@ -72,7 +80,12 @@ export type Op =
   | { kind: "toggleKey"; provider: ProviderId; reference: string; enabled: boolean }
   | { kind: "toggleProvider"; provider: ProviderId; enabled: boolean }
   | { kind: "saveOrder"; order: ProviderId[] }
-  | { kind: "setLanguage"; lang: TuiLang };
+  | { kind: "setLanguage"; lang: TuiLang }
+  // P4 connection writes
+  | { kind: "addInstance"; baseUrl: string; allowRanges: string[] }
+  | { kind: "editInstance"; oldBaseUrl: string; baseUrl: string; allowRanges: string[] }
+  | { kind: "removeInstance"; baseUrl: string }
+  | { kind: "wekSave"; field: "url" | "key" | "kb"; value: string; reuseSavedKey: boolean; secret?: string };
 
 export type Event =
   | { type: "data"; snapshot: SetupSnapshot }
@@ -115,19 +128,23 @@ export type Event =
   | { type: "testBegin"; provider: string; mode: "pool" | "allKeys"; total: number }
   | { type: "testProgress"; completed: number; total: number; current: string | null }
   | { type: "testResult"; provider: string; entry: DiagEntry }
-  | { type: "testEnd"; cancelled: boolean };
+  | { type: "testEnd"; cancelled: boolean }
+  // P4 connection events
+  | { type: "connData"; weknora: WeknoraConnectionSnapshot | null; usegpt: UseGptStatus | null }
+  | { type: "serviceBusy"; on: boolean };
 
 export type Effect =
   | { type: "exit" }
   | { type: "op"; op: Op }
-  | { type: "testRun"; provider: ProviderId; mode: "pool" | "allKeys"; references: string[] };
+  | { type: "testRun"; provider: ProviderId; mode: "pool" | "allKeys"; references: string[] }
+  | { type: "service"; action: "wekVerify" | "usegptStart" | "usegptStop" | "usegptDiagnose" };
 
-export function initialState(lang: TuiLang, status: string): State {
+export function initialState(lang: TuiLang, status: string, context = 0): State {
   return {
-    lang, region: "top", menuCursor: 0, page: "providers", context: 0, row: 0,
+    lang, region: context >= 4 ? "content" : "top", menuCursor: 0, page: "providers", context, row: 0,
     mode: "browse", status, statusWarn: false, loading: true, snapshot: null,
     detailRef: null, preview: null, revealed: false, modal: null, form: null,
-    orderDraft: null, diagnostics: [], testing: null,
+    orderDraft: null, diagnostics: [], testing: null, svcBusy: null, weknora: null, usegpt: null,
   };
 }
 
@@ -150,6 +167,8 @@ export function rowCount(state: State): number {
   if (state.page === "config") return (state.orderDraft ?? snapshot.providerOrder).length;
   if (state.page === "settings") return 2;
   if (state.page === "diagnostics") return state.diagnostics.length;
+  if (state.context === 4) return 4; // endpoint / key / kb / verify
+  if (state.context === 5) return 5; // hub / tunnel / start / stop / diagnose
   const provider = snapshot.providers[state.context];
   if (!provider) return 0; // WeKnora/UseGPT contexts have no rows until P4
   return provider.id === "searxng" ? provider.instances.length : provider.keys.length;
@@ -187,7 +206,6 @@ function refuseGuard(state: State, key: ReturnType<typeof selectedKey>): { state
   if (!key) return notice(state, msg(state.lang, "noRows"));
   if (state.context >= 4) return notice(state, msg(state.lang, "connPending"));
   const provider = currentProvider(state)!;
-  if (provider.id === "searxng") return notice(state, msg(state.lang, "searxngPending"));
   if (key.source === "environment") return notice(state, msg(state.lang, "envGuarded"), true);
   return null;
 }
@@ -214,7 +232,7 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
         case "overwrite": {
           if (picked.value !== "yes" || !closed.form) return { state: closed, effects: [] };
           const form = closed.form;
-          return { state: closed, effects: [{ type: "op", op: { kind: "replaceKey", provider: form.provider, reference: form.reference!, secret: form.draft } }] };
+          return { state: closed, effects: [{ type: "op", op: { kind: "replaceKey", provider: form.provider as ProviderId, reference: form.reference!, secret: form.draft } }] };
         }
         case "form-discard":
           return picked.value === "yes" ? { state: withForm(closed, null), effects: [] } : { state: closed, effects: [] };
@@ -230,6 +248,30 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
           return picked.value === "yes"
             ? { state: { ...closed, orderDraft: null, status: msg(state.lang, "draftDiscarded"), statusWarn: false }, effects: [] }
             : { state: closed, effects: [] };
+        case "cidr-grant": {
+          if (picked.value === "cancel" || !modal.context?.variable) return { state: closed, effects: [] };
+          const url = modal.context.variable;
+          const oldUrl = modal.context.reference;
+          if (picked.value === "grant") {
+            const cidr = privateGrant(url);
+            return instanceWrite(closed, oldUrl, url, cidr ? [cidr] : []);
+          }
+          const form: FormState = { provider: "searxng", reference: null, draft: "", typing: true, intent: oldUrl ? "cidrEdit" : "cidrAdd", field: "cidr", pending: { url, oldUrl } };
+          return { state: { ...closed, form, mode: "form" as Mode }, effects: [] };
+        }
+        case "inst-remove":
+          if (picked.value !== "yes" || !modal.context?.reference) return { state: closed, effects: [] };
+          return { state: closed, effects: [{ type: "op", op: { kind: "removeInstance", baseUrl: modal.context.reference } }] };
+        case "wek-url-reuse": {
+          if (picked.value !== "yes" || !modal.context?.variable) return { state: closed, effects: [] };
+          return { state: closed, effects: [{ type: "op", op: { kind: "wekSave", field: "url", value: modal.context.variable, reuseSavedKey: true } }] };
+        }
+        case "wek-key-replace":
+          if (picked.value !== "yes" || !closed.form) return { state: closed, effects: [] };
+          return { state: closed, effects: [{ type: "op", op: { kind: "wekSave", field: "key", value: closed.form.draft, reuseSavedKey: false } }] };
+        case "wek-verify": case "usegpt-start": case "usegpt-stop":
+          if (picked.value !== "yes") return { state: closed, effects: [] };
+          return { state: closed, effects: [{ type: "service", action: modal.tag === "wek-verify" ? "wekVerify" : modal.tag === "usegpt-start" ? "usegptStart" : "usegptStop" }] };
         case "test-scope": {
           if (picked.value === "cancel") return { state: closed, effects: [] };
           const provider = currentProvider(state);
@@ -249,10 +291,11 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
     return { state, effects: [] };
   }
 
-  // ---- an in-flight test owns the mutation keys; read-only navigation stays live ----
-  if (state.testing) {
+  // ---- an in-flight test or service action owns the mutation keys; navigation stays live ----
+  if (state.testing || state.svcBusy) {
     switch (event.type) {
       case "testBegin": case "testProgress": case "testResult": case "testEnd":
+      case "serviceBusy": case "connData":
       case "notice": case "data": case "language": case "tab": case "context":
       case "contextSet": case "move": case "pageSet": case "rowSet":
         break; // handled by the main switch below
@@ -273,14 +316,7 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
         return form.typing
           ? { state: withForm(state, { ...form, typing: false }), effects: [] } // commit draft into the field
           : { state: withForm(state, { ...form, typing: true }), effects: [] };  // start editing
-      case "formSave": {
-        if (!form.draft) return notice(state, msg(state.lang, "emptySecret"), true);
-        if (form.reference === null) {
-          return { state, effects: [{ type: "op", op: { kind: "addKey", provider: form.provider, secret: form.draft } }] };
-        }
-        const title = msg(state.lang, "overwriteConfirm", { ref: form.reference });
-        return { state: { ...state, modal: { kind: "confirm", title, items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "overwrite" } }, effects: [] };
-      }
+      case "formSave": return formSaveEvent(state, form);
       case "formDone": return { state: withForm(rest(state), null), effects: [] };
       case "escape": {
         if (form.typing) return { state: withForm(state, { ...form, typing: false, draft: "" }), effects: [] }; // revert field
@@ -350,6 +386,7 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
         return { state: value === "config" ? { ...next, orderDraft: null } : next, effects: [] };
       }
       if (state.page === "settings") return reduce(state, { type: "languageApply" });
+      if (state.page === "providers" && state.context >= 4) return connectionEnter(state);
       return { state, effects: [] }; // Enter on a key row opens edit via the P2 `e` path
     }
 
@@ -411,23 +448,49 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
     case "testEnd":
       return { state: { ...state, testing: null }, effects: [] };
 
+    case "connData":
+      return { state: { ...state, weknora: event.weknora, usegpt: event.usegpt }, effects: [] };
+    case "serviceBusy":
+      return { state: { ...state, svcBusy: event.on ? "op" : null, status: event.on ? msg(state.lang, "svcBusy") : state.status }, effects: [] };
+
     case "quitIntent":
       return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "exitConfirm"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "exit" } }, effects: [] };
 
     // ---------------- P2 mutations ----------------
     case "keyAdd": {
       const provider = currentProvider(state);
+      if (provider?.id === "searxng") {
+        if (provider.external) return notice(state, msg(state.lang, "instEnvGuarded"), true);
+        return { state: withForm(state, { provider: "searxng", reference: null, draft: "", typing: true, intent: "instAdd", field: "url" }), effects: [] };
+      }
       if (!provider || state.context >= 4) return notice(state, msg(state.lang, "connPending"));
-      if (provider.id === "searxng") return notice(state, msg(state.lang, "searxngPending"));
-      return { state: withForm(state, { provider: provider.id, reference: null, draft: "", typing: true }), effects: [] };
+      return { state: withForm(state, { provider: provider.id, reference: null, draft: "", typing: true, intent: "key", field: "secret" }), effects: [] };
     }
     case "keyEdit": {
+      if (state.context === 3) {
+        const provider = currentProvider(state)!;
+        const instance = provider.instances[state.row];
+        if (!instance) return notice(state, msg(state.lang, "noRows"), true);
+        if (instance.source === "environment") return notice(state, msg(state.lang, "instEnvGuarded"), true);
+        return { state: withForm(state, { provider: "searxng", reference: instance.baseUrl, draft: instance.baseUrl, typing: false, intent: "instEdit", field: "url" }), effects: [] };
+      }
+      if (state.context >= 4) return connectionEnter(state);
       const key = selectedKey(state);
       const guard = refuseGuard(state, key);
       if (guard) return guard;
-      return { state: withForm(state, { provider: currentProvider(state)!.id, reference: key!.reference, draft: "", typing: true }), effects: [] };
+      return { state: withForm(state, { provider: currentProvider(state)!.id, reference: key!.reference, draft: "", typing: true, intent: "key", field: "secret" }), effects: [] };
     }
     case "keyRemoveStart": {
+      if (state.context === 3) {
+        const provider = currentProvider(state)!;
+        const instance = provider.instances[state.row];
+        if (!instance) return notice(state, msg(state.lang, "noRows"), true);
+        if (instance.source === "environment") return notice(state, msg(state.lang, "instEnvGuarded"), true);
+        const last = provider.instances.filter(i => i.source !== "environment").length === 1;
+        const title = last ? msg(state.lang, "instRemoveLast") : msg(state.lang, "removeConfirm", { ref: instance.baseUrl });
+        return { state: { ...state, modal: { kind: "confirm", title, items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "inst-remove", context: { reference: instance.baseUrl } } }, effects: [] };
+      }
+      if (state.context >= 4) return notice(state, msg(state.lang, "connPending"));
       const key = selectedKey(state);
       const guard = refuseGuard(state, key);
       if (guard) return guard;
@@ -436,6 +499,8 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
       return { state: { ...state, modal: { kind: "confirm", title, items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "remove-key", context: { provider: provider.id, reference: key!.reference } } }, effects: [] };
     }
     case "keyToggle": {
+      if (state.context === 3) return notice(state, msg(state.lang, "searxngNoToggle"), true);
+      if (state.context >= 4) return notice(state, msg(state.lang, "connPending"));
       const key = selectedKey(state);
       if (!key) return notice(state, msg(state.lang, "noRows"));
       const provider = currentProvider(state);
@@ -488,6 +553,109 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
       return { state, effects: [{ type: "op", op: { kind: "saveOrder", order: [...draft] } }] };
     }
 
+    default: return { state, effects: [] };
+  }
+}
+
+// ---------------- P4 connection helpers ----------------
+
+const PRIVATE_V4 = /^(10\.|127\.|0\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.)/;
+
+/** IP-literal private host -> exact /32 or /128 grant candidate (mirrors the retired workbench gate); domains and public IPs get nothing automatic. */
+export function privateGrant(url: string): string | null {
+  let host: string;
+  try { host = new URL(url).hostname; } catch { return null; }
+  const h = host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;
+  if (PRIVATE_V4.test(h)) return `${h}/32`;
+  if (/^::1$/.test(h) || /^f[cd]/i.test(h) || /^fe80:/i.test(h)) return `${h}/128`;
+  return null;
+}
+
+function parseCidrs(text: string): string[] | null {
+  const list = text.split(",").map(s => s.trim()).filter(Boolean);
+  if (!list.length || list.length > 20) return null;
+  return list.every(c => /^[^/\s]+\/\d{1,3}$/.test(c)) ? list : null;
+}
+
+function instanceWrite(state: State, oldUrl: string | undefined, url: string, ranges: string[]) {
+  return oldUrl === undefined
+    ? { state: { ...state, form: null, mode: "browse" as Mode }, effects: [{ type: "op" as const, op: { kind: "addInstance" as const, baseUrl: url, allowRanges: ranges } }] }
+    : { state: { ...state, form: null, mode: "browse" as Mode }, effects: [{ type: "op" as const, op: { kind: "editInstance" as const, oldBaseUrl: oldUrl, baseUrl: url, allowRanges: ranges } }] };
+}
+
+/** Private endpoints need an explicit per-instance grant before any request could succeed (ADR 0014: grants never migrate between instances). */
+function cidrGate(state: State, url: string, oldUrl?: string) {
+  const grant = privateGrant(url);
+  const items = [
+    { value: "cancel", label: msg(state.lang, "cancelDefault") },
+    ...(grant ? [{ value: "grant", label: msg(state.lang, "cidrGrant", { cidr: grant }) }] : []),
+    { value: "manual", label: msg(state.lang, "cidrManual") },
+  ];
+  const modal: ModalState = { kind: "choose", title: msg(state.lang, "cidrConsent"), items, cursor: 0, tag: "cidr-grant", context: { provider: "searxng", variable: url, reference: oldUrl } };
+  return { state: { ...state, form: null, mode: "browse" as Mode, modal }, effects: [] as Effect[] };
+}
+
+function formSaveEvent(state: State, form: FormState): { state: State; effects: Effect[] } {
+  const draft = form.draft.trim();
+  switch (form.intent) {
+    case "key":
+      if (!form.draft) return notice(state, msg(state.lang, "emptySecret"), true);
+      if (form.reference === null) return { state, effects: [{ type: "op", op: { kind: "addKey", provider: form.provider as ProviderId, secret: form.draft } }] };
+      return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "overwriteConfirm", { ref: form.reference }), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "overwrite" } }, effects: [] };
+    case "instAdd": case "instEdit": {
+      if (!draft) return notice(state, msg(state.lang, "urlEmpty"), true);
+      const oldUrl = form.intent === "instEdit" ? form.reference ?? undefined : undefined;
+      const instance = oldUrl !== undefined ? currentProvider(state)?.instances.find(i => i.baseUrl === oldUrl) : undefined;
+      if (oldUrl !== undefined && draft === oldUrl) return instanceWrite(state, oldUrl, draft, instance?.allowRanges ?? []);
+      if (privateGrant(draft)) return cidrGate(state, draft, oldUrl);
+      return instanceWrite(state, oldUrl, draft, []);
+    }
+    case "cidrAdd": case "cidrEdit": {
+      const ranges = parseCidrs(draft);
+      if (!ranges) return notice(state, msg(state.lang, "cidrInvalid"), true);
+      return instanceWrite(state, form.pending?.oldUrl, form.pending?.url ?? draft, ranges);
+    }
+    case "wekUrl": {
+      if (!draft) return notice(state, msg(state.lang, "urlEmpty"), true);
+      const wk = state.weknora;
+      if (wk && wk.baseUrl === draft) return notice(state, msg(state.lang, "noopSave"));
+      if (!wk || (!wk.available && !wk.hasLocal)) {
+        // first-time setup stores endpoint and credential in one write; chain the key field now
+        return { state: withForm(state, { ...form, draft: "", typing: true, intent: "wekKey", field: "secret", pending: { url: draft } }), effects: [] };
+      }
+      if (wk.hasLocal) return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "wekUrlReuseConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "wek-url-reuse", context: { variable: draft } } }, effects: [] };
+      return { state: { ...state, form: null, mode: "browse" as Mode }, effects: [{ type: "op", op: { kind: "wekSave", field: "url", value: draft, reuseSavedKey: false } }] };
+    }
+    case "wekKey":
+      if (!form.draft) return notice(state, msg(state.lang, "emptySecret"), true);
+      if (form.pending?.url) return { state: { ...state, form: null, mode: "browse" as Mode }, effects: [{ type: "op", op: { kind: "wekSave", field: "url", value: form.pending.url, reuseSavedKey: false, secret: form.draft } }] };
+      if (state.weknora?.hasLocal) return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "overwriteConfirm", { ref: "env:ARKSPACE_WEKNORA_API_KEY" }), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "wek-key-replace" } }, effects: [] };
+      return { state: { ...state, form: null, mode: "browse" as Mode }, effects: [{ type: "op", op: { kind: "wekSave", field: "key", value: form.draft, reuseSavedKey: false } }] };
+    case "wekKb":
+      return { state: { ...state, form: null, mode: "browse" as Mode }, effects: [{ type: "op", op: { kind: "wekSave", field: "kb", value: draft, reuseSavedKey: false } }] };
+  }
+}
+
+function connectionEnter(state: State): { state: State; effects: Effect[] } {
+  if (state.context === 4) {
+    const wk = state.weknora;
+    if (wk && (wk.status === "conflict" || wk.source === "environment")) {
+      return notice(state, msg(state.lang, wk.status === "conflict" ? "wekConflictGuard" : "wekExternalGuard"), true);
+    }
+    const base = { provider: "weknora" as const, reference: null, typing: false };
+    switch (state.row) {
+      case 0: return { state: withForm(state, { ...base, draft: wk?.baseUrl ?? "", intent: "wekUrl", field: "url" }), effects: [] };
+      case 1: return { state: withForm(state, { ...base, draft: "", typing: true, intent: "wekKey", field: "secret" }), effects: [] };
+      case 2: return { state: withForm(state, { ...base, draft: wk?.defaultKnowledgeBaseId ?? "", intent: "wekKb", field: "text" }), effects: [] };
+      case 3: return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "rowVerify"), note: msg(state.lang, "wekVerifyConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "wek-verify" } }, effects: [] };
+    }
+    return { state, effects: [] };
+  }
+  switch (state.row) {
+    case 0: case 1: return notice(state, msg(state.lang, "statusNote"));
+    case 2: return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "rowStart"), note: msg(state.lang, "usegptStartConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "usegpt-start" } }, effects: [] };
+    case 3: return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "rowStop"), note: msg(state.lang, "usegptStopConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "usegpt-stop" } }, effects: [] };
+    case 4: return { state, effects: [{ type: "service", action: "usegptDiagnose" }] };
     default: return { state, effects: [] };
   }
 }

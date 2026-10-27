@@ -155,3 +155,10 @@ Pi worker handoff 故障诊断、全局安装/`/usr/bin/arks` 切换、systemd �
   - CIDR：provider 层既有强约束（私有地址仅实例授权段可达）直接生效；实例增删/授权 UI 归 P4 专属页。
   - 验收：reducer +10 测（共 36），全量 **810/810**；PTY 沙箱 11 断言全过（黑洞端点确定性中止，不外联）；非 TTY 逐字节不变；发现并清除 view 标题拼接遗留的 `·`（消息表扫描不覆盖拼接串，已归一 ASCII 分隔）。
   - 遗留（归 P5）：旧 workbench PTY 测满载偶发 1 例超时 flaky（重跑必绿）；pool 模式 e2e 样本入 P5 套件。
+- **P4 连接管理（完成，2026-11 验收）**：
+  - SearXNG 实例页：a/e/d 增改删（URL 表单，非掩码 field 泛化进 FormState.intent/field）；改端点不迁移授权（ADR 0014），同 URL 保存保留原 CIDR；私有 IP 字面量（v4/v6）触发逐实例授权 chooser（Cancel/精确 /32|/128/手动列表），公网端点直通；环境端点全链只读拦截；last-local 删除用专同意文案。
+  - WeKnora 页：endpoint/key/kb/verify 四行 Enter 驱动；首次配置链式（URL→密钥一次写入）；改根需显式同意复用密钥；替换已存密钥先确认；source=environment/conflict 围栏；验证走 `executeWeknoraVerify` 真实 GET /auth/me（确认默认 Cancel + 计费/日志正文）；密钥仅掩码显示，取消零写入。
+  - UseGPT 页：hub/tunnel 实状态（PID 探活）；start/stop 同意弹窗（detached 后台，启动后可关终端）+ svcBusy 围栏（变更全拦、导航/刷新放行）；diagnose 纯本地不发请求；动作后重诊断报 daemon/tunnel 实况。
+  - 架构：新增 `service` Effect 车道（与 op 平行，host `runService` 统一 busy/notice/refresh）；`connData` 事件携带 weknora/usegpt 快照（`data.getConnections` 只读，与主快照同批加载）；`initialState(context)` + `arks setup <id>` 直达六上下文；setupSafeError 对新串未覆盖处走受控英文兑底（opFailed）。
+  - 发现并修复 P1 遗留布局 bug：searxng 实例行表头/正文列宽不一致（16 vs 34）且英文状态串超宽重叠 → 行布局收窄至 URL26/状态12，状态/来源文案缩短（未探测/env-managed）。
+  - 验收：reducer +12 测（共 48），全量 **822/822** + validate=0；PTY 沙箱 p4pty.py 16/16（公开实例直写/私有 gate 取消零写/grant 写 /32/删除确认/掩码不回显/退出恢复序列）+ env 围栏 3/3；非 TTY 输出带/不带 ARKS_TUI=v2 逐字节一致。

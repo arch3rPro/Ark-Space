@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ProviderId } from "../src/protocol/types.js";
 import type { SetupKeySnapshot, SetupProviderSnapshot, SetupSnapshot } from "../src/config/manage.js";
 import { Framed } from "../src/tui/components/framed.js";
-import { CONTEXT_COUNT, MENU_VALUES, dirtyOrder, initialState, reduce, type DiagEntry, type Event, type State } from "../src/tui/controller.js";
+import { CONTEXT_COUNT, MENU_VALUES, dirtyOrder, initialState, reduce, rowCount, type DiagEntry, type Event, type State } from "../src/tui/controller.js";
 import { assertWidthSafe, visibleWidth } from "../src/tui/port.js";
 import { messageKeys, msg } from "../src/tui/messages.js";
 import { menuLines, stripLine } from "../src/tui/view.js";
@@ -210,10 +210,139 @@ describe("P2 key management", () => {
     ]);
   });
 
-  it("searxng rows refuse add/edit", () => {
+  it("searxng rows open instance add/edit forms (P4)", () => {
     const searxng = { ...loaded(), region: "content" as const, context: 3 };
-    expect(reduce(searxng, { type: "keyAdd" }).state.mode).toBe("browse");
-    expect(reduce(searxng, { type: "keyEdit" }).state.mode).toBe("browse");
+    const added = reduce(searxng, { type: "keyAdd" });
+    expect(added.state.mode).toBe("form");
+    expect(added.state.form?.intent).toBe("instAdd");
+    const edited = reduce({ ...searxng, row: 0 }, { type: "keyEdit" });
+    expect(edited.state.form?.intent).toBe("instEdit");
+    expect(edited.state.form?.draft).toBe("http://127.0.0.1:8888");
+  });
+
+  it("instance edit to the same URL writes without re-asking for grants", () => {
+    const searxng = { ...loaded(), region: "content" as const, context: 3 };
+    const s = reduce({ ...searxng, mode: "form" as const, form: { provider: "searxng" as const, reference: "http://127.0.0.1:8888", draft: "http://127.0.0.1:8888", typing: false, intent: "instEdit" as const, field: "url" as const } }, { type: "formSave" });
+    expect(s.effects).toEqual([{ type: "op", op: { kind: "editInstance", oldBaseUrl: "http://127.0.0.1:8888", baseUrl: "http://127.0.0.1:8888", allowRanges: ["127.0.0.0/8"] } }]);
+  });
+
+  it("private endpoint change gates on per-instance CIDR consent (ADR 0014)", () => {
+    const searxng = { ...loaded(), region: "content" as const, context: 3 };
+    const s = reduce({ ...searxng, mode: "form" as const, form: { provider: "searxng" as const, reference: null, draft: "http://10.1.2.3:8080", typing: false, intent: "instAdd" as const, field: "url" as const } }, { type: "formSave" });
+    expect(s.state.modal?.tag).toBe("cidr-grant");
+    expect(s.effects).toEqual([]);
+    const mv = reduce(s.state, { type: "modalMove", delta: 1 });
+    const granted = reduce(mv.state, { type: "modalPick" });
+    expect(granted.effects).toEqual([{ type: "op", op: { kind: "addInstance", baseUrl: "http://10.1.2.3:8080", allowRanges: ["10.1.2.3/32"] } }]);
+    const manual = reduce({ ...s.state, modal: { ...s.state.modal!, cursor: 2 } }, { type: "modalPick" });
+    expect(manual.state.mode).toBe("form");
+    expect(manual.state.form?.intent).toBe("cidrAdd");
+    const bad = reduce({ ...manual.state, form: { ...manual.state.form!, draft: "not-a-cidr" } }, { type: "formSave" });
+    expect(bad.effects).toEqual([]); // invalid list stays in the form, nothing written
+    expect(bad.state.mode).toBe("form");
+    const saved = reduce({ ...manual.state, form: { ...manual.state.form!, draft: "10.1.2.3/32,fd00::/8" } }, { type: "formSave" });
+    expect(saved.effects).toEqual([{ type: "op", op: { kind: "addInstance", baseUrl: "http://10.1.2.3:8080", allowRanges: ["10.1.2.3/32", "fd00::/8"] } }]);
+  });
+
+  it("public endpoint skips the grant gate", () => {
+    const searxng = { ...loaded(), region: "content" as const, context: 3 };
+    const s = reduce({ ...searxng, mode: "form" as const, form: { provider: "searxng" as const, reference: null, draft: "https://search.example.org", typing: false, intent: "instAdd" as const, field: "url" as const } }, { type: "formSave" });
+    expect(s.effects).toEqual([{ type: "op", op: { kind: "addInstance", baseUrl: "https://search.example.org", allowRanges: [] } }]);
+  });
+
+  it("removing the last local instance asks with the ADR wording", () => {
+    const searxng = { ...loaded(), region: "content" as const, context: 3 };
+    const s = reduce(searxng, { type: "keyRemoveStart" });
+    expect(s.state.modal?.tag).toBe("inst-remove");
+    const yes = reduce({ ...s.state, modal: { ...s.state.modal!, cursor: 1 } }, { type: "modalPick" });
+    expect(yes.effects).toEqual([{ type: "op", op: { kind: "removeInstance", baseUrl: "http://127.0.0.1:8888" } }]);
+  });
+
+  it("environment-managed searxng instance is read-only", () => {
+    const state = { ...loaded(), region: "content" as const, context: 3 };
+    const withEnv = { ...state, snapshot: { ...state.snapshot!, providers: state.snapshot!.providers.map((p, i) => i === 3 ? { ...p, instances: [{ ...p.instances[0]!, source: "environment" as const }] } : p) } };
+    expect(reduce(withEnv, { type: "keyEdit" }).state.mode).toBe("browse");
+    expect(reduce(withEnv, { type: "keyRemoveStart" }).state.modal).toBeNull();
+  });
+});
+
+describe("P4 connection pages", () => {
+  const wekState = (): State => ({
+    ...loaded(), region: "content" as const, context: 4,
+    weknora: { baseUrl: "https://kb.example/api/v1", source: "managed", available: true, hasLocal: true, status: "configured (not tested)", sharedProviders: [], warnings: [], allowRanges: [] } as never,
+  });
+
+  it("weknora rows map to endpoint/key/kb/verify actions", () => {
+    let s = wekState();
+    s = reduce(s, { type: "enter" }).state; expect(s.mode).toBe("form"); expect(s.form?.intent).toBe("wekUrl");
+    s = { ...wekState(), row: 1 };
+    const k = reduce(s, { type: "enter" }).state; expect(k.form?.intent).toBe("wekKey"); expect(k.form?.field).toBe("secret");
+    s = { ...wekState(), row: 2 };
+    expect(reduce(s, { type: "enter" }).state.form?.intent).toBe("wekKb");
+    s = { ...wekState(), row: 3 };
+    expect(reduce(s, { type: "enter" }).state.modal?.tag).toBe("wek-verify");
+  });
+
+  it("changing the weknora root re-consents key reuse; verify confirm runs the service", () => {
+    const s = wekState();
+    const saved = reduce({ ...s, mode: "form" as const, form: { provider: "weknora" as const, reference: null, draft: "https://new.example/api/v1", typing: false, intent: "wekUrl" as const, field: "url" as const } }, { type: "formSave" });
+    expect(saved.state.modal?.tag).toBe("wek-url-reuse");
+    const yes = reduce({ ...saved.state, modal: { ...saved.state.modal!, cursor: 1 } }, { type: "modalPick" });
+    expect(yes.effects).toEqual([{ type: "op", op: { kind: "wekSave", field: "url", value: "https://new.example/api/v1", reuseSavedKey: true } }]);
+    const v = reduce({ ...s, row: 3 }, { type: "enter" }); // verify consent -> yes
+    expect(v.state.modal?.tag).toBe("wek-verify");
+    const run = reduce({ ...v.state, modal: { ...v.state.modal!, cursor: 1 } }, { type: "modalPick" });
+    expect(run.effects).toEqual([{ type: "service", action: "wekVerify" }]);
+  });
+
+  it("saving a new weknora key over a managed one asks to replace first", () => {
+    const s = wekState();
+    const saved = reduce({ ...s, mode: "form" as const, form: { provider: "weknora" as const, reference: null, draft: "sk-secret", typing: true, intent: "wekKey" as const, field: "secret" as const } }, { type: "formSave" });
+    expect(saved.state.modal?.tag).toBe("wek-key-replace");
+    const yes = reduce({ ...saved.state, modal: { ...saved.state.modal!, cursor: 1 } }, { type: "modalPick" });
+    expect(yes.effects[0]).toEqual({ type: "op", op: { kind: "wekSave", field: "key", value: "sk-secret", reuseSavedKey: false } });
+  });
+
+  it("environment-sourced weknora is read-only and conflict is fenced", () => {
+    const envState = { ...wekState(), weknora: { ...wekState().weknora!, source: "environment", status: "configured (not tested)" } as never };
+    expect(reduce(envState, { type: "enter" }).state.mode).toBe("browse");
+    const conflict = { ...wekState(), weknora: { ...wekState().weknora!, status: "conflict" } as never };
+    expect(reduce(conflict, { type: "enter" }).state.statusWarn).toBe(true);
+  });
+
+  it("usegpt start/stop confirmations default to cancel; diagnose is a plain service call", () => {
+    const s = { ...loaded(), region: "content" as const, context: 5, usegpt: { configured: true, daemonRunning: false, tunnelRunning: false, issues: [] } };
+    const start = reduce({ ...s, row: 2 }, { type: "enter" }); // row 2 = start
+    expect(start.state.modal?.tag).toBe("usegpt-start");
+    expect(start.state.modal?.cursor).toBe(0); // cancel first (ADR 0016)
+    expect(start.state.modal?.note).toBeTruthy();
+    const yes = reduce({ ...start.state, modal: { ...start.state.modal!, cursor: 1 } }, { type: "modalPick" });
+    expect(yes.effects).toEqual([{ type: "service", action: "usegptStart" }]);
+    const stop = reduce({ ...s, row: 3 }, { type: "enter" });
+    expect(stop.state.modal?.tag).toBe("usegpt-stop");
+    const diag = reduce({ ...s, row: 4 }, { type: "enter" });
+    expect(diag.effects).toEqual([{ type: "service", action: "usegptDiagnose" }]);
+    const info = reduce({ ...s, row: 0 }, { type: "enter" });
+    expect(info.state.modal).toBeNull();
+  });
+
+  it("service busy fences mutations but navigation and refresh stay live", () => {
+    const busy = reduce(wekState(), { type: "serviceBusy", on: true });
+    expect(busy.state.svcBusy).toBeTruthy();
+    expect(reduce(busy.state, { type: "keyAdd" }).effects).toEqual([]);
+    expect(reduce(busy.state, { type: "testIntent" }).effects).toEqual([]);
+    const moved = reduce(busy.state, { type: "context", delta: 1 });
+    expect(moved.state.context).toBe(5);
+    const idle = reduce(busy.state, { type: "serviceBusy", on: false });
+    expect(idle.state.svcBusy).toBeNull();
+  });
+
+  it("connData lands snapshots; rowCount covers both pages", () => {
+    const s = reduce(loaded(), { type: "connData", weknora: null, usegpt: { configured: false, daemonRunning: false, tunnelRunning: false, issues: ["not-configured"] } });
+    expect(s.state.weknora).toBeNull();
+    expect(s.state.usegpt?.configured).toBe(false);
+    expect(rowCount({ ...loaded(), context: 4, weknora: null })).toBe(4);
+    expect(rowCount({ ...loaded(), context: 5 })).toBe(5);
   });
 });
 
