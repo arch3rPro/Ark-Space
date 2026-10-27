@@ -21,6 +21,10 @@ describe("MCP stdio transport", () => {
     }
   });
 
+  it("exposes the native ChatGPT file publish tool contract", () => {
+    expect(createMcpServer().toolInputSchemaJson("usegpt_artifact_publish_file")).toBeDefined();
+  });
+
   it("lists tools and returns a structured Protocol envelope over stdio", async () => {
     const home = await mkdtemp(join(tmpdir(), "arkspace-mcp-"));
     directories.push(home);
@@ -45,7 +49,9 @@ describe("MCP stdio transport", () => {
     send(child, { jsonrpc: "2.0", method: "notifications/initialized" });
     send(child, { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
     const listed = await waitFor(messages, 2);
-    const result = listed.result as { tools: Array<{ name: string }> };
+    const result = listed.result as { tools: Array<{ name: string; _meta?: Record<string, unknown>; annotations?: Record<string, unknown> }> };
+    expect(result.tools.find(tool => tool.name === "usegpt_artifact_publish_file")).toMatchObject({ _meta: { "openai/fileParams": ["file"] }, annotations: { readOnlyHint: false, openWorldHint: true } });
+    expect(result.tools.map(tool => tool.name)).toContain("usegpt_artifact_publish_inline");
     expect(result.tools.map((tool) => tool.name)).toContain("browser_interact");
     expect(result.tools.map((tool) => tool.name)).toContain("monitor_create");
 
@@ -55,6 +61,10 @@ describe("MCP stdio transport", () => {
       isError: false,
       structuredContent: { protocolVersion: 1, ok: true, capability: "monitor.list", provider: "exa", data: { monitors: [] } },
     });
+    send(child, { jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "usegpt_artifact_publish_file", arguments: { projectId: "project_test", name: "data.csv", file: "https://example.com/private?cookie=secret" } } });
+    const rejected = await waitFor(messages, 4);
+    expect(JSON.stringify(rejected)).not.toContain("cookie=secret");
+    expect(rejected).toHaveProperty("result.isError", true);
     child.kill("SIGTERM");
   });
 

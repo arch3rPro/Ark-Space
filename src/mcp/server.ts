@@ -80,6 +80,7 @@ const descriptions: Record<Capability, string> = {
   "usegpt.project.create": "Create a local Artifact Hub project.", "usegpt.project.list": "List local Artifact Hub projects.", "usegpt.project.get": "Read a local Artifact Hub project and events.",
   "usegpt.project.archive": "Archive a local Artifact Hub project.", "usegpt.project.delete": "Move a local Artifact Hub project to the recycle state.", "usegpt.project.restore": "Restore a local Artifact Hub project.", "usegpt.project.purge": "Permanently purge a deleted Artifact Hub project.",
   "usegpt.task.create": "Create a local Artifact Hub task.", "usegpt.task.complete": "Complete a local Artifact Hub task.", "usegpt.task.delete": "Move a local Artifact Hub task to the recycle state.", "usegpt.task.restore": "Restore a local Artifact Hub task.", "usegpt.task.purge": "Permanently purge a deleted Artifact Hub task.",
+  "usegpt.artifact.publish_file": "Publish a native ChatGPT file object as an immutable local Hub revision. Requires an HTTPS OpenAI file download reference; arbitrary pasted URLs and file_id-only resolution are unsupported.",
   "usegpt.artifact.publish_inline": "Publish inline text as an immutable local Artifact Hub revision.", "usegpt.artifact.list": "List local Artifact Hub artifacts.", "usegpt.artifact.describe": "Describe a local Artifact Hub artifact revision.", "usegpt.artifact.read": "Read bounded bytes from a local Artifact Hub artifact.", "usegpt.artifact.delete": "Delete a local Artifact Hub artifact.",
   "usegpt.handoff.create": "Create a local Artifact Hub handoff.", "usegpt.handoff.list": "List local Artifact Hub handoffs.", "usegpt.handoff.get": "Read a local Artifact Hub handoff.", "usegpt.handoff.claim": "Claim a local Artifact Hub handoff.", "usegpt.handoff.complete": "Complete a claimed local Artifact Hub handoff.", "usegpt.handoff.fail": "Fail a claimed local Artifact Hub handoff.", "usegpt.handoff.cancel": "Cancel a local Artifact Hub handoff.",
   "usegpt.storage.usage": "Read local Artifact Hub storage usage.", "usegpt.delete.preview": "Preview local Artifact Hub deletion effects.",
@@ -117,12 +118,13 @@ function registerCapability(server: McpServer, capability: Capability, name: str
     {
       description: descriptions[capability],
       inputSchema: schema,
+      ...(capability === "usegpt.artifact.publish_file" ? { _meta: { "openai/fileParams": ["file"] } } : {}),
       outputSchema: z.record(z.string(), z.unknown()),
       annotations: {
         readOnlyHint: readOnly.has(capability),
         destructiveHint: destructive.has(capability),
         idempotentHint: readOnly.has(capability) || capability === "browser.close" || capability === "monitor.pause" || capability === "monitor.resume" || capability === "monitor.delete" || capability === "monitor.site.pause" || capability === "monitor.site.resume" || capability === "monitor.site.delete",
-        openWorldHint: !capability.startsWith("usegpt."),
+        openWorldHint: capability === "usegpt.artifact.publish_file" || !capability.startsWith("usegpt."),
       },
     },
     async (input, context) => {

@@ -8,6 +8,12 @@ const Offset = z.number().int().min(0).max(1_000_000).default(0);
 const EventCursor = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).default(0);
 const Confirmed = z.literal(true);
 
+const HostFileSize = z.number().int().nonnegative().max(67_108_864);
+export const UseGptHostFileSchema = z.union([
+  z.object({ file_id: z.string().min(1).max(200).regex(/^[A-Za-z0-9_-]+$/), download_url: z.string().min(1).max(8_192).optional(), name: Name.optional(), file_name: Name.optional(), mime_type: z.string().min(1).max(128).optional(), size: HostFileSize.optional() }).strict(),
+  z.object({ type: z.literal("resource_link"), uri: z.string().min(1).max(8_192), name: Name, mimeType: z.string().min(1).max(128).optional(), size: HostFileSize.optional() }).strict(),
+]);
+
 export const UseGptModeSchema = z.enum(["chat", "search", "deep-research", "image"]);
 export const UseGptTaskIdSchema = z.string().regex(/^ugpt_[a-f0-9-]{36}$/);
 const LegacyTaskOptions = {
@@ -34,6 +40,7 @@ const HubSchemas = {
   "usegpt.task.restore": z.object({ taskId: Id }).strict(),
   "usegpt.task.purge": z.object({ taskId: Id, confirmed: Confirmed, planToken: Id.optional() }).strict(),
   "usegpt.artifact.publish_inline": z.object({ projectId: Id, taskId: Id.optional(), artifactId: Id.optional(), name: Name, kind: z.string().trim().min(1).max(64).default("document"), mediaType: z.string().trim().min(1).max(128).default("text/plain"), content: z.string().max(1_048_576), idempotencyKey: Id.optional() }).strict(),
+  "usegpt.artifact.publish_file": z.object({ projectId: Id, taskId: Id.optional(), artifactId: Id.optional(), name: Name, kind: z.string().trim().min(1).max(64).default("document"), mediaType: z.string().trim().min(1).max(128).optional(), file: UseGptHostFileSchema, idempotencyKey: Id.optional() }).strict(),
   "usegpt.artifact.list": z.object({ projectId: Id, taskId: Id.optional(), limit: Limit, offset: Offset }).strict(),
   "usegpt.artifact.describe": z.object({ artifactId: Id, taskId: Id.optional(), projectId: Id.optional(), revision: z.number().int().positive().optional() }).strict(),
   "usegpt.artifact.read": z.object({ artifactId: Id, taskId: Id.optional(), projectId: Id.optional(), revision: z.number().int().positive().optional(), offset: z.number().int().min(0).default(0), limit: z.number().int().min(4).max(100_000).default(20_000) }).strict(),

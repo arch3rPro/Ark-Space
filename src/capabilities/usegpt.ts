@@ -4,7 +4,8 @@ import { setTimeout as delay } from "node:timers/promises";
 import { loadConfig } from "../config/store.js";
 import type { ArkSpacePaths } from "../config/paths.js";
 import type { UseGptHubStore } from "../usegpt/hub-store.js";
-import { useGptFailure, useGptSuccess, type UseGptEnvelope, type UseGptCapability } from "../protocol/usegpt-schema.js";
+import { HostFileError, publishHostFile } from "../usegpt/host-files.js";
+import { UseGptInputSchemas, useGptFailure, useGptSuccess, type UseGptEnvelope, type UseGptCapability } from "../protocol/usegpt-schema.js";
 import { MAX_REQUEST_BYTES, capabilityOf, parseRequest } from "../usegpt/contracts.js";
 
 // Store failures are deliberately mapped without interpolating filesystem or input details.
@@ -25,6 +26,7 @@ const hubErrors: Record<string, string> = {
   handoff_not_found: "Handoff not found.", handoff_busy: "A handoff is active; settle it before this operation.",
   handoff_fenced: "The handoff claim is stale or invalid.", handoff_unavailable: "Handoff is unavailable for this consumer.",
   handoff_terminal: "Handoff is already terminal.", idempotency_conflict: "Idempotency key was already used with different input.",
+  size_mismatch: "Host file declared size does not match its bytes.", upload_timeout: "Artifact upload timed out.", upload_busy: "Artifact upload is busy.",
   quota_exceeded: "Artifact Hub storage quota exceeded.", unsafe_path: "Artifact Hub storage path is unsafe.",
   schema_too_new: "Artifact Hub database requires a newer ArkSpace version.",
   not_deleted: "Delete this object before permanently purging it.",
@@ -56,6 +58,16 @@ export async function executeUseGpt(request: unknown, paths: ArkSpacePaths, _env
     const { UseGptHubStore } = await import("../usegpt/hub-store.js");
     store = await UseGptHubStore.open(dataDir);
     if (capability === "usegpt.connection.status") return useGptSuccess(capability, { ready: true, storage: "local", browserExecution: "unsupported" });
+    if (capability === "usegpt.artifact.publish_file") {
+      const { file, ...metadata } = UseGptInputSchemas[capability].parse(input);
+      return useGptSuccess(capability, await publishHostFile(store, {
+        projectId: metadata.projectId, name: metadata.name, kind: metadata.kind,
+        ...(metadata.taskId === undefined ? {} : { taskId: metadata.taskId }),
+        ...(metadata.artifactId === undefined ? {} : { artifactId: metadata.artifactId }),
+        ...(metadata.mediaType === undefined ? {} : { mediaType: metadata.mediaType }),
+        ...(metadata.idempotencyKey === undefined ? {} : { idempotencyKey: metadata.idempotencyKey }),
+      }, file, signal));
+    }
     const operation = capability.slice("usegpt.".length);
     if (operation === "task.wait") {
       // A wait observes persisted task state; its deadline never cancels the task.
@@ -73,6 +85,7 @@ export async function executeUseGpt(request: unknown, paths: ArkSpacePaths, _env
     return useGptSuccess(capability, await store.execute(operation, input));
   } catch (error) {
     if (signal?.aborted) return useGptFailure(capability, "cancelled", "Artifact Hub request cancelled.");
+    if (error instanceof HostFileError) return useGptFailure(capability, error.code, error.message);
     const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
     return useGptFailure(capability, hubErrors[code] ? code : "storage", hubErrors[code] ?? "Artifact Hub operation failed.");
   } finally { await store?.close(); }

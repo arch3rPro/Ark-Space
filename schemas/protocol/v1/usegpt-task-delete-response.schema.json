@@ -29,6 +29,7 @@
         "usegpt.task.restore",
         "usegpt.task.purge",
         "usegpt.artifact.publish_inline",
+        "usegpt.artifact.publish_file",
         "usegpt.artifact.list",
         "usegpt.artifact.describe",
         "usegpt.artifact.read",
@@ -82,6 +83,7 @@
       "additionalProperties": false
     },
     "warnings": {
+      "maxItems": 30,
       "type": "array",
       "items": {
         "type": "string",

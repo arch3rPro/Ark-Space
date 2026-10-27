@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
-import { access, open, readFile } from "node:fs/promises";
-import { basename } from "node:path";
+import { spawn } from "node:child_process";
+import { access, chmod, mkdtemp, open, readFile, rename } from "node:fs/promises";
+import { basename, join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import process from "node:process";
 import { Command, CommanderError } from "commander";
 import { ZodError } from "zod";
@@ -33,6 +35,7 @@ import { executeWebFetch } from "../capabilities/web-fetch.js";
 import { executeWebMap } from "../capabilities/web-map.js";
 import { executeWebRelated } from "../capabilities/web-related.js";
 import { executeWebSearch } from "../capabilities/web-search.js";
+import { serveUseGptDaemon, daemonRequest, daemonStatus, defaultDaemonDataDir, normalizeDaemonDataDir, stopUseGptDaemon } from "../usegpt/daemon.js";
 import { runSetup } from "./setup.js";
 import { CliUpdateError, runCliUpdate } from "./update.js";
 import { buildDiagnosticPlan, renderDiagnostic } from "./diagnostics.js";
@@ -309,6 +312,125 @@ for (const group of ["project", "task", "artifact", "handoff", "storage", "delet
     });
   }
 }
+
+const handoffCommand = useGptCommand.commands.find(command => command.name() === "handoff");
+if (!handoffCommand) throw new Error("Handoff command is unavailable.");
+const handoffPull = handoffCommand.command("pull").requiredOption("--to <recipient>", "Handoff recipient identity").option("--handoff-id <id>", "Pull this pending handoff by ID").option("--output-dir <path>", "Parent directory for the secure input package").option("--json", "Write the protocol JSON envelope");
+const registerHandoffPull = async (options: { to: string; handoffId?: string; outputDir?: string }) => {
+  let directory: string | undefined;
+  let handoffId: string | undefined;
+  let claimAttempted = false;
+  let claimSaved = false;
+  const output = (result: { ok: boolean } & Record<string, unknown>) => writeMachineResult(result);
+  const call = async (capability: UseGptCapability, input: Record<string, unknown>) =>
+    await invokeCapability(capability, { protocolVersion: PROTOCOL_VERSION, capability, input }, { originalEnvironment, signal: operationController.signal }) as { ok: boolean; data?: Record<string, unknown>; error?: unknown };
+  const save = async (name: string, value: unknown) => {
+    const path = join(directory!, name);
+    const handle = await open(`${path}.partial`, "wx", 0o600);
+    try { await handle.writeFile(`${JSON.stringify(value, null, 2)}\n`); await handle.sync(); }
+    finally { await handle.close(); }
+    await rename(`${path}.partial`, path);
+    return path;
+  };
+  try {
+    const recipient = UseGptInputSchemas["usegpt.handoff.claim"].shape.to.parse(options.to);
+    if (options.handoffId !== undefined) {
+      handoffId = UseGptInputSchemas["usegpt.handoff.claim"].shape.handoffId.parse(options.handoffId);
+    } else {
+      const listed = await call("usegpt.handoff.list", { to: recipient, status: "pending", limit: 1 });
+      if (!listed.ok) { output({ ...listed, command: "usegpt.handoff.pull" }); return; }
+      const handoffs = listed.data?.handoffs;
+      if (!Array.isArray(handoffs)) throw new Error();
+      if (!handoffs.length) {
+        output({ ok: true, command: "usegpt.handoff.pull", data: { status: "empty" } });
+        return;
+      }
+      if (!isRecord(handoffs[0]) || typeof handoffs[0].id !== "string") throw new Error();
+      handoffId = handoffs[0].id;
+    }
+    directory = await mkdtemp(join(resolve(options.outputDir ?? tmpdir()), "arks-usegpt-handoff-"));
+    await chmod(directory, 0o700);
+    await save("attempt.json", { handoffId, to: recipient });
+    claimAttempted = true;
+    const claimed = await call("usegpt.handoff.claim", { handoffId, to: recipient });
+    if (!claimed.ok) {
+      output({ ...claimed, command: "usegpt.handoff.pull", recoveryDir: directory, handoffId });
+      return;
+    }
+    const handoff = claimed.data;
+    if (!handoff || typeof handoff.claimToken !== "string" || typeof handoff.generation !== "number" || !Array.isArray(handoff.artifactRefs)) throw new Error();
+    await save("claim.json", handoff);
+    claimSaved = true;
+    const fence = { handoffId, claimToken: handoff.claimToken, generation: handoff.generation };
+    const completePath = await save("complete.json", fence);
+    const failPath = await save("fail.json", { ...fence, reason: "Consumer could not complete this handoff." });
+    const task = await call("usegpt.task.get", { taskId: handoff.taskId });
+    if (!task.ok) throw new Error();
+    const artifacts = [];
+    let totalBytes = 0;
+    for (const ref of handoff.artifactRefs) {
+      if (!isRecord(ref)) throw new Error();
+      const chunks: string[] = [];
+      let offset = 0;
+      let metadata: Record<string, unknown> | undefined;
+      for (;;) {
+        const page = await call("usegpt.artifact.read", { projectId: handoff.projectId, artifactId: ref.artifactId, revision: ref.revision, offset, limit: 100_000 });
+        const data = page.data;
+        if (!page.ok || !data || typeof data.content !== "string" || !isRecord(data.artifact) || typeof data.nextOffset !== "number") throw new Error();
+        metadata = data.artifact;
+        totalBytes += Buffer.byteLength(data.content);
+        if (totalBytes > 16 * 1_048_576) throw new Error("Text input package exceeds 16 MiB.");
+        chunks.push(data.content);
+        if (data.eof === true) break;
+        if (data.nextOffset <= offset) throw new Error();
+        offset = data.nextOffset;
+      }
+      artifacts.push({ artifact: metadata, content: chunks.join(""), encoding: "utf8" });
+    }
+    const inputPath = await save("input.json", { protocolVersion: PROTOCOL_VERSION, handoff, task: task.data, artifacts });
+    output({ ok: true, command: "usegpt.handoff.pull", data: { status: "ready", handoffId, generation: handoff.generation, inputPath, completePath, failPath } });
+  } catch {
+    output({ ok: false, command: "usegpt.handoff.pull", data: { status: claimAttempted ? claimSaved ? "claimed" : "unknown" : "unclaimed", ...(handoffId ? { handoffId } : {}), ...(directory ? { recoveryDir: directory } : {}) }, error: { kind: "pull-failed", message: "Input package could not be prepared. Inspect the handoff and recovery files before continuing; no automatic retry was attempted.", retryable: false } });
+  }
+};
+handoffPull.action(registerHandoffPull);
+handoffCommand.command("continue").requiredOption("--to <recipient>", "Handoff recipient identity").option("--handoff-id <id>", "Pull this pending handoff by ID").option("--output-dir <path>", "Parent directory for the secure input package").option("--json", "Write the protocol JSON envelope").action(registerHandoffPull);
+
+const daemonCommand = useGptCommand.command("daemon").description("Manage the local Artifact Hub daemon");
+daemonCommand.command("serve")
+  .option("--data-dir <path>", "Independent daemon data directory", defaultDaemonDataDir())
+  .action(async (options: { dataDir: string }) => { await serveUseGptDaemon(normalizeDaemonDataDir(options.dataDir)); });
+daemonCommand.command("start")
+  .option("--data-dir <path>", "Independent daemon data directory", defaultDaemonDataDir())
+  .action(async (options: { dataDir: string }) => {
+    const dataDir = normalizeDaemonDataDir(options.dataDir);
+    const current = await daemonStatus(dataDir);
+    if (!current.running) {
+      const entry = process.argv[1];
+      if (!entry) throw new Error("Cannot locate the arks entry point.");
+      const child = spawn(process.execPath, [resolve(entry), "usegpt", "daemon", "serve", "--data-dir", dataDir], { detached: true, stdio: "ignore", env: process.env });
+      await new Promise<void>((done, reject) => { child.once("spawn", done); child.once("error", reject); });
+      child.unref();
+    }
+    const deadline = Date.now() + 5_000;
+    let status = await daemonStatus(dataDir);
+    while (!status.running && Date.now() < deadline) { await new Promise(resolveDelay => setTimeout(resolveDelay, 25)); status = await daemonStatus(dataDir); }
+    process.stdout.write(`${JSON.stringify({ ok: status.running, ...status })}\n`);
+    if (!status.running) process.exitCode = 1;
+  });
+daemonCommand.command("stop")
+  .option("--data-dir <path>", "Independent daemon data directory", defaultDaemonDataDir())
+  .action(async (options: { dataDir: string }) => { const status = await stopUseGptDaemon(normalizeDaemonDataDir(options.dataDir)); process.stdout.write(`${JSON.stringify({ ok: !status.running, ...status })}\n`); if (status.running) process.exitCode = 1; });
+daemonCommand.command("status")
+  .option("--data-dir <path>", "Independent daemon data directory", defaultDaemonDataDir())
+  .action(async (options: { dataDir: string }) => { const status = await daemonStatus(normalizeDaemonDataDir(options.dataDir)); process.stdout.write(`${JSON.stringify({ ok: true, ...status })}\n`); });
+daemonCommand.command("invoke")
+  .option("--data-dir <path>", "Independent daemon data directory", defaultDaemonDataDir())
+  .requiredOption("--input <path>", "Versioned JSON request file, or - for stdin")
+  .action(async (options: { dataDir: string; input: string }) => {
+    try { writeMachineResult(await daemonRequest(normalizeDaemonDataDir(options.dataDir), await readJsonInput(options.input)) as { ok: boolean }); }
+    catch { process.stdout.write(`${JSON.stringify({ ok: false, command: "usegpt.daemon.invoke", error: { message: "Daemon invoke failed." } })}\n`); process.exitCode = 1; }
+  });
 
 useGptCommand.command("start")
   .requiredOption("--prompt <prompt>", "Task prompt")
@@ -688,7 +810,10 @@ try {
   }
   await program.parseAsync(process.argv);
 } catch (error) {
-  if (isUpdateInvocation) {
+  if (process.argv[2] === "usegpt" && process.argv[3] === "daemon") {
+    process.stdout.write(`${JSON.stringify({ ok: false, command: `usegpt.daemon.${process.argv[4] ?? "unknown"}`, error: { message: "Artifact Hub daemon command failed; inspect the data directory and runtime." } })}\n`);
+    process.exitCode = 1;
+  } else if (isUpdateInvocation) {
     if (!(error instanceof CommanderError && error.exitCode === 0)) {
       writeUpdateFailure(new CliUpdateError("Invalid update arguments. Use arks update --help."), process.argv.includes("--json"));
     }

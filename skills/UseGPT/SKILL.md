@@ -48,6 +48,22 @@ MCP exposes the same capabilities with underscores, including `usegpt_project_li
 
 ## Handoffs
 
+To manually continue a pending handoff, pull one atomically for the recipient. The command writes the instruction, claim fence, task, and fixed text Artifact revisions to a newly created 0700 directory; it returns only the package path and never puts the body in arguments:
+
+```bash
+arks usegpt handoff pull --to agent:next
+# or: arks usegpt handoff continue --to agent:next
+```
+
+Give the returned `data.inputPath` to the external Agent. It must use the `handoff.claimToken` and `handoff.generation` from that JSON when calling the existing completion or failure entry points:
+
+```bash
+arks usegpt handoff complete <handoff-id> --claim-token <claim-token> --generation <generation>
+arks usegpt handoff fail <handoff-id> --claim-token <claim-token> --generation <generation> --reason "..."
+```
+
+A claim is fenced and is never automatically retried. If package creation fails after a claim, inspect the returned recovery directory and handoff state before deciding what to do.
+
 When another Agent should continue work, create a handoff containing the task, instruction, and fixed Artifact revisions:
 
 ```bash

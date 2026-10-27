@@ -120,7 +120,7 @@ const CapabilitySchema = z.enum([
   "usegpt.connection.status", "usegpt.task.start", "usegpt.task.get", "usegpt.task.list", "usegpt.task.wait", "usegpt.task.follow_up", "usegpt.task.cancel", "usegpt.artifact.get",
   "usegpt.project.create", "usegpt.project.list", "usegpt.project.get", "usegpt.project.archive", "usegpt.project.delete", "usegpt.project.restore", "usegpt.project.purge",
   "usegpt.task.create", "usegpt.task.complete", "usegpt.task.delete", "usegpt.task.restore", "usegpt.task.purge",
-  "usegpt.artifact.publish_inline", "usegpt.artifact.list", "usegpt.artifact.describe", "usegpt.artifact.read", "usegpt.artifact.delete",
+  "usegpt.artifact.publish_file", "usegpt.artifact.publish_inline", "usegpt.artifact.list", "usegpt.artifact.describe", "usegpt.artifact.read", "usegpt.artifact.delete",
   "usegpt.handoff.create", "usegpt.handoff.list", "usegpt.handoff.get", "usegpt.handoff.claim", "usegpt.handoff.complete", "usegpt.handoff.fail", "usegpt.handoff.cancel",
   "usegpt.storage.usage", "usegpt.delete.preview",
 ] as const satisfies readonly Capability[]);

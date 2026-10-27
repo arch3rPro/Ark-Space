@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, expect, it } from "vitest";
@@ -87,6 +87,35 @@ hubIt("uses the built CLI from outside the repository with isolated hub data", a
   await writeFile(contentPath, Buffer.alloc(1_048_577));
   const oversized = await cli(["usegpt", "artifact", "publish-inline", "--project-id", project.id, "--name", "too-big", "--input-file", contentPath], f.environment);
   expect(oversized.code).toBe(1); expect(oversized.stdout + oversized.stderr).not.toContain(contentPath);
+});
+
+hubIt("pulls one handoff into a fixed-revision secure input package and completes it", async () => {
+  const f = await fixture();
+  const projectResult = await cli(["usegpt", "project", "create", "--name", "Pull project", "--json"], f.environment);
+  const project = JSON.parse(projectResult.stdout).data;
+  const taskResult = await cli(["usegpt", "task", "create", "--project-id", project.id, "--title", "Pull task", "--request", "Continue", "--json"], f.environment);
+  const task = JSON.parse(taskResult.stdout).data;
+  const contentPath = join(f.home, "input.txt"); await writeFile(contentPath, "fixed input");
+  const artifactResult = await cli(["usegpt", "artifact", "publish-inline", "--project-id", project.id, "--task-id", task.id, "--name", "input.txt", "--input-file", contentPath], f.environment);
+  const artifact = JSON.parse(artifactResult.stdout).data;
+  const handoffResult = await cli(["usegpt", "handoff", "create", "--project-id", project.id, "--task-id", task.id, "--to", "agent:manual", "--instruction", "Continue from the fixed input", "--artifact-refs", JSON.stringify([{ artifactId: artifact.id, revision: 1 }])], f.environment);
+  expect(handoffResult.code, handoffResult.stdout + handoffResult.stderr).toBe(0);
+  await writeFile(contentPath, "newer input");
+  const revisionResult = await cli(["usegpt", "artifact", "publish-inline", "--project-id", project.id, "--task-id", task.id, "--artifact-id", artifact.id, "--name", "input.txt", "--input-file", contentPath], f.environment);
+  expect(revisionResult.code, revisionResult.stdout + revisionResult.stderr).toBe(0);
+
+  const pulled = await cli(["usegpt", "handoff", "pull", "--to", "agent:manual"], f.environment);
+  expect(pulled.code, pulled.stdout + pulled.stderr).toBe(0);
+  const receipt = JSON.parse(pulled.stdout);
+  expect(receipt).toMatchObject({ ok: true, command: "usegpt.handoff.pull", data: { handoffId: expect.any(String), generation: 1 } });
+  const packageValue = JSON.parse(await readFile(receipt.data.inputPath, "utf8"));
+  expect((await stat(receipt.data.inputPath)).mode & 0o777).toBe(0o600);
+  expect((await stat(receipt.data.inputPath.replace(/input\.json$/, ""))).mode & 0o777).toBe(0o700);
+  expect(packageValue).toMatchObject({ handoff: { id: receipt.data.handoffId, generation: 1, artifactRefs: [{ artifactId: artifact.id, revision: 1 }] }, artifacts: [{ content: "fixed input", artifact: { revision: 1 } }] });
+
+  const completed = await cli(["usegpt", "handoff", "complete", receipt.data.handoffId, "--claim-token", packageValue.handoff.claimToken, "--generation", "1"], f.environment);
+  expect(completed.code, completed.stdout + completed.stderr).toBe(0);
+  expect(JSON.parse(completed.stdout)).toMatchObject({ ok: true, data: { status: "completed" } });
 });
 
 hubIt("dispatches hub operations over the built MCP stdio entry", async () => {
