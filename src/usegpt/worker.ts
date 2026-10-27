@@ -10,6 +10,7 @@ const absolute = z.string().min(1).max(4096).refine(value => isAbsolute(value) &
 const Config = z.object({
   executable: absolute, args: z.array(z.string().max(4096).refine(value => !value.includes("\0"))).max(100),
   cwd: absolute, projectId: identifier("project"), recipient: z.string().min(1).max(255), dataDir: absolute,
+  agentConfigDir: absolute.optional(),
   timeoutMs: z.number().int().min(100).max(3_600_000).default(300_000),
   pollMs: z.number().int().min(100).max(60_000).default(1000),
 }).strict();
@@ -53,10 +54,15 @@ function save(directory: string, name: string, value: unknown): void {
   try { writeFileSync(fd, `${JSON.stringify(value)}\n`); fsyncSync(fd); } finally { closeSync(fd); }
   renameSync(`${path}.partial`, path); syncDirectory(directory);
 }
+function agentConfigDirectory(path: string): void {
+  const stat = lstatSync(path);
+  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.mode & 0o022 || process.getuid && stat.uid !== process.getuid()) throw new Error("Agent configuration directory must be owner controlled.");
+}
 export function loadWorkerConfig(path: string): WorkerConfig {
   if (process.platform === "win32") throw new Error("Worker requires POSIX process groups and permissions.");
   const config = readJson(resolve(path), 65_536, Config);
   privateDirectory(config.dataDir); privateDirectory(config.cwd);
+  if (config.agentConfigDir) agentConfigDirectory(config.agentConfigDir);
   const executable = lstatSync(config.executable);
   if (!executable.isFile() || executable.isSymbolicLink() || executable.mode & 0o022) throw new Error("Use a fixed regular executable without group/world write access.");
   return config;
@@ -73,7 +79,7 @@ async function executeChild(config: WorkerConfig, directory: string, signal?: Ab
     let reason: string | undefined, settled = false;
     const logs = { stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) };
     const child = spawn(config.executable, config.args, { cwd: config.cwd, shell: false, detached: true, stdio: ["ignore", "pipe", "pipe"],
-      env: { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: process.env.HOME, LANG: process.env.LANG, ARKS_USEGPT_INPUT_FILE: join(directory, "input.json"), ARKS_USEGPT_RESULT_FILE: join(directory, "result.json") } });
+      env: { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: process.env.HOME, LANG: process.env.LANG, ...(config.agentConfigDir ? { PI_CODING_AGENT_DIR: config.agentConfigDir } : {}), ARKS_USEGPT_INPUT_FILE: join(directory, "input.json"), ARKS_USEGPT_RESULT_FILE: join(directory, "result.json") } });
     const kill = () => { if (child.pid) { try { process.kill(-child.pid, "SIGKILL"); } catch { /* only this newly owned process group */ } } };
     const stop = (status: string) => { reason ??= status; kill(); };
     const abort = () => stop("cancelled");

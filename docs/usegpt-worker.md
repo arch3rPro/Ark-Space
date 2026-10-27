@@ -21,14 +21,46 @@ Configuration:
   "projectId": "project_REPLACE_WITH_ACTUAL_UUID",
   "recipient": "agent:next",
   "dataDir": "/absolute/private/hub",
+  "agentConfigDir": "/root/.pi/agent",
   "timeoutMs": 300000,
   "pollMs": 1000
 }
 ```
 
-The executable must be a regular file without group/world write permissions. The working directory and Hub directory must belong to the operator and have private permissions. Arguments are passed directly with `shell: false`. Child environment contains PATH, HOME, LANG and the two file paths below; provider and control-plane keys are not forwarded by default. This is a trusted executable boundary, not an OS sandbox: the executable still has the user's filesystem access.
+The executable must be a regular file without group/world write permissions. The working directory, Hub directory, and optional `agentConfigDir` must belong to the operator and have private permissions. Arguments are passed directly with `shell: false`. Child environment contains PATH, HOME, LANG, the optional `PI_CODING_AGENT_DIR`, and the two file paths below; provider and control-plane keys are not forwarded by default. This is a trusted executable boundary, not an OS sandbox: the executable still has the user's filesystem access.
 
-The child reads `ARKS_USEGPT_INPUT_FILE` and writes `ARKS_USEGPT_RESULT_FILE` as a regular mode-0600 file. Input contains the task, instruction, claim fence and fixed text revisions. Binary input packaging is not supported by the worker yet; such a claim requires manual reconciliation rather than automatic replay. Output follows this contract:
+The deterministic child contract can be connected to the installed Pi CLI with this adapter. Resolve the Pi bundle path from the host that runs it, then use `/usr/bin/node` as the fixed executable and pass the adapter and Pi path as fixed arguments:
+
+```json
+{
+  "executable": "/usr/bin/node",
+  "args": [
+    "/absolute/path/to/scripts/usegpt-pi-adapter.mjs",
+    "/usr/lib/node_modules/@agegr/pi-web/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js"
+  ],
+  "cwd": "/absolute/private/workspace",
+  "projectId": "project_REPLACE_WITH_ACTUAL_UUID",
+  "recipient": "agent:pi",
+  "dataDir": "/absolute/private/hub",
+  "agentConfigDir": "/root/.pi/agent",
+  "timeoutMs": 900000,
+  "pollMs": 1000
+}
+```
+
+The adapter invokes Pi with `--no-session --no-tools --print`, so the run is one-shot and cannot mutate the workspace through Pi tools. Pi must already have an authenticated provider/model configuration. A real run may incur provider usage and remains an explicit operator action. First verify the installed bundle without a model call:
+
+```bash
+node /usr/lib/node_modules/@agegr/pi-web/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js --version
+```
+
+Then run one pending handoff:
+
+```bash
+arks usegpt worker once --config /absolute/private/worker.json
+```
+
+A successful result produces `pi-result.md`, publishes it as a new Artifact, and settles the Handoff. Missing authentication, timeout, invalid output, or an uncertain child result leaves the Handoff recoverable as `unknown`; it is never automatically replayed.
 
 ```json
 {
