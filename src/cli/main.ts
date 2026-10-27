@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 
+import { createHash } from "node:crypto";
+import { pipeline } from "node:stream/promises";
+import { Transform } from "node:stream";
 import { spawn } from "node:child_process";
-import { access, chmod, mkdtemp, open, readFile, rename } from "node:fs/promises";
+import { access, chmod, mkdir, mkdtemp, open, readFile, rename, rm } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import process from "node:process";
@@ -41,6 +44,7 @@ import { runSetup } from "./setup.js";
 import { CliUpdateError, runCliUpdate } from "./update.js";
 import { buildDiagnosticPlan, renderDiagnostic } from "./diagnostics.js";
 import { loadCredentialEnvironment } from "../config/credentials.js";
+import { configuredUseGptDataDir, diagnoseUseGpt, startUseGptServices } from "../usegpt/services.js";
 import { resolveArkSpacePaths } from "../config/paths.js";
 import { defaultConfig, getProviderConfig, getSearxngConfig, isToolEnabled, type ArkSpaceConfig } from "../config/schema.js";
 import { addEnvironmentKey, addSearxngInstance, configureSearxng, loadConfig } from "../config/store.js";
@@ -143,7 +147,15 @@ program.command("update")
 program.command("setup").argument("[service]", "exa, tavily, firecrawl, searxng, weknora or usegpt")
   .description("Manage service connections and credentials in a trusted terminal")
   .option("--lang <language>", "Setup language for this run: en or zh (English / 中文)")
-  .action(async (provider: string | undefined, options: { lang?: string }) => {
+  .option("--start", "Start the configured Hub and Tunnel in the background")
+  .action(async (provider: string | undefined, options: { lang?: string; start?: boolean }) => {
+    if (options.start) {
+      if (provider !== "usegpt") throw new Error("--start requires setup usegpt.");
+      const result = await startUseGptServices(originalEnvironment);
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      if (!result.ok) process.exitCode = 1;
+      return;
+    }
     await runSetup(resolveArkSpacePaths(), undefined, {
       ...(provider === undefined ? {} : { provider }), ...(options.lang === undefined ? {} : { language: options.lang }),
       environment: originalEnvironment, signal: operationController.signal,
@@ -295,12 +307,19 @@ for (const mode of ["once", "run"] as const) workerCommand.command(mode)
       process.exitCode = 1;
     }
   });
+useGptCommand.command("diagnose").description("Check UseGPT configuration, Hub, and Tunnel").option("--json", "Write JSON").action(async (options: { json?: boolean }) => {
+  const result = await diagnoseUseGpt(originalEnvironment);
+  process.stdout.write(`${options.json ? JSON.stringify(result) : `Configuration: ${result.configured}; Hub: ${result.daemonRunning}; Tunnel: ${result.tunnelRunning}; next: ${result.ok ? "ready" : result.next}`}\n`);
+  if (!result.ok) process.exitCode = 1;
+});
+
+
 const tunnelCommand = useGptCommand.command("tunnel").description("Manage the background Secure MCP Tunnel");
 const tunnelState = (dataDir: string) => join(normalizeDaemonDataDir(dataDir), ".tunnel", "tunnel.json");
 const tunnelRead = async (dataDir: string) => { try { return JSON.parse(await readFile(tunnelState(dataDir), "utf8")) as { pid: number; logPath?: string }; } catch { return undefined; } };
 const tunnelAlive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
-tunnelCommand.command("start").option("--data-dir <path>", "Hub data directory", defaultDaemonDataDir()).action(async (options: { dataDir: string }) => {
-  const dataDir = normalizeDaemonDataDir(options.dataDir); const current = await tunnelRead(dataDir);
+tunnelCommand.command("start").option("--data-dir <path>", "Hub data directory").action(async (options: { dataDir?: string }) => {
+  const dataDir = normalizeDaemonDataDir(options.dataDir ?? await configuredUseGptDataDir(originalEnvironment)); const current = await tunnelRead(dataDir);
   if (current && tunnelAlive(current.pid)) { process.stdout.write(`${JSON.stringify({ ok: true, running: true, pid: current.pid, dataDir, logPath: current.logPath })}\n`); return; }
   const entry = resolve(process.argv[1]!); const script = resolve(dirname(entry), "../usegpt/tunnel-service.js");
   const child = spawn(process.execPath, [script, "--background"], { detached: true, stdio: "ignore", env: process.env }); child.unref();
@@ -309,8 +328,8 @@ tunnelCommand.command("start").option("--data-dir <path>", "Hub data directory",
   process.stdout.write(`${JSON.stringify({ ok: Boolean(state && tunnelAlive(state.pid)), running: Boolean(state && tunnelAlive(state.pid)), ...(state ?? {}), dataDir })}\n`);
   if (!state || !tunnelAlive(state.pid)) process.exitCode = 1;
 });
-tunnelCommand.command("status").option("--data-dir <path>", "Hub data directory", defaultDaemonDataDir()).action(async (options: { dataDir: string }) => { const dataDir = normalizeDaemonDataDir(options.dataDir); const state = await tunnelRead(dataDir); const running = Boolean(state && tunnelAlive(state.pid)); process.stdout.write(`${JSON.stringify({ ok: true, running, dataDir, ...(running ? state : {}) })}\n`); });
-tunnelCommand.command("stop").option("--data-dir <path>", "Hub data directory", defaultDaemonDataDir()).action(async (options: { dataDir: string }) => { const dataDir = normalizeDaemonDataDir(options.dataDir); const state = await tunnelRead(dataDir); if (state && tunnelAlive(state.pid)) { process.kill(state.pid, "SIGTERM"); const deadline = Date.now() + 5_000; while (tunnelAlive(state.pid) && Date.now() < deadline) await new Promise(resolveDelay => setTimeout(resolveDelay, 50)); } const running = Boolean(state && tunnelAlive(state.pid)); process.stdout.write(`${JSON.stringify({ ok: !running, running, dataDir })}\n`); if (running) process.exitCode = 1; });
+tunnelCommand.command("status").option("--data-dir <path>", "Hub data directory").action(async (options: { dataDir?: string }) => { const dataDir = normalizeDaemonDataDir(options.dataDir ?? await configuredUseGptDataDir(originalEnvironment)); const state = await tunnelRead(dataDir); const running = Boolean(state && tunnelAlive(state.pid)); process.stdout.write(`${JSON.stringify({ ok: true, running, dataDir, ...(running ? state : {}) })}\n`); });
+tunnelCommand.command("stop").option("--data-dir <path>", "Hub data directory").action(async (options: { dataDir?: string }) => { const dataDir = normalizeDaemonDataDir(options.dataDir ?? await configuredUseGptDataDir(originalEnvironment)); const state = await tunnelRead(dataDir); if (state && tunnelAlive(state.pid)) { process.kill(state.pid, "SIGTERM"); const deadline = Date.now() + 5_000; while (tunnelAlive(state.pid) && Date.now() < deadline) await new Promise(resolveDelay => setTimeout(resolveDelay, 50)); } const running = Boolean(state && tunnelAlive(state.pid)); process.stdout.write(`${JSON.stringify({ ok: !running, running, dataDir })}\n`); if (running) process.exitCode = 1; });
 
 
 for (const group of ["project", "task", "artifact", "handoff", "storage", "delete"]) {
@@ -348,6 +367,33 @@ for (const group of ["project", "task", "artifact", "handoff", "storage", "delet
     });
   }
 }
+
+const artifactCommand = useGptCommand.commands.find(command => command.name() === "artifact")!;
+artifactCommand.command("export").argument("<artifactId>").requiredOption("--revision <number>", "Fixed revision").requiredOption("--output-dir <path>", "Existing private output directory").option("--json", "Write JSON").action(async (artifactId: string, options: { revision: string; outputDir: string }) => {
+  const { UseGptHubStore } = await import("../usegpt/hub-store.js");
+  const store = await UseGptHubStore.open(await configuredUseGptDataDir(originalEnvironment));
+  let directory: string | undefined;
+  try {
+    const { artifact, stream } = await store.exportArtifact({ artifactId, revision: parseIntegerOption(options.revision, "--revision") });
+    try {
+      await mkdir(resolve(options.outputDir), { recursive: true, mode: 0o700 });
+      directory = await mkdtemp(join(resolve(options.outputDir), "usegpt-export-"));
+      await chmod(directory, 0o700);
+      const outputPath = join(directory, "content.bin");
+      const handle = await open(outputPath, "wx", 0o600);
+      const digest = createHash("sha256"); let sizeBytes = 0;
+      try {
+        await pipeline(stream, new Transform({ transform(chunk: Buffer, _encoding, done) { sizeBytes += chunk.length; digest.update(chunk); done(null, chunk); } }), handle.createWriteStream());
+      } finally { await handle.close(); }
+      const sha256 = digest.digest("hex");
+      if (sizeBytes !== artifact.sizeBytes || sha256 !== artifact.sha256) throw new Error("Artifact integrity mismatch.");
+      process.stdout.write(`${JSON.stringify({ ok: true, artifactId: artifact.id, revision: artifact.revision, name: artifact.name, sizeBytes, sha256, verified: true, outputPath })}\n`);
+    } finally { stream.destroy(); }
+  } catch {
+    if (directory) await rm(directory, { recursive: true, force: true });
+    process.stdout.write(`${JSON.stringify({ ok: false, error: "Cannot export the fixed revision. Check the artifact, revision and output directory." })}\n`); process.exitCode = 1;
+  } finally { await store.close(); }
+});
 
 const handoffCommand = useGptCommand.commands.find(command => command.name() === "handoff");
 if (!handoffCommand) throw new Error("Handoff command is unavailable.");

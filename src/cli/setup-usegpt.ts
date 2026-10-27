@@ -1,3 +1,4 @@
+import { startUseGptServices } from "../usegpt/services.js";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ArkSpacePaths } from "../config/paths.js";
@@ -46,6 +47,7 @@ export class SetupUseGpt {
   hints(_selectedRow = 0) {
     return [
       { intent: "edit" as const, keys: ["return", "enter", "e"], key: "Enter/e", label: this.t("Edit selected setting", "编辑所选设置"), reason: "" },
+      { intent: "test" as const, keys: ["t"], key: "t", label: this.t("Start services", "启动服务"), reason: this.saved ? "" : this.t("Save Tunnel settings first.", "请先保存隧道配置。") },
       { intent: "details" as const, keys: ["i"], key: "i", label: this.t("Details", "详情") },
       { intent: "remove" as const, keys: ["d"], key: "d", label: this.t("Unlink local config", "解绑本地配置"), reason: this.saved ? "" : this.t("No local UseGPT configuration to remove.", "没有可删除的本地UseGPT配置。"), tone: "danger" as const },
     ];
@@ -56,6 +58,15 @@ export class SetupUseGpt {
     const t = this.t.bind(this);
     const confirm = (title: string, body: string, accept: string, tone: SetupTone = "warning") => this.terminal.confirm(view, title, body, accept, t("Cancel", "取消"), this.signal, tone);
     const notice = (body: string, tone: SetupTone = "info") => this.terminal.notice(view, t("UseGPT details", "UseGPT详情"), body, t("Close", "关闭"), this.signal, tone);
+    if (intent === "test") {
+      if (!await confirm(t("Start UseGPT services", "启动UseGPT服务"), t("Start the Hub and Tunnel in the background. Tunnel will connect to the configured service. You can close the terminal afterwards.", "在后台启动产物中心和隧道，隧道将连接已配置的服务。启动后可关闭终端。"), t("Start", "启动"))) return;
+      try {
+        const result = await startUseGptServices({ ...this.environment, ARKSPACE_HOME: this.paths.home });
+        this.result = result.ok ? t("Services running", "服务已运行") : t("Service startup incomplete", "服务启动未完成");
+        await notice(this.result);
+      } catch { await notice(t("Unable to start. Check saved Tunnel ID, API key, and Tunnel client; run arks usegpt diagnose --json.", "无法启动。请检查隧道ID、API密钥和隧道客户端；运行 arks usegpt diagnose --json 查看诊断。"), "warning"); }
+      return;
+    }
     if (intent === "remove") {
       if (!this.saved || !await confirm(t("Unlink UseGPT configuration", "解绑UseGPT配置"), t("Remove the local Hub binding only. Stored task data and local credentials are not deleted.", "仅解绑本地Hub配置；不会删除已保存的任务数据和本地凭据。"), t("Unlink", "解绑"), "danger")) return;
       await removeUseGptConfig(this.paths); this.pending = undefined; this.result = ""; await this.refresh(); return;

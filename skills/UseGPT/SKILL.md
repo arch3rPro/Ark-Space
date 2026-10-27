@@ -6,6 +6,18 @@ compatibility: Requires the arks CLI and Node.js 20+ for general ArkSpace comman
 
 # UseGPT Artifact Hub
 
+Use this Skill as a four-step operation: configure the Secure MCP Tunnel, start the local Hub and Tunnel, retrieve ChatGPT's fixed-revision result, then diagnose configuration or service failures before retrying. Follow the exact commands in [references/operations.md](references/operations.md).
+
+The human setup flow is:
+
+```text
+arks setup usegpt
+→ arks usegpt daemon start
+→ arks usegpt tunnel start
+→ ChatGPT completes the task and publishes Artifacts
+→ Agent lists the Project/Task and reads or exports the fixed Artifact revision
+```
+
 ChatGPT is the output producer. The local Artifact Hub stores those outputs as versioned Artifacts under a Project and Task. Agents discover and consume fixed Artifact revisions through the `arks` CLI, MCP, or `arks invoke`.
 
 The Hub does not open, wake, or control a closed ChatGPT conversation. Do not use Chrome, CDP, simulated clicks, browser profiles, or webpage automation. Secure MCP Tunnel transports calls that ChatGPT makes to the configured MCP endpoint; it does not create a new ChatGPT turn by itself.
