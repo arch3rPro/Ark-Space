@@ -73,8 +73,7 @@ async function qualify() {
       });
     }
     async function byteLock(entry, tag) {
-      const [plain, v1] = await Promise.all([nonTTY(entry, {}, tag), nonTTY(entry, { ARKS_TUI: "v1" }, tag + "-v1")]);
-      if (plain !== v1) throw new Error(`Non-TTY machine output changed with ARKS_TUI=v1 (${tag}).`);
+      const plain = await nonTTY(entry, {}, tag);
       if (plain.includes("1049") || plain.includes("[?25")) throw new Error(`Non-TTY output leaked terminal control (${tag}).`);
       return plain.length;
     }
@@ -105,7 +104,7 @@ async function qualify() {
     const installed = parse(await run("python3", [python, "--entry", executable]), "installed PTY report");
     for (const report of [source, installed]) if (report.status !== "passed" || !report.logicalChecks) throw new Error("PTY seam did not qualify.");
     process.stdout.write(JSON.stringify({ status: "passed", platform: "linux", source, installed,
-      nonTTYByteLock: { sourceBytes: sourceLock, installedBytes: installedLock, compared: "with and without ARKS_TUI escape hatch" },
+      nonTTYByteLock: { sourceBytes: sourceLock, installedBytes: installedLock, compared: "single machine path; v2 is the only entry" },
       installation: "offline npm, owned empty cache, local runtime tarballs, lifecycle scripts denied",
       unverified: ["Windows real TTY", "macOS real TTY", "real services", "human UX acceptance"] }) + "\n");
     process.stderr.write(`Linux real PTY: source ${source.logicalChecks}, offline installed arks ${installed.logicalChecks} logical checks passed; non-TTY output byte-locked.\n`);

@@ -169,3 +169,9 @@ Pi worker handoff 故障诊断、全局安装/`/usr/bin/arks` 切换、systemd �
   - 资格过程揪出 3 个真 bug：① form 围栏吞 `data`/`connData`/`loadError`/`notice`（刷新丢更新+失败通知不可见）→ 只读事件透传，补回归单测；② host 缺 preview/details 模式按键路由（r 揭示死键）→ 补齐；③ pool 多行通知在单行状态栏不可见 → 改单行拼接。另补 setup-language 9 条 P2–P4 错误串中英表 + 覆盖哨兵测（枚举可达字面量，未知串仍拒绝）。
   - 验收：**源与离线安装入口各 67 项逻辑断言全过**（npm run test:setup）；全量 **824/824** + validate=0；未复现旧套件 flaky（本轮两次满载全绿）。
   - 遗留：macOS/Windows 真实 TTY 人工证据；README/INSTALL/architecture 的 v1 详细描述段落归 P6 重写；`ARKS_TUI=v1` 出口 P6 删除。
+- **P6 旧 UI 删除 + 文档同步（2026-11）**：
+  - 删除前补齐 v2 连接页奇偶缺口（资格脚本行断言暴露）：WeKnora `移除连接`（取消默认，仅删本地配置与未共享密钥）；UseGPT 配置面（Tunnel ID 正则校验 / 绝对路径数据目录 / 掩码 API 密钥 + 覆盖同意 / 解绑同意，语义逐条对齐退役 v1 壳：save 保留 enabled、legacy CDP 键丢弃、env CONTROL_PLANE_API_KEY 优先）。新增 4 op（wekRemove/usegptSave/usegptKey/usegptUnlink）、3 form intent、4 confirm tag、data.ts 扩展 UseGptStatus(tunnelId/dataDir/keySource/savedKey)。
+  - 删除：`setup-terminal.ts`(519L)、`setup-workbench.ts`(509L)、`setup-weknora.ts`、`setup-usegpt.ts` 与 4 个旧测试文件；`setup.ts` 315→45 行（入口：校验→非 TTY 单行→v2）；`ARKS_TUI` 出口移除（无环境变量残留引用）；injected-menu 安全测由 v2 单测 + 常驻 PTY 套件接管；setup-language/setup-key-tests 保留（v2 引用）。setup.test.ts 重写为入口契约测（7 项，v2 引擎经 vi.mock 驱动 cancel/fatal 本地化）。
+  - PTY：check.py 增 5 断言（config 行存在、tunnel 校验拒写/接受离线保存、密钥掩码不回显、weknora remove 取消零写）；byteLock 简化为单路径无泄露断言。发现 ESC 单发在 check 驱动中被解析器滞留——驱动表单取消须用 `\x1b\x1b` 或退格清稿（脚本层，非产品 bug）。
+  - 文档：README/README.zh-CN/INSTALL/architecture 的 v1 长描述段统一改写为 v2 六上下文契约摘要（中英事实对齐，ADR 0016/0017/0023/0024 链接，validate 链接检查通过）。`.scratch` 归档目录为 issue-tracker 记录，按仓库惯例保留。
+  - 验收：单测 567/567 + validate=0 + verify:package；`npm run test:setup` 源与离线安装入口各 **72/72**。遗留：macOS/Windows 真实 TTY 人工证据；0.1.5 发布动作本身（未请求）。

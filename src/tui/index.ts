@@ -205,6 +205,13 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
         if (op.field === "key" || (op.field === "url" && op.secret === undefined)) dispatch({ type: "formDone" });
         dispatch({ type: "notice", text: msg(state.lang, "wekSaved") });
         break;
+      case "wekRemove": dispatch({ type: "notice", text: msg(state.lang, "wekRemoved") }); break;
+      case "usegptSave": dispatch({ type: "notice", text: msg(state.lang, "usegptConfigSaved") }); break;
+      case "usegptKey":
+        dispatch({ type: "formDone" });
+        dispatch({ type: "notice", text: msg(state.lang, "usegptKeySaved") });
+        break;
+      case "usegptUnlink": dispatch({ type: "notice", text: msg(state.lang, "usegptUnlinked") }); break;
       case "setLanguage":
         options.onLanguageChange?.(op.lang);
         dispatch({ type: "language", lang: op.lang });

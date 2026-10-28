@@ -7,9 +7,12 @@
 import {
   addSetupKey, removeSetupKey, replaceSetupKey, setSetupKeyEnabled,
   setSetupLanguage, setSetupProviderEnabled, setSetupProviderOrder,
-  updateSetupInstance, removeSetupInstance, saveWeknoraConnection,
+  updateSetupInstance, removeSetupInstance, saveWeknoraConnection, removeWeknoraConnection,
 } from "../config/manage.js";
 import { addSearxngInstance, loadConfig } from "../config/store.js";
+import { saveUseGptConfig, removeUseGptConfig } from "../config/usegpt.js";
+import { storeCredential, validateCredentialValue } from "../config/credentials.js";
+import { UseGptConfigSchema, USEGPT_API_KEY_VARIABLE } from "../config/schema.js";
 import type { ArkSpacePaths } from "../config/paths.js";
 import type { Op } from "./controller.js";
 
@@ -51,6 +54,28 @@ export async function runOp(paths: ArkSpacePaths, environment: NodeJS.ProcessEnv
         await saveWeknoraConnection(paths, { baseUrl: conn.baseUrl, ...(op.value ? { defaultKnowledgeBaseId: op.value } : {}) }, undefined, { reuseSavedKey: true }, environment);
         return { ok: true };
       }
+      case "wekRemove": await removeWeknoraConnection(paths); return { ok: true };
+      case "usegptSave": {
+        const config = await loadConfig(paths.config);
+        const saved = config.connections?.usegpt;
+        // same field set as the retired v1 shell: legacy CDP keys are dropped on save
+        const parsed = UseGptConfigSchema.safeParse({
+          enabled: saved?.enabled ?? true,
+          tunnelId: op.field === "tunnelId" ? op.value : saved?.tunnelId,
+          dataDir: op.field === "dataDir" ? op.value : saved?.dataDir,
+          apiKeyRef: `env:${USEGPT_API_KEY_VARIABLE}`,
+        });
+        if (!parsed.success) return { ok: false, reason: "Use a tunnel_ ID and an absolute local data directory." };
+        await saveUseGptConfig(paths, parsed.data);
+        return { ok: true };
+      }
+      case "usegptKey": {
+        const normalized = validateCredentialValue(op.secret);
+        if (!normalized) return { ok: false, reason: "Credential values must be non-empty and must not contain controls or placeholders." };
+        await storeCredential(paths.credentials, USEGPT_API_KEY_VARIABLE, normalized, { overwrite: true });
+        return { ok: true };
+      }
+      case "usegptUnlink": await removeUseGptConfig(paths); return { ok: true };
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "unexpected error";

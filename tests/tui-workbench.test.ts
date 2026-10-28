@@ -325,7 +325,7 @@ describe("P4 connection pages", () => {
   });
 
   it("usegpt start/stop confirmations default to cancel; diagnose is a plain service call", () => {
-    const s = { ...loaded(), region: "content" as const, context: 5, usegpt: { configured: true, daemonRunning: false, tunnelRunning: false, issues: [] } };
+    const s = { ...loaded(), region: "content" as const, context: 5, usegpt: { configured: true, daemonRunning: false, tunnelRunning: false, issues: [], keySource: "missing" as const, savedKey: false } };
     const start = reduce({ ...s, row: 2 }, { type: "enter" }); // row 2 = start
     expect(start.state.modal?.tag).toBe("usegpt-start");
     expect(start.state.modal?.cursor).toBe(0); // cancel first (ADR 0016)
@@ -352,11 +352,67 @@ describe("P4 connection pages", () => {
   });
 
   it("connData lands snapshots; rowCount covers both pages", () => {
-    const s = reduce(loaded(), { type: "connData", weknora: null, usegpt: { configured: false, daemonRunning: false, tunnelRunning: false, issues: ["not-configured"] } });
+    const s = reduce(loaded(), { type: "connData", weknora: null, usegpt: { configured: false, daemonRunning: false, tunnelRunning: false, issues: ["not-configured"], keySource: "missing" as const, savedKey: false } });
     expect(s.state.weknora).toBeNull();
     expect(s.state.usegpt?.configured).toBe(false);
-    expect(rowCount({ ...loaded(), context: 4, weknora: null })).toBe(4);
-    expect(rowCount({ ...loaded(), context: 5 })).toBe(5);
+    expect(rowCount({ ...loaded(), context: 4, weknora: null })).toBe(5);
+    expect(rowCount({ ...loaded(), context: 5 })).toBe(9);
+  });
+});
+
+describe("P6 connection parity writes", () => {
+  const usegptState = (over: Partial<State> = {}): State => ({
+    ...loaded(), region: "content" as const, context: 5, ...over,
+    usegpt: { configured: true, daemonRunning: false, tunnelRunning: false, issues: [], tunnelId: "tunnel_old_00000000", dataDir: "/home/u/.arks/hub", keySource: "missing" as const, savedKey: false },
+  });
+  const yesPick = (s: State): { state: State; effects: unknown[] } => reduce({ ...s, modal: { ...s.modal!, cursor: 1 } }, { type: "modalPick" });
+
+  it("weknora remove row asks cancel-default consent and writes only on yes", () => {
+    const s = { ...loaded(), region: "content" as const, context: 4, row: 4 } as State;
+    const asked = reduce(s, { type: "enter" });
+    expect(asked.state.modal?.tag).toBe("wek-remove");
+    expect(asked.effects).toEqual([]);
+    expect(reduce(asked.state, { type: "modalPick" }).effects).toEqual([]); // cancel at default cursor
+    expect(yesPick(asked.state).effects).toEqual([{ type: "op", op: { kind: "wekRemove" } }]);
+  });
+
+  it("usegpt tunnel/dir forms validate before dispatching a save", () => {
+    const bad = reduce({ ...usegptState(), row: 5 }, { type: "enter" });
+    expect(bad.state.mode).toBe("form");
+    const typed = { ...bad.state, form: { ...bad.state.form!, draft: "nope" } };
+    expect(reduce(typed, { type: "formSave" }).effects).toEqual([]);
+    const good = { ...typed, form: { ...typed.form!, draft: "tunnel_new_00000001" } };
+    const saved = reduce(good, { type: "formSave" });
+    expect(saved.effects).toEqual([{ type: "op", op: { kind: "usegptSave", field: "tunnelId", value: "tunnel_new_00000001" } }]);
+    expect(saved.state.mode).toBe("browse");
+    const dForm = reduce({ ...usegptState(), row: 6 }, { type: "enter" });
+    const rel = { ...dForm.state, form: { ...dForm.state.form!, draft: "relative/path" } };
+    expect(reduce(rel, { type: "formSave" }).effects).toEqual([]);
+    const abs = { ...rel, form: { ...rel.form!, draft: "/home/u/hub2" } };
+    expect(reduce(abs, { type: "formSave" }).effects).toEqual([{ type: "op", op: { kind: "usegptSave", field: "dataDir", value: "/home/u/hub2" } }]);
+  });
+
+  it("usegpt key entry masks, asks replace consent only over a saved key, hands the draft to the op only on yes", () => {
+    const fresh = reduce({ ...usegptState(), row: 7 }, { type: "enter" });
+    expect(fresh.state.form?.field).toBe("secret");
+    expect(fresh.state.form?.typing).toBe(true);
+    const typed = { ...fresh.state, form: { ...fresh.state.form!, draft: "sk-secret-123", typing: false } };
+    const direct = reduce(typed, { type: "formSave" });
+    expect(direct.effects).toEqual([{ type: "op", op: { kind: "usegptKey", secret: "sk-secret-123" } }]);
+    const over: State = { ...typed, usegpt: { ...typed.usegpt!, savedKey: true, keySource: "file" as const } };
+    const asked = reduce(over, { type: "formSave" });
+    expect(asked.effects).toEqual([]);
+    expect(asked.state.modal?.tag).toBe("usegpt-key-replace");
+    expect(reduce(asked.state, { type: "modalPick" }).effects).toEqual([]);
+    const yes = yesPick(asked.state);
+    expect(yes.effects).toEqual([{ type: "op", op: { kind: "usegptKey", secret: "sk-secret-123" } }]);
+  });
+
+  it("usegpt unlink is a consent modal; cancel writes nothing", () => {
+    const asked = reduce({ ...usegptState(), row: 8 }, { type: "enter" });
+    expect(asked.state.modal?.tag).toBe("usegpt-unlink");
+    expect(reduce(asked.state, { type: "modalPick" }).effects).toEqual([]);
+    expect(yesPick(asked.state).effects).toEqual([{ type: "op", op: { kind: "usegptUnlink" } }]);
   });
 });
 

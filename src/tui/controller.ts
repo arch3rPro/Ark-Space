@@ -27,11 +27,11 @@ export interface TestRun {
 }
 
 export interface FormState {
-  provider: ProviderId | "weknora";
+  provider: ProviderId | "weknora" | "usegpt";
   reference: string | null;  // null = add, otherwise edit existing local key (or old instance URL)
   draft: string;             // typed value; secrets only ever held in memory (ADR 0016)
   typing: boolean;           // Enter starts editing, Enter commits, Esc reverts
-  intent: "key" | "instAdd" | "instEdit" | "cidrAdd" | "cidrEdit" | "wekUrl" | "wekKey" | "wekKb";
+  intent: "key" | "instAdd" | "instEdit" | "cidrAdd" | "cidrEdit" | "wekUrl" | "wekKey" | "wekKb" | "usegptTunnel" | "usegptDir" | "usegptKey";
   field: "secret" | "url" | "cidr" | "text";
   pending?: { url: string; oldUrl?: string | undefined }; // cidr second step carries the staged endpoint
 }
@@ -71,7 +71,7 @@ export interface State {
   usegpt: UseGptStatus | null;
 }
 
-export interface UseGptStatus { configured: boolean; daemonRunning: boolean; tunnelRunning: boolean; issues: string[] }
+export interface UseGptStatus { configured: boolean; daemonRunning: boolean; tunnelRunning: boolean; issues: string[]; tunnelId?: string | undefined; dataDir?: string | undefined; keySource: "missing" | "file" | "environment" | "invalid"; savedKey: boolean }
 
 export type Op =
   | { kind: "addKey"; provider: ProviderId; secret: string }
@@ -85,7 +85,12 @@ export type Op =
   | { kind: "addInstance"; baseUrl: string; allowRanges: string[] }
   | { kind: "editInstance"; oldBaseUrl: string; baseUrl: string; allowRanges: string[] }
   | { kind: "removeInstance"; baseUrl: string }
-  | { kind: "wekSave"; field: "url" | "key" | "kb"; value: string; reuseSavedKey: boolean; secret?: string };
+  | { kind: "wekSave"; field: "url" | "key" | "kb"; value: string; reuseSavedKey: boolean; secret?: string }
+  | { kind: "wekRemove" }
+  // P6 connection parity writes (port of the retired v1 shells)
+  | { kind: "usegptSave"; field: "tunnelId" | "dataDir"; value: string }
+  | { kind: "usegptKey"; secret: string }
+  | { kind: "usegptUnlink" };
 
 export type Event =
   | { type: "data"; snapshot: SetupSnapshot }
@@ -167,8 +172,8 @@ export function rowCount(state: State): number {
   if (state.page === "config") return (state.orderDraft ?? snapshot.providerOrder).length;
   if (state.page === "settings") return 2;
   if (state.page === "diagnostics") return state.diagnostics.length;
-  if (state.context === 4) return 4; // endpoint / key / kb / verify
-  if (state.context === 5) return 5; // hub / tunnel / start / stop / diagnose
+  if (state.context === 4) return 5; // endpoint / key / kb / verify / remove
+  if (state.context === 5) return 9; // hub / tunnel / start / stop / diagnose / tunnelId / dir / key / unlink
   const provider = snapshot.providers[state.context];
   if (!provider) return 0; // WeKnora/UseGPT contexts have no rows until P4
   return provider.id === "searxng" ? provider.instances.length : provider.keys.length;
@@ -205,7 +210,6 @@ function withForm(state: State, form: FormState | null): State {
 function refuseGuard(state: State, key: ReturnType<typeof selectedKey>): { state: State; effects: Effect[] } | null {
   if (!key) return notice(state, msg(state.lang, "noRows"));
   if (state.context >= 4) return notice(state, msg(state.lang, "connPending"));
-  const provider = currentProvider(state)!;
   if (key.source === "environment") return notice(state, msg(state.lang, "envGuarded"), true);
   return null;
 }
@@ -272,6 +276,13 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
         case "wek-verify": case "usegpt-start": case "usegpt-stop":
           if (picked.value !== "yes") return { state: closed, effects: [] };
           return { state: closed, effects: [{ type: "service", action: modal.tag === "wek-verify" ? "wekVerify" : modal.tag === "usegpt-start" ? "usegptStart" : "usegptStop" }] };
+        case "wek-remove":
+          return { state: closed, effects: picked.value === "yes" ? [{ type: "op", op: { kind: "wekRemove" } }] : [] };
+        case "usegpt-key-replace":
+          if (picked.value !== "yes" || !closed.form) return { state: closed, effects: [] };
+          return { state: closed, effects: [{ type: "op", op: { kind: "usegptKey", secret: closed.form.draft } }] };
+        case "usegpt-unlink":
+          return { state: closed, effects: picked.value === "yes" ? [{ type: "op", op: { kind: "usegptUnlink" } }] : [] };
         case "test-scope": {
           if (picked.value === "cancel") return { state: closed, effects: [] };
           const provider = currentProvider(state);
@@ -645,6 +656,16 @@ function formSaveEvent(state: State, form: FormState): { state: State; effects: 
       return { state: { ...state, form: null, mode: "browse" as Mode }, effects: [{ type: "op", op: { kind: "wekSave", field: "key", value: form.draft, reuseSavedKey: false } }] };
     case "wekKb":
       return { state: { ...state, form: null, mode: "browse" as Mode }, effects: [{ type: "op", op: { kind: "wekSave", field: "kb", value: draft, reuseSavedKey: false } }] };
+    case "usegptTunnel":
+      if (!/^tunnel_[A-Za-z0-9_-]{8,128}$/.test(draft)) return notice(state, msg(state.lang, "usegptTunnelInvalid"), true);
+      return { state: { ...state, form: null, mode: "browse" as Mode }, effects: [{ type: "op", op: { kind: "usegptSave", field: "tunnelId", value: draft } }] };
+    case "usegptDir":
+      if (!draft.startsWith("/") || /[\s\u0000-\u001f\u007f\\]/.test(draft) || draft.includes("..")) return notice(state, msg(state.lang, "usegptDirInvalid"), true);
+      return { state: { ...state, form: null, mode: "browse" as Mode }, effects: [{ type: "op", op: { kind: "usegptSave", field: "dataDir", value: draft } }] };
+    case "usegptKey":
+      if (!form.draft) return notice(state, msg(state.lang, "emptySecret"), true);
+      if (state.usegpt?.savedKey) return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "overwriteConfirm", { ref: "env:CONTROL_PLANE_API_KEY" }), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "usegpt-key-replace" } }, effects: [] };
+      return { state: { ...state, form: null, mode: "browse" as Mode }, effects: [{ type: "op", op: { kind: "usegptKey", secret: form.draft } }] };
   }
 }
 
@@ -660,14 +681,20 @@ function connectionEnter(state: State): { state: State; effects: Effect[] } {
       case 1: return { state: withForm(state, { ...base, draft: "", typing: true, intent: "wekKey", field: "secret" }), effects: [] };
       case 2: return { state: withForm(state, { ...base, draft: wk?.defaultKnowledgeBaseId ?? "", intent: "wekKb", field: "text" }), effects: [] };
       case 3: return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "rowVerify"), note: msg(state.lang, "wekVerifyConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "wek-verify" } }, effects: [] };
+      case 4: return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "rowRemoveConn"), note: msg(state.lang, "wekRemoveConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "wek-remove" } }, effects: [] };
     }
     return { state, effects: [] };
   }
+  const u = state.usegpt;
   switch (state.row) {
     case 0: case 1: return notice(state, msg(state.lang, "statusNote"));
     case 2: return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "rowStart"), note: msg(state.lang, "usegptStartConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "usegpt-start" } }, effects: [] };
     case 3: return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "rowStop"), note: msg(state.lang, "usegptStopConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "usegpt-stop" } }, effects: [] };
     case 4: return { state, effects: [{ type: "service", action: "usegptDiagnose" }] };
+    case 5: return { state: withForm(state, { provider: "usegpt", reference: null, draft: u?.tunnelId ?? "", typing: false, intent: "usegptTunnel", field: "text" }), effects: [] };
+    case 6: return { state: withForm(state, { provider: "usegpt", reference: null, draft: u?.dataDir ?? "", typing: false, intent: "usegptDir", field: "text" }), effects: [] };
+    case 7: return { state: withForm(state, { provider: "usegpt", reference: null, draft: "", typing: true, intent: "usegptKey", field: "secret" }), effects: [] };
+    case 8: return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "rowUnlinkUseGpt"), note: msg(state.lang, "usegptUnlinkConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "usegpt-unlink" } }, effects: [] };
     default: return { state, effects: [] };
   }
 }

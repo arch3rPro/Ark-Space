@@ -259,16 +259,22 @@ function previewLines(state: State, width: number): string[] {
 }
 
 // ---------------- form page ----------------
+function formTitleKey(form: NonNullable<State["form"]>): string {
+  return form.intent === "key" ? (form.reference ? "formTitleEdit" : "formTitleAdd")
+    : form.intent === "instAdd" ? "formInstAdd" : form.intent === "instEdit" ? "formInstEdit"
+    : form.intent === "cidrAdd" || form.intent === "cidrEdit" ? "formCidr"
+    : form.intent === "wekUrl" ? "wekUrlFormTitle" : form.intent === "wekKey" ? "wekKeyFormTitle"
+    : form.intent === "usegptTunnel" ? "usegptTunnelFormTitle" : form.intent === "usegptDir" ? "usegptDirFormTitle"
+    : form.intent === "usegptKey" ? "usegptKeyFormTitle" : "wekKbFormTitle";
+}
+
 function formLines(state: State, width: number): string[] {
   const form = state.form!;
   const secret = form.field === "secret";
   const labelKey = secret ? "fieldSecretLabel" : form.field === "url" ? "fieldUrlLabel" : form.field === "cidr" ? "fieldCidrLabel" : "fieldTextLabel";
   const shown = secret ? "*".repeat(Math.min(form.draft.length, Math.max(0, width - 24))) : form.draft;
   const field = ` ${msg(state.lang, labelKey)}: ${shown}${form.typing ? "|" : ""}`;
-  const titleKey = form.intent === "key" ? (form.reference ? "formTitleEdit" : "formTitleAdd")
-    : form.intent === "instAdd" ? "formInstAdd" : form.intent === "instEdit" ? "formInstEdit"
-    : form.intent === "cidrAdd" || form.intent === "cidrEdit" ? "formCidr"
-    : form.intent === "wekUrl" ? "wekUrlFormTitle" : form.intent === "wekKey" ? "wekKeyFormTitle" : "wekKbFormTitle";
+  const titleKey = formTitleKey(form);
   const titleRef = form.intent === "key" || form.intent === "instEdit" ? form.reference : form.intent.startsWith("cidr") ? form.pending?.url : null;
   const title = " " + msg(state.lang, titleKey) + (titleRef ? " / " + titleRef : "");
   const hintKey = secret ? (form.typing ? "fieldSecretTyping" : "fieldSecretHint") : "fieldPlainHint";
@@ -306,6 +312,7 @@ function weknoraLines(state: State, width: number): string[] {
     [msg(state.lang, "rowKey"), keyText],
     [msg(state.lang, "rowKb"), wk?.defaultKnowledgeBaseId ?? msg(state.lang, "wekMissing")],
     [msg(state.lang, "rowVerify"), msg(state.lang, "wekVerifyHint")],
+    [msg(state.lang, "rowRemoveConn"), msg(state.lang, "wekRemoveHint")],
   ], note);
 }
 
@@ -313,12 +320,19 @@ function usegptLines(state: State, width: number): string[] {
   const u = state.usegpt;
   const run = (b: boolean | undefined) => b ? FG(32, msg(state.lang, "svcRunning")) : msg(state.lang, "svcStopped");
   const note = !u?.configured ? msg(state.lang, "usegptNotConfigured") : msg(state.lang, "usegptNote");
+  const keyText = u?.keySource === "environment" ? msg(state.lang, "wekEnv")
+    : u?.keySource === "file" ? msg(state.lang, "wekManaged")
+    : u?.keySource === "invalid" ? msg(state.lang, "previewInvalidEnv") : msg(state.lang, "wekMissing");
   return connRows(state, width, [
     [msg(state.lang, "rowHub"), run(u?.daemonRunning)],
     [msg(state.lang, "rowTunnel"), run(u?.tunnelRunning)],
     [msg(state.lang, "rowStart"), msg(state.lang, "startHint")],
     [msg(state.lang, "rowStop"), msg(state.lang, "stopHint")],
     [msg(state.lang, "rowDiagnose"), msg(state.lang, "diagHint")],
+    [msg(state.lang, "rowUseGptTunnel"), u?.tunnelId ? truncateToWidth(u.tunnelId, Math.max(8, width - 20)) : msg(state.lang, "wekMissing")],
+    [msg(state.lang, "rowUseGptDir"), u?.dataDir ? truncateToWidth(u.dataDir, Math.max(8, width - 20)) : msg(state.lang, "wekMissing")],
+    [msg(state.lang, "rowUseGptKey"), keyText],
+    [msg(state.lang, "rowUnlinkUseGpt"), msg(state.lang, "usegptUnlinkHint")],
   ], note);
 }
 
@@ -338,7 +352,7 @@ export function modalLines(modal: ModalState, width: number): string[] {
 export function contentTitle(state: State): string {
   if (state.mode === "details") return msg(state.lang, "detailsTitle") + " / " + (state.detailRef ?? "");
   if (state.mode === "preview") return msg(state.lang, "previewTitle") + " / " + (state.preview?.variable ?? "");
-  if (state.mode === "form" && state.form) return msg(state.lang, state.form.reference ? "formTitleEdit" : "formTitleAdd") + " / " + contextLabel(state, state.context);
+  if (state.mode === "form" && state.form) return msg(state.lang, formTitleKey(state.form)) + " / " + contextLabel(state, state.context);
   if (state.page === "providers") return contextLabel(state, state.context);
   if (state.page === "config") {
     return msg(state.lang, "pageConfig") + " / " + (dirtyOrder(state) ? FG(33, msg(state.lang, "unsaved")) : msg(state.lang, "unchanged"));

@@ -394,6 +394,10 @@ def run(entry):
             session.wait('GET /auth/me')
             session.send('\r')
             check('verify defaults Cancel with zero requests and no writes', trace.read_text() == '' and fingerprint(home) == before)
+            session.send('\x1b[B\r')          # remove connection row
+            session.wait('Remove the local WeKnora connection')
+            session.send('\r')                # cancel default
+            check('remove defaults Cancel and keeps the connection', fingerprint(home) == before and 'removed' not in session.screen())
             session.send('q\x1b[B\r')
             session.until(lambda: session.proc.poll() is not None, 'weknora exit')
         finally:
@@ -406,12 +410,31 @@ def run(entry):
         try:
             session.wait('Hub artifact store')
             check('usegpt page lists services and actions', all(x in session.screen() for x in ['Tunnel service', 'Start services', 'Stop services', 'Diagnose']))
+            check('usegpt page exposes the retired-shell config surface', all(x in session.screen() for x in ['Tunnel ID', 'Data directory', 'API key', 'Unlink configuration']))
             session.send('\x1b[B\x1b[B\x1b[B\x1b[B\r')
             session.wait('configuration_incomplete')
             session.send('\x1b[A\x1b[A\r')   # up from Diagnose to Start services
             session.wait('Start the Hub and Tunnel')
             session.send('\r')
             check('start defaults Cancel: no processes spawned', trace.read_text() == '' and not any((home / p).exists() for p in ['tunnel.pid', 'hub.pid']))
+            empty = fingerprint(home)
+            session.send('\x1b[B\x1b[B\x1b[B\r')   # row 2 (after Start) -> down 3 = Tunnel ID row
+            session.wait('UseGPT Tunnel ID')
+            session.send('\r')                 # start typing
+            session.send('nope')
+            session.send('\r\x13')
+            check('invalid tunnel id is refused without writing', 'must be tunnel_' in session.screen() and fingerprint(home) == empty)
+            session.send('\r')                 # resume typing on the retained draft
+            session.send('\x7f\x7f\x7f\x7f')     # backspace over 'nope'
+            session.send('tunnel_pty_00000001')
+            session.send('\r\x13')
+            session.wait('UseGPT configuration saved')
+            check('valid tunnel id persists offline', json.loads((home / 'config.json').read_text())['connections']['usegpt']['tunnelId'] == 'tunnel_pty_00000001' and trace.read_text() == '')
+            session.send('\x1b[B\x1b[B\r')   # API key row
+            session.wait('UseGPT API key')
+            session.send(KEY)                   # secret form opens mid-typing
+            check('secret entry never echoes', KEY not in session.screen())
+            session.send('\x1b\x1b')          # leave without saving
             session.send('q\x1b[B\r')
             session.until(lambda: session.proc.poll() is not None, 'usegpt exit')
         finally:

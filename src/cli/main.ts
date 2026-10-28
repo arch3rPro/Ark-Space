@@ -156,7 +156,7 @@ program.command("setup").argument("[service]", "exa, tavily, firecrawl, searxng,
       if (!result.ok) process.exitCode = 1;
       return;
     }
-    await runSetup(resolveArkSpacePaths(), undefined, {
+    await runSetup(resolveArkSpacePaths(), {
       ...(provider === undefined ? {} : { provider }), ...(options.lang === undefined ? {} : { language: options.lang }),
       environment: originalEnvironment, signal: operationController.signal,
     });

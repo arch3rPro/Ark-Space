@@ -4,7 +4,9 @@
  */
 import { loadCredentialStore, loadCredentialEnvironment, validateCredentialValue } from "../config/credentials.js";
 import { getSetupSnapshot, getWeknoraConnectionSnapshot } from "../config/manage.js";
+import { loadConfig } from "../config/store.js";
 import { diagnoseUseGpt } from "../usegpt/services.js";
+import { USEGPT_API_KEY_VARIABLE } from "../config/schema.js";
 import type { ArkSpacePaths } from "../config/paths.js";
 import type { PreviewSource, UseGptStatus } from "./controller.js";
 import type { WeknoraConnectionSnapshot } from "../config/manage.js";
@@ -15,11 +17,24 @@ export interface ConnectionSnapshot { weknora: WeknoraConnectionSnapshot | null;
 
 /** Connection state for contexts 4/5. Reads disk + liveness signals only; never writes or probes the network. */
 export async function getConnections(paths: ArkSpacePaths, environment: NodeJS.ProcessEnv): Promise<ConnectionSnapshot> {
-  const weknora = await getWeknoraConnectionSnapshot(paths, environment) ?? null;
-  const d = await diagnoseUseGpt(environment);
+  const [weknora, config, store, d] = await Promise.all([
+    getWeknoraConnectionSnapshot(paths, environment),
+    loadConfig(paths.config),
+    loadCredentialStore(paths.credentials),
+    diagnoseUseGpt(environment),
+  ]);
+  const ug = config.connections?.usegpt;
+  const savedKey = store.values[USEGPT_API_KEY_VARIABLE] !== undefined;
+  const external: unknown = environment[USEGPT_API_KEY_VARIABLE];
+  const keySource = Object.hasOwn(environment, USEGPT_API_KEY_VARIABLE)
+    ? (typeof external === "string" && validateCredentialValue(external) ? "environment" : "invalid")
+    : savedKey ? "file" : "missing";
   return {
-    weknora,
-    usegpt: { configured: d.configured, daemonRunning: d.daemonRunning, tunnelRunning: d.tunnelRunning, issues: d.issues },
+    weknora: weknora ?? null,
+    usegpt: {
+      configured: d.configured, daemonRunning: d.daemonRunning, tunnelRunning: d.tunnelRunning, issues: d.issues,
+      tunnelId: ug?.tunnelId, dataDir: ug?.dataDir, keySource, savedKey,
+    },
   };
 }
 
