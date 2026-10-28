@@ -412,8 +412,8 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     else if (matchesKey(data, "shift+tab")) dispatch({ type: "tab", delta: -1 });
     else if (matchesKey(data, Key.up)) dispatch({ type: "move", delta: -1 });
     else if (matchesKey(data, Key.down)) dispatch({ type: "move", delta: 1 });
-    else if (matchesKey(data, Key.left)) dispatch({ type: "context", delta: -1 });
-    else if (matchesKey(data, Key.right)) dispatch({ type: "context", delta: 1 });
+    else if (state.region === "top" && matchesKey(data, Key.left)) dispatch({ type: "context", delta: -1 }); // arrows belong to the focused region only
+    else if (state.region === "top" && matchesKey(data, Key.right)) dispatch({ type: "context", delta: 1 });
     else if (onConfig && ch === "u") dispatch({ type: "orderMove", delta: -1 });
     else if (onConfig && ch === "d") dispatch({ type: "orderMove", delta: 1 });
     else if (onConfig && matchesKey(data, Key.delete)) dispatch({ type: "orderDrop" });

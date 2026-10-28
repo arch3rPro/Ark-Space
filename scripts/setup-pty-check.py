@@ -313,9 +313,11 @@ def run(entry):
 
             # searxng private endpoint requires an explicit per-instance grant
             session.send('\t\t\x1b[A\r')   # menu cursor: Order -> Providers page
+            session.send('\t')             # content -> top strip; context arrows belong to the strip
             session.send('\x1b[C')
             session.send('\x1b[C')
             session.send('\x1b[C')
+            session.send('\r')             # enter content so the page-scoped letters apply
             session.wait('no instances')
             session.send('a')
             session.send('http://127.0.0.1:8080')

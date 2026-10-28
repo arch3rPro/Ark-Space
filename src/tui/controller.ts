@@ -367,8 +367,8 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
       return { state: { ...rest(state), region }, effects: [] };
     }
     case "context": {
-      // Arrows switch context from anywhere; focus region stays put, but a non-provider
-      // page snaps back to Providers so the strip change is where the action is.
+      // Context arrows live in the strip region only (user rule: an area owns its arrows);
+      // a non-provider page snaps back to Providers so the strip change is where the action is.
       const context = (state.context + event.delta + CONTEXT_COUNT) % CONTEXT_COUNT;
       const next = { ...rest(state), context, row: 0 };
       return { state: state.page === "providers" ? next : { ...next, page: "providers" as Page }, effects: [] };
@@ -395,7 +395,7 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
 
     case "move": {
       if (state.mode !== "browse") return { state: rest(state), effects: [] };
-      if (state.region === "top") return { state: { ...state, region: "content" }, effects: [] };
+      if (state.region === "top") return { state, effects: [] }; // the strip is one row; vertical arrows act on the list you are in
       if (state.region === "menu") {
         return { state: { ...state, menuCursor: Math.max(0, Math.min(MENU_VALUES.length - 1, state.menuCursor + event.delta)) }, effects: [] };
       }

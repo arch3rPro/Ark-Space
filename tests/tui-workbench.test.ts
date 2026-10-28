@@ -90,6 +90,12 @@ describe("navigation", () => {
       expect(state.region).toBe(expected);
     }
   });
+  it("vertical arrows in the strip region move nothing; Enter enters content instead", () => {
+    const top = loaded(); // fresh state boots with the strip focused
+    expect(top.region).toBe("top");
+    expect(reduce(top, { type: "move", delta: 1 }).state).toBe(top); // same state, no teleport, no cursor move
+    expect(reduce(top, { type: "enter" }).state.region).toBe("content");
+  });
   it("context switch wraps, resets rows, and never writes", () => {
     expect(loaded().context).toBe(0);
     expect(reduce(loaded(), { type: "context", delta: -1 }).state.context).toBe(CONTEXT_COUNT - 1);
