@@ -143,15 +143,55 @@ export function providerButtons(state: State): ButtonDef[] {
   ];
 }
 
-/** x ranges for the rendered button bar (matches providerLines layout exactly). */
-export function buttonHits(state: State): { event: string; start: number; end: number }[] {
-  let x = 1;
-  return providerButtons(state).map(b => {
-    const seg = `[${b.key}] ${b.label}`;
-    const hit = { event: b.event, start: x, end: x + seg.length };
-    x += seg.length + 2;
-    return hit;
-  });
+/** Page-scoped actions, pinned as the centered bottom row of the content frame. */
+export function actionDefs(state: State): { key: string; label: string; event?: string }[] {
+  if (state.mode !== "browse") return [];
+  if (state.page === "providers") {
+    if (state.context >= 4) return [{ key: "Enter", label: msg(state.lang, "keyRowOp") }];
+    return providerButtons(state).map(b => ({ key: b.key, label: b.label, event: b.event }));
+  }
+  if (state.page === "config") return [
+    { key: "u/d", label: msg(state.lang, "keyMoveRow") },
+    { key: "Del", label: msg(state.lang, "keyDrop") },
+    { key: "I", label: msg(state.lang, "keyInclude") },
+    { key: "Ctrl-S", label: msg(state.lang, dirtyOrder(state) ? "keySaveStar" : "keySave"), event: "orderSave" },
+  ];
+  return [];
+}
+const actionSegs = (defs: { key: string; label: string }[], full: boolean): string[] =>
+  defs.map(b => full ? `[${b.key}] ${b.label}` : `[${b.key}]`);
+const actionTotal = (segs: string[], gap: number): number => segs.reduce((a, s) => a + s.length, 0) + gap * Math.max(0, segs.length - 1);
+
+/** Shared geometry for the pinned action row: full labels, keys-only fallback, centering. */
+function actionLayout(state: State, width: number): { defs: { key: string; label: string; event?: string }[]; plain: string[]; gap: number; x0: number } | null {
+  const defs = actionDefs(state);
+  if (!defs.length) return null;
+  const full = actionSegs(defs, true);
+  const useFull = actionTotal(full, 2) <= width;
+  const plain = useFull ? full : actionSegs(defs, false);
+  const gap = useFull ? 2 : 1;
+  return { defs, plain, gap, x0: Math.max(0, Math.floor((width - actionTotal(plain, gap)) / 2)) };
+}
+
+export function actionLine(state: State, width: number): string {
+  const l = actionLayout(state, width);
+  if (!l) return "";
+  const segs = l.defs.map((b, i) => c("1;36", `[${b.key}]`)
+    + (l.plain[i]!.length === b.key.length + 2 ? "" : (b.key === "Ctrl-S" && state.page === "config" && dirtyOrder(state) ? FG(33, " " + b.label) : " " + b.label)));
+  return truncateToWidth(padV(" ".repeat(l.x0) + segs.join(" ".repeat(l.gap)), width), width);
+}
+
+/** x ranges for the pinned action row; matches actionLine's layout exactly. */
+export function actionHits(state: State, width: number): { event: string; start: number; end: number }[] {
+  const l = actionLayout(state, width);
+  if (!l) return [];
+  const hits: { event: string; start: number; end: number }[] = [];
+  let x = l.x0;
+  for (let i = 0; i < l.defs.length; i++) {
+    if (l.defs[i]!.event) hits.push({ event: l.defs[i]!.event!, start: x, end: x + l.plain[i]!.length });
+    x += l.plain[i]!.length + l.gap;
+  }
+  return hits;
 }
 
 function providerLines(state: State, width: number): string[] {
@@ -167,8 +207,6 @@ function providerLines(state: State, width: number): string[] {
       out.push(i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width));
     });
     out.push("", DIM(" " + msg(state.lang, "searxngNote")));
-    const buttons = providerButtons(state);
-    out.push(" "+buttons.map(b => c("1;36", `[${b.key}]`) + " " + b.label).join("  "));
     return out;
   }
   const out = [DIM(padV(` ${msg(state.lang, "colKey")}`, 22) + padV(msg(state.lang, "colStatus"), 12) + padV(msg(state.lang, "colSource"), 12) + msg(state.lang, "colOwner"))];
@@ -178,8 +216,6 @@ function providerLines(state: State, width: number): string[] {
     const line = padV(" " + truncateToWidth(key.reference, 20), 22) + FG(color, padV(`${icon} ${statusText(state, key)}`, 12)) + padV(sourceText(state, key.source), 12) + msg(state.lang, "owned", { n: key.ownedResources });
     out.push(i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width));
   });
-  const buttons = providerButtons(state);
-  out.push("", " " + buttons.map(b => c("1;36", `[${b.key}]`) + " " + b.label).join("  "));
   return out;
 }
 
@@ -191,13 +227,6 @@ function orderLines(state: State, width: number): string[] {
     const line = padV(" " + truncateToWidth(`${i + 1}. ${WEB_LABELS[index] ?? id}`, 14), 16) + (provider?.enabled ? DIM(msg(state.lang, "stEnabled")) : DIM(msg(state.lang, "stDisabled")));
     return i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width);
   });
-  const btn = [
-    { key: "u/d", label: msg(state.lang, "keyMoveRow") },
-    { key: "Del", label: msg(state.lang, "keyDrop") },
-    { key: "I", label: msg(state.lang, "keyInclude") },
-    { key: "Ctrl-S", label: dirtyOrder(state) ? FG(33, msg(state.lang, "keySaveStar")) : msg(state.lang, "keySave") },
-  ];
-  out.push("", " " + btn.map(b => c("1;36", `[${b.key}]`) + " " + b.label).join("  "));
   return out;
 }
 
@@ -366,19 +395,13 @@ export function contentTitle(state: State): string {
 const kb = (key: string, label: string) => c("1;36", `[${key}]`) + label;
 
 export function keyBar(state: State): string {
+  // global keys only; page actions live in the content frame's pinned bottom row
   const parts = [kb("Tab", msg(state.lang, "keyFocus"))];
   if (state.modal) parts.push(kb("up/dn", msg(state.lang, "keyMove")), kb("Enter", msg(state.lang, "keyPick")), kb("y/n", msg(state.lang, "keyQuickPick")), kb("Esc", msg(state.lang, "keyBack")));
-  else if (state.mode === "form") parts.push(kb("Enter", msg(state.lang, "keyCommit")), kb("Ctrl-S", msg(state.lang, "keySave")), kb("Esc", msg(state.lang, "keyBack")));
   else if (state.mode === "details") parts.push(kb("...", msg(state.lang, "keyAnyBack")));
   else if (state.mode === "preview") parts.push(kb("r", msg(state.lang, "keyReveal")), kb("...", msg(state.lang, "keyAnyBack")));
-  else if (state.region === "content" && state.page === "providers") {
-    if (state.context >= 4) parts.push(kb("Enter", msg(state.lang, "keyRowOp")));
-    else if (state.context === 3) parts.push(kb("a", msg(state.lang, "keyAdd")), kb("e", msg(state.lang, "keyEdit")), kb("d", msg(state.lang, "keyRemove")));
-    else parts.push(kb("a", msg(state.lang, "keyAdd")), kb("e", msg(state.lang, "keyEdit")), kb("i", msg(state.lang, "keyDetails")), kb("p", msg(state.lang, "keyPreview")), kb("d", msg(state.lang, "keyRemove")), kb("Space", msg(state.lang, "keyToggle")));
-    parts.push(kb("v", msg(state.lang, "keyEnable")), kb("t", msg(state.lang, "keyTest")));
-  }
-  else if (state.region === "content" && state.page === "config") parts.push(kb("u/d", msg(state.lang, "keyMoveRow")), kb("Del", msg(state.lang, "keyDrop")), kb("I", msg(state.lang, "keyInclude")), kb("Ctrl-S", state.orderDraft ? FG(33, msg(state.lang, "keySaveStar")) : msg(state.lang, "keySave")));
-  else if (state.region === "menu") parts.push(kb("Enter", msg(state.lang, "keyOpen")), kb("Esc", msg(state.lang, "keyBack")));
+  else if (state.mode === "browse") parts.push(kb("Enter", msg(state.lang, "keyOpen")), kb("Esc", msg(state.lang, "keyBack")));
+  // form mode: commit/save/cancel hints render inside the form itself
   parts.push(kb("<-/->", msg(state.lang, "keyContext")), kb("q", msg(state.lang, "keyQuit")));
   return "  " + parts.join(" ");
 }

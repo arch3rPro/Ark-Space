@@ -8,9 +8,12 @@ import { visibleWidth, type Component, type TuiMouseEvent, type TuiMouseEventRes
 
 export class Framed implements Component {
   private h = 0;
+  private footer?: (innerWidth: number) => string;
   constructor(private child: Component, private title: string | (() => string)) {}
 
   setH(h: number): void { this.h = h; }
+  /** Pinned last inner row, e.g. the centered page action hints. */
+  setFooter(fn: (innerWidth: number) => string): void { this.footer = fn; }
   invalidate(): void { this.child.invalidate?.(); }
   handleInput(data: string): void { this.child.handleInput?.(data); }
   handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
@@ -23,9 +26,11 @@ export class Framed implements Component {
     const out = [c(90, "╭" + head + "─".repeat(Math.max(0, width - visibleWidth(head) - 2)) + "╮")];
     let inner = this.child.render(width - 4);
     if (this.h >= 3) {
-      const need = this.h - 2;
+      const foot = this.h >= 4 && this.footer ? this.footer(width - 4) : null;
+      const need = this.h - 2 - (foot !== null ? 1 : 0);
       inner = inner.slice(0, need);
       while (inner.length < need) inner.push("");
+      if (foot !== null) inner.push(foot);
     }
     for (const line of inner) out.push(c(90, "│") + " " + padV(line, width - 4) + " " + c(90, "│"));
     out.push(c(90, "╰" + "─".repeat(width - 2) + "╯"));

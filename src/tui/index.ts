@@ -18,7 +18,7 @@ import { msg } from "./messages.js";
 import type { TuiLang } from "./messages.js";
 import { initialState, reduce, type Event, type Op } from "./controller.js";
 import {
-  buttonHits, contentTitle, currentProvider, currentRowItems, keyBar, menuHitPage,
+  actionHits, actionLine, contentTitle, currentProvider, currentRowItems, keyBar, menuHitPage,
   menuLines, modalLines, pageLines, stripHits, stripLine,
 } from "./view.js";
 import { getSetupSnapshot, getConnections, loadPreview } from "./data.js";
@@ -101,18 +101,19 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
       return { handled: true };
     },
   };
+  let lastInnerW = 1;
+  let lastFrameH = 0;
   const page: Component = {
     invalidate() {},
-    render: (w) => pageLines(state, w),
+    render: (w) => { lastInnerW = w; return pageLines(state, w); },
     handleMouse: (e: TuiMouseEvent): TuiMouseEventResult | undefined => {
       if (e.type !== "click" || state.mode !== "browse") return undefined;
+      if (lastFrameH >= 4 && e.y === lastFrameH - 3) { // the pinned action row, in child-local coordinates
+        for (const hit of actionHits(state, lastInnerW)) if (e.x >= hit.start && e.x <= hit.end) return fireButton(hit.event), { handled: true };
+      }
       if (state.page === "providers" && state.region !== "menu") {
         const items = currentRowItems(state);
         if (e.y >= 1 && e.y <= items.length) return (dispatch({ type: "rowSet", row: e.y - 1 }), { handled: true });
-        const buttonRow = 1 + Math.max(items.length, 1) + 1; // header, rows, blank, buttons
-        if (e.y === buttonRow) {
-          for (const hit of buttonHits(state)) if (e.x >= hit.start && e.x <= hit.end) return fireButton(hit.event), { handled: true };
-        }
       }
       if (e.y >= 1) dispatch({ type: "rowSet", row: e.y - 1 });
       return { handled: true };
@@ -132,6 +133,8 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     left.setH(height);
     const right = new Framed(page, () => contentTitle(state));
     right.setH(height);
+    right.setFooter(w => actionLine(state, w));
+    lastFrameH = height;
     const stripBox = new Box(1, 0);
     stripBox.addChild(strip);
     tui.setLayoutRoot(new VStack([
@@ -362,6 +365,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
       case "testIntent": dispatch({ type: "testIntent" }); break;
       case "details": void openDetails(); break;
       case "preview": void openPreview(); break;
+      case "orderSave": dispatch({ type: "orderSave" }); break;
       default: dispatch({ type: "notice", text: msg(state.lang, "pendingP3"), warn: true });
     }
   }

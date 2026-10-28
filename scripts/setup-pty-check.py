@@ -223,7 +223,7 @@ def run(entry):
             check('top strip shows all six contexts', all('[' + n + ']' in first for n in ['Exa', 'Tavily', 'Firecrawl', 'SearXNG', 'WeKnora', 'UseGPT']))
             check('menu lists the four pages', all(x in session.screen() for x in ['Providers', 'Order', 'Diagnostics']))
             session.send('\t\t')
-            check('Tab focuses top then menu then content', 'env:EXA_API_KEY' in session.screen() and '[a] add' in session.screen())
+            check('Tab focuses top then menu then content', 'env:EXA_API_KEY' in session.screen() and '[Space]' in session.screen())  # 80-col action row is keys-only
 
             # add key: masked entry persists a new reference with 0600 credentials
             session.send('a')
@@ -293,7 +293,7 @@ def run(entry):
 
             # back to Providers, then the pool e2e sample through the real registry
             session.send('\t\t\x1b[A\x1b[A\x1b[A\r')
-            session.wait('[a] add')
+            session.wait('[Space]')
             session.send('t\x1b[B\r')
             session.wait('Connection success')
             session.wait('exa success')
@@ -377,7 +377,7 @@ def run(entry):
         session = Session(entry, home, trace, columns=100, service='weknora')
         try:
             session.wait('API endpoint')
-            check('weknora deep link opens content focus directly', 'verify connection' in session.screen() and '[a] add' not in session.screen())
+            check('weknora deep link opens content focus directly', 'verify connection' in session.screen() and '[a]' not in session.screen())
             empty = fingerprint(home)
             session.send('\x1b[B\r')
             session.wait('WeKnora API key')

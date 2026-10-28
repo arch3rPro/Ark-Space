@@ -189,3 +189,4 @@ Pi worker handoff 故障诊断、全局安装/`/usr/bin/arks` 切换、systemd �
   - 顶条漂移修复：`stripLine` 从居中公式（x0 随 chip 实际宽度变）改为固定左对齐槽位（STRIP_X0=2）+ 恒宽 13 徽标 + `truncateToWidth` 窄屏裁剪；`stripHits` 共用同一常量。新增列位置稳定性测（context 0/3/4 下 `[Exa]`/`[UseGPT]` 同列）。
   - 验收：单测 569/569、validate=0、真 PTY 源入口 83/83（含 kitty 会话）。ADR 0017 状态行改写（撤销 P6.1 曾记录的"任意区域 ←/→ 切上下文"条款）。
 - **P6.4b 顶条改居中固定（用户指示，2026-11）**：`stripX0(width) = max(1, floor((width - innerW - 13) / 2))`，起点只由终端宽度决定（innerW/徽标恒宽），任意上下文/密钥数/内容下不漂移；渲染与 `stripHits` 共用同一函数。窄屏（<79 列）钳左缘并截断徽标。验收：单测 55/55（含列稳定测）、真 PTY 83/83。
+- **P6.5 操作提示分层（用户指示，2026-11）**：内容页操作键从底部状态栏移入**内容框钉底行**（Framed.setFooter：倒数第一内框行，行号恒定）；`actionDefs/actionLine/actionHits` 单源几何：宽度够→键+标签居中，不够→仅键居中（80 列 providers 页即 keys-only），命中区随渲染。窄于 4 行面板不渲染 footer。屏幕底部 keyBar 收缩为纯全局：Tab/Enter/Esc/`<-/->`(顶条)/q（form 模式提示在表单体内）。searxng/conn/order 页同机制。check.py 三处标签串适配（'[a] add'→'[Space]'/'[a]' not in）。验收：单测 569/569、validate=0、PTY 源+安装各 83/83、非 TTY 206B 字节锁不变。
