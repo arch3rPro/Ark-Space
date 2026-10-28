@@ -123,6 +123,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     invalidate() {},
     render: (w) => state.modal ? modalLines(state.modal, w) : [""],
   };
+  const MENU_W = 22; // the global key row centers on the content column behind it
   const statusLine = new Line();
   let noticeTimer: ReturnType<typeof setTimeout> | undefined;
   let lastNotice = "";
@@ -140,11 +141,11 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     stripBox.addChild(strip);
     tui.setLayoutRoot(new VStack([
       { component: stripBox, basis: 1 },
-      { component: new HStack([{ component: left, basis: 22, shrink: 0 }, { component: right, basis: 0, grow: 1 }]), basis: height, grow: 0 },
+      { component: new HStack([{ component: left, basis: MENU_W, shrink: 0 }, { component: right, basis: 0, grow: 1 }]), basis: height, grow: 0 },
       { component: statusLine, basis: 1 },
     ]));
     // one bottom row: notices show briefly over the global key hints, then fall back
-    statusLine.set(state.status ? " " + (state.statusWarn ? FG(33, state.status) : state.status) : keyBar(state, process.stdout.columns || 80));
+    statusLine.set(state.status ? " " + (state.statusWarn ? FG(33, state.status) : state.status) : keyBar(state, process.stdout.columns || 80, MENU_W));
     if (state.status !== lastNotice) {
       lastNotice = state.status;
       if (noticeTimer) clearTimeout(noticeTimer);

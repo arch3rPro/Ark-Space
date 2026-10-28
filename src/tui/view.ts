@@ -417,7 +417,7 @@ export function contentTitle(state: State): string {
 
 const kb = (key: string, label: string) => c("1;35", `[${key}]`) + label; // magenta: globals must not look like the cyan page-action row
 
-export function keyBar(state: State, width: number): string {
+export function keyBar(state: State, width: number, offset = 0): string {
   // global keys only, centered; page actions live in the content frame's pinned bottom row
   const parts = [kb("Tab", msg(state.lang, "keyFocus"))];
   if (state.modal) parts.push(kb("up/dn", msg(state.lang, "keyMove")), kb("Enter", msg(state.lang, "keyPick")), kb("y/n", msg(state.lang, "keyQuickPick")), kb("Esc", msg(state.lang, "keyBack")));
@@ -427,6 +427,6 @@ export function keyBar(state: State, width: number): string {
   // form mode: commit/save/cancel hints render inside the form itself
   parts.push(kb("<-/->", msg(state.lang, "keyContext")), kb("q", msg(state.lang, "keyQuit")));
   const line = parts.join(" ");
-  const x0 = Math.max(1, Math.floor((width - visibleWidth(line)) / 2));
+  const x0 = offset + Math.max(1, Math.floor((width - offset - visibleWidth(line)) / 2)); // center over the content column, not the whole screen
   return truncateToWidth(padV(" ".repeat(x0) + line, width), width);
 }
