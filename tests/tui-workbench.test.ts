@@ -85,7 +85,7 @@ describe("strip and menu geometry", () => {
 describe("navigation", () => {
   it("cycles regions both directions via tab", () => {
     let { state } = { state: loaded() };
-    for (const [expected, delta] of [["content", 1], ["menu", 1], ["content", -1], ["menu", -1]] as const) {
+    for (const [expected, delta] of [["menu", 1], ["content", 1], ["top", 1], ["content", -1]] as const) {
       state = reduce(state, { type: "tab", delta }).state;
       expect(state.region).toBe(expected);
     }

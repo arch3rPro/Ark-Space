@@ -6,11 +6,11 @@ import type { SetupInstanceSnapshot, SetupKeySnapshot, SetupProviderSnapshot } f
 import { CONTEXT_COUNT, MENU_VALUES, dirtyOrder, type ModalState, type State } from "./controller.js";
 import { msg } from "./messages.js";
 import { DIM, FG, SEL, c, padV } from "./components/style.js";
-import { truncateToWidth } from "./port.js";
+import { truncateToWidth, visibleWidth } from "./port.js";
 
 export const WEB_LABELS = ["Exa", "Tavily", "Firecrawl", "SearXNG"] as const;
 
-export function contextLabel(index: number): string {
+export function contextLabel(state: State, index: number): string {
   return index < 4 ? WEB_LABELS[index]! : index === 4 ? "WeKnora" : "UseGPT";
 }
 
@@ -57,64 +57,50 @@ function sourceText(state: State, source: string): string {
 }
 
 // ---------------- top strip ----------------
-// Fixed left-aligned slots: labels never shift when the context or chip changes, and
-// the key bar is the only action-hint surface (P6.2 layout contract).
-const CHIP_W = 13;
-function stripSlots(): { seg: string; gap: number }[] {
-  return Array.from({ length: CONTEXT_COUNT }, (_, i) => ({ seg: `[${contextLabel(i)}]`, gap: 3 }));
-}
-function stripX0(width: number): number {
-  const innerW = stripSlots().reduce((a, s) => a + s.seg.length + s.gap, 0) - 3;
-  // left-aligned at column 2; on very narrow terminals collapse the gap so slots still render
-  return width >= innerW + 15 ? 2 : 1;
-}
-function stripInner(state: State): { text: string; width: number } {
-  const slots = stripSlots();
-  let off = 0;
-  const parts = slots.map((s, i) => {
-    let styled: string;
-    if (i === state.context) styled = FG("1;36", s.seg);
-    else {
-      const provider = state.snapshot?.providers[i];
-      styled = provider ? (provider.enabled ? DIM(s.seg) : c("2", s.seg)) : DIM(s.seg);
-    }
-    off += s.seg.length + (i < slots.length - 1 ? slots[i]!.gap : 0);
-    return styled;
-  });
-  return { text: parts.join("   "), width: off };
-}
 export function stripLine(state: State, width: number): string {
-  const { text, width: innerW } = stripInner(state);
-  const x0 = stripX0(width);
+  const segs = Array.from({ length: CONTEXT_COUNT }, (_, i) => `[${contextLabel(state, i)}]`);
+  const labels = segs.map((s, i) => {
+    if (i === state.context) return state.region === "top" ? SEL(s) : FG("1;36", s);
+    const provider = state.snapshot?.providers[i];
+    if (!provider) return DIM(s); // connection contexts: no enabled state until P4
+    return provider.enabled ? DIM(s) : c("2", s);
+  });
+  const inner = labels.join("   ");
   const provider = currentProvider(state);
-  // the chip keeps a constant width so context changes never move the strip
-  let chip = " ".repeat(CHIP_W);
+  let chip = " ";
   if (provider && provider.id !== "searxng") {
     const n = (pred: (k: SetupKeySnapshot) => boolean) => provider.keys.filter(pred).length;
-    chip = padV(` ${FG(32, "+" + n(k => k.available && k.status === "enabled"))} ${FG(33, "~" + n(k => k.status === "cooldown" || k.status === "exhausted"))} ${c(2, "-" + n(k => !k.available || k.status === "disabled"))}`, CHIP_W);
+    chip = padV(` ${FG(32, "+" + n(k => k.available && k.status === "enabled"))} ${FG(33, "~" + n(k => k.status === "cooldown" || k.status === "exhausted"))} ${c(2, "-" + n(k => !k.available || k.status === "disabled"))}`, 13);
   }
-  return padV(" ".repeat(x0) + text + " ".repeat(Math.max(2, width - x0 - innerW - CHIP_W)) + chip, width);
+  const innerW = segs.reduce((a, s) => a + s.length, 0) + 3 * (segs.length - 1);
+  let x0 = Math.max(1, Math.floor((width - innerW - visibleWidth(chip)) / 2));
+  x0 = Math.min(x0, Math.max(1, width - innerW - visibleWidth(chip) - 1));
+  const line = " ".repeat(x0) + inner;
+  return padV(line + " ".repeat(Math.max(1, width - x0 - innerW - visibleWidth(chip))) + chip, width);
 }
 
 /** Visible-column hit ranges for context clicks. */
 export function stripHits(width: number): [number, number, number][] {
+  const segs = Array.from({ length: CONTEXT_COUNT }, (_, i) => `[${contextLabel({} as State, i)}]`);
+  const innerW = segs.reduce((a, s) => a + s.length, 0) + 3 * (segs.length - 1);
+  let x0 = Math.max(1, Math.floor((width - innerW - 13) / 2));
+  x0 = Math.min(x0, Math.max(1, width - innerW - 13 - 1));
   const hits: [number, number, number][] = [];
-  let off = stripX0(width);
-  for (const [i, s] of stripSlots().entries()) { hits.push([off, off + s.seg.length, i]); off += s.seg.length + s.gap; }
+  let off = 0;
+  for (let i = 0; i < segs.length; i++) { hits.push([x0 + off, x0 + off + segs[i]!.length, i]); off += segs[i]!.length + 3; }
   return hits;
 }
 
 // ---------------- left menu ----------------
 export function menuLines(state: State, width: number): string[] {
   return MENU_VALUES.map((value, i) => {
-    // the cursor is always visible: it is the list's own marker; the frame border shows who owns the arrows
-    const label = (i === state.menuCursor ? "> " : "  ") + msg(state.lang, "page" + value.charAt(0).toUpperCase() + value.slice(1));
-    return i === state.menuCursor ? SEL(padV(label, width)) : padV(label, width);
+    const label = (i === state.menuCursor && state.region === "menu" ? "> " : "  ") + msg(state.lang, "page" + value.charAt(0).toUpperCase() + value.slice(1));
+    return i === state.menuCursor && state.region === "menu" ? SEL(padV(label, width)) : padV(label, width);
   });
 }
 
 /** Menu rows for mouse hit-testing (row y = index + 1 inside the frame body). */
-export function menuHitPage(_state: State, y: number): string | null {
+export function menuHitPage(state: State, y: number): string | null {
   const value = MENU_VALUES[y];
   return value === undefined ? null : value;
 }
@@ -133,7 +119,37 @@ export function pageLines(state: State, width: number): string[] {
   }
 }
 
-/** Action hints live only in the bottom key bar (P6.2): pages never render their own button row. */
+export type ButtonDef = { key: string; label: string; event: string };
+
+export function providerButtons(state: State): ButtonDef[] {
+  const provider = currentProvider(state);
+  if (provider?.id === "searxng") return [
+    { key: "a", label: msg(state.lang, "keyAdd"), event: "keyAdd" },
+    { key: "e", label: msg(state.lang, "keyEdit"), event: "keyEdit" },
+    { key: "d", label: msg(state.lang, "keyRemove"), event: "keyRemove" },
+  ];
+  if (!provider) return [];
+  return [
+    { key: "a", label: msg(state.lang, "keyAdd"), event: "keyAdd" },
+    { key: "e", label: msg(state.lang, "keyEdit"), event: "keyEdit" },
+    { key: "i", label: msg(state.lang, "keyDetails"), event: "details" },
+    { key: "p", label: msg(state.lang, "keyPreview"), event: "preview" },
+    { key: "t", label: msg(state.lang, "keyTest"), event: "testIntent" },
+    { key: "d", label: msg(state.lang, "keyRemove"), event: "keyRemove" },
+    { key: "Space", label: msg(state.lang, "keyToggle"), event: "keyToggle" },
+  ];
+}
+
+/** x ranges for the rendered button bar (matches providerLines layout exactly). */
+export function buttonHits(state: State): { event: string; start: number; end: number }[] {
+  let x = 1;
+  return providerButtons(state).map(b => {
+    const seg = `[${b.key}] ${b.label}`;
+    const hit = { event: b.event, start: x, end: x + seg.length };
+    x += seg.length + 2;
+    return hit;
+  });
+}
 
 function providerLines(state: State, width: number): string[] {
   const provider = currentProvider(state);
@@ -145,9 +161,11 @@ function providerLines(state: State, width: number): string[] {
       const icon: readonly [string, number] = instance.status === "disabled" ? ["-", 2] : instance.status === "cooldown" ? ["~", 33] : ["?", 2];
       const text = instance.status === "disabled" ? msg(state.lang, "stDisabled") : instance.status === "cooldown" ? msg(state.lang, "stCooldown") : msg(state.lang, "stNotProbed");
       const line = padV(" " + truncateToWidth(instance.baseUrl, 26), 28) + FG(icon[1], `${icon[0]} `) + padV(text, 12) + (instance.source === "environment" ? DIM(msg(state.lang, "externalEnv")) : DIM(msg(state.lang, "srcLocal") + " / " + instance.allowRanges.length));
-      out.push(i === state.row ? SEL(padV(line, width)) : padV(line, width));
+      out.push(i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width));
     });
     out.push("", DIM(" " + msg(state.lang, "searxngNote")));
+    const buttons = providerButtons(state);
+    out.push(" "+buttons.map(b => c("1;36", `[${b.key}]`) + " " + b.label).join("  "));
     return out;
   }
   const out = [DIM(padV(` ${msg(state.lang, "colKey")}`, 22) + padV(msg(state.lang, "colStatus"), 12) + padV(msg(state.lang, "colSource"), 12) + msg(state.lang, "colOwner"))];
@@ -155,8 +173,10 @@ function providerLines(state: State, width: number): string[] {
   provider.keys.forEach((key, i) => {
     const [icon, color] = keyIcon(key);
     const line = padV(" " + truncateToWidth(key.reference, 20), 22) + FG(color, padV(`${icon} ${statusText(state, key)}`, 12)) + padV(sourceText(state, key.source), 12) + msg(state.lang, "owned", { n: key.ownedResources });
-    out.push(i === state.row ? SEL(padV(line, width)) : padV(line, width));
+    out.push(i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width));
   });
+  const buttons = providerButtons(state);
+  out.push("", " " + buttons.map(b => c("1;36", `[${b.key}]`) + " " + b.label).join("  "));
   return out;
 }
 
@@ -166,8 +186,15 @@ function orderLines(state: State, width: number): string[] {
     const index = state.snapshot?.providers.findIndex(p => p.id === id) ?? -1;
     const provider = index >= 0 ? state.snapshot?.providers[index] : undefined;
     const line = padV(" " + truncateToWidth(`${i + 1}. ${WEB_LABELS[index] ?? id}`, 14), 16) + (provider?.enabled ? DIM(msg(state.lang, "stEnabled")) : DIM(msg(state.lang, "stDisabled")));
-    return i === state.row ? SEL(padV(line, width)) : padV(line, width);
+    return i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width);
   });
+  const btn = [
+    { key: "u/d", label: msg(state.lang, "keyMoveRow") },
+    { key: "Del", label: msg(state.lang, "keyDrop") },
+    { key: "I", label: msg(state.lang, "keyInclude") },
+    { key: "Ctrl-S", label: dirtyOrder(state) ? FG(33, msg(state.lang, "keySaveStar")) : msg(state.lang, "keySave") },
+  ];
+  out.push("", " " + btn.map(b => c("1;36", `[${b.key}]`) + " " + b.label).join("  "));
   return out;
 }
 
@@ -176,7 +203,7 @@ function languageLines(state: State, width: number): string[] {
   return entries.map(([value, label], i) => {
     const current = (state.snapshot?.setupLanguage ?? state.lang) === value;
     const line = padV(` ${label}`, 14) + (current ? FG(32, msg(state.lang, "current")) : "");
-    return i === state.row ? SEL(padV(line, width)) : padV(line, width);
+    return i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width);
   });
 }
 
@@ -185,12 +212,12 @@ function diagnosticLines(state: State, width: number): string[] {
   if (!state.diagnostics.length) out.push(DIM(" " + msg(state.lang, "diagEmpty")));
   state.diagnostics.forEach((entry, i) => {
     const line = padV(` ${entry.when}  ${entry.ref}`, width - 24) + padV(entry.out, 12) + `+${entry.dur}ms`;
-    out.push(i === state.row ? SEL(padV(line, width)) : padV(line, width));
+    out.push(i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width));
   });
   return out;
 }
 
-function detailField(label: string, value: string): string {
+function detailField(lang: State["lang"], label: string, value: string): string {
   return padV(" " + label, 14) + value;
 }
 
@@ -203,14 +230,14 @@ function detailsLines(state: State, width: number): string[] {
   const routing = provider.automaticPosition ? msg(state.lang, "autoPosition", { n: provider.automaticPosition }) : msg(state.lang, "explicitOnly");
   const owners = msg(state.lang, "owned", { n: key.ownedResources });
   const out = [
-    detailField(msg(state.lang, "fieldSource"), sourceText(state, key.source)),
-    detailField(msg(state.lang, "fieldStatus"), statusText(state, key)),
-    detailField(msg(state.lang, "fieldReason"), reasonText(state, key)),
-    detailField(msg(state.lang, "fieldCooldownLeft"), cooldown),
-    detailField(msg(state.lang, "fieldOwners"), owners),
-    detailField(msg(state.lang, "fieldShared"), shared),
-    detailField(msg(state.lang, "fieldRouting"), routing),
-    detailField(msg(state.lang, "fieldAvailable"), key.available ? "+" : "?"),
+    detailField(state.lang, msg(state.lang, "fieldSource"), sourceText(state, key.source)),
+    detailField(state.lang, msg(state.lang, "fieldStatus"), statusText(state, key)),
+    detailField(state.lang, msg(state.lang, "fieldReason"), reasonText(state, key)),
+    detailField(state.lang, msg(state.lang, "fieldCooldownLeft"), cooldown),
+    detailField(state.lang, msg(state.lang, "fieldOwners"), owners),
+    detailField(state.lang, msg(state.lang, "fieldShared"), shared),
+    detailField(state.lang, msg(state.lang, "fieldRouting"), routing),
+    detailField(state.lang, msg(state.lang, "fieldAvailable"), key.available ? "+" : "?"),
     "", DIM(" " + msg(state.lang, "refreshNote")),
   ];
   return out.map(line => padV(line, width));
@@ -225,7 +252,7 @@ function previewLines(state: State, width: number): string[] {
   ];
   for (const source of preview.sources) {
     const shown = state.revealed ? source.value : "*".repeat(Math.min(24, source.value.length));
-    out.push(detailField(source.label, shown));
+    out.push(detailField(state.lang, source.label, shown));
     out.push(padV("", 14) + DIM(msg(state.lang, "chars", { n: source.value.length })));
   }
   return out.map(line => padV(line, width));
@@ -266,7 +293,7 @@ function formLines(state: State, width: number): string[] {
 function connRows(state: State, width: number, rows: [string, string][], note: string): string[] {
   const out = rows.map((r, i) => {
     const line = " " + padV(r[0], 24) + r[1];
-    return i === state.row ? SEL(padV(line, width)) : padV(line, width);
+    return i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width);
   });
   out.push("", DIM(" " + note));
   return out;
@@ -325,8 +352,8 @@ export function modalLines(modal: ModalState, width: number): string[] {
 export function contentTitle(state: State): string {
   if (state.mode === "details") return msg(state.lang, "detailsTitle") + " / " + (state.detailRef ?? "");
   if (state.mode === "preview") return msg(state.lang, "previewTitle") + " / " + (state.preview?.variable ?? "");
-  if (state.mode === "form" && state.form) return msg(state.lang, formTitleKey(state.form)) + " / " + contextLabel(state.context);
-  if (state.page === "providers") return contextLabel(state.context);
+  if (state.mode === "form" && state.form) return msg(state.lang, formTitleKey(state.form)) + " / " + contextLabel(state, state.context);
+  if (state.page === "providers") return contextLabel(state, state.context);
   if (state.page === "config") {
     return msg(state.lang, "pageConfig") + " / " + (dirtyOrder(state) ? FG(33, msg(state.lang, "unsaved")) : msg(state.lang, "unchanged"));
   }
@@ -336,21 +363,19 @@ export function contentTitle(state: State): string {
 const kb = (key: string, label: string) => c("1;36", `[${key}]`) + label;
 
 export function keyBar(state: State): string {
-  const parts = [kb("Tab", msg(state.lang, "keyFocus") + (state.region === "menu" ? msg(state.lang, "focusMenu") : msg(state.lang, "focusContent")))];
+  const parts = [kb("Tab", msg(state.lang, "keyFocus"))];
   if (state.modal) parts.push(kb("up/dn", msg(state.lang, "keyMove")), kb("Enter", msg(state.lang, "keyPick")), kb("y/n", msg(state.lang, "keyQuickPick")), kb("Esc", msg(state.lang, "keyBack")));
   else if (state.mode === "form") parts.push(kb("Enter", msg(state.lang, "keyCommit")), kb("Ctrl-S", msg(state.lang, "keySave")), kb("Esc", msg(state.lang, "keyBack")));
   else if (state.mode === "details") parts.push(kb("...", msg(state.lang, "keyAnyBack")));
   else if (state.mode === "preview") parts.push(kb("r", msg(state.lang, "keyReveal")), kb("...", msg(state.lang, "keyAnyBack")));
-  else {
-    if (state.page === "providers") {
-      if (state.context >= 4) parts.push(kb("Enter", msg(state.lang, "keyRowOp")));
-      else if (state.context === 3) parts.push(kb("a", msg(state.lang, "keyAdd")), kb("e", msg(state.lang, "keyEdit")), kb("d", msg(state.lang, "keyRemove")));
-      else parts.push(kb("a", msg(state.lang, "keyAdd")), kb("e", msg(state.lang, "keyEdit")), kb("i", msg(state.lang, "keyDetails")), kb("p", msg(state.lang, "keyPreview")), kb("d", msg(state.lang, "keyRemove")), kb("Space", msg(state.lang, "keyToggle")));
-      if (state.context < 4) parts.push(kb("v", msg(state.lang, "keyEnable")), kb("t", msg(state.lang, "keyTest")));
-    }
-    else if (state.page === "config") parts.push(kb("u/d", msg(state.lang, "keyMoveRow")), kb("Del", msg(state.lang, "keyDrop")), kb("I", msg(state.lang, "keyInclude")), kb("Ctrl-S", state.orderDraft ? FG(33, msg(state.lang, "keySaveStar")) : msg(state.lang, "keySave")));
-    else parts.push(kb("Enter", msg(state.lang, "keyOpen")));
+  else if (state.region === "content" && state.page === "providers") {
+    if (state.context >= 4) parts.push(kb("Enter", msg(state.lang, "keyRowOp")));
+    else if (state.context === 3) parts.push(kb("a", msg(state.lang, "keyAdd")), kb("e", msg(state.lang, "keyEdit")), kb("d", msg(state.lang, "keyRemove")));
+    else parts.push(kb("a", msg(state.lang, "keyAdd")), kb("e", msg(state.lang, "keyEdit")), kb("i", msg(state.lang, "keyDetails")), kb("p", msg(state.lang, "keyPreview")), kb("d", msg(state.lang, "keyRemove")), kb("Space", msg(state.lang, "keyToggle")));
+    parts.push(kb("v", msg(state.lang, "keyEnable")), kb("t", msg(state.lang, "keyTest")));
   }
+  else if (state.region === "content" && state.page === "config") parts.push(kb("u/d", msg(state.lang, "keyMoveRow")), kb("Del", msg(state.lang, "keyDrop")), kb("I", msg(state.lang, "keyInclude")), kb("Ctrl-S", state.orderDraft ? FG(33, msg(state.lang, "keySaveStar")) : msg(state.lang, "keySave")));
+  else if (state.region === "menu") parts.push(kb("Enter", msg(state.lang, "keyOpen")), kb("Esc", msg(state.lang, "keyBack")));
   parts.push(kb("<-/->", msg(state.lang, "keyContext")), kb("q", msg(state.lang, "keyQuit")));
   return "  " + parts.join(" ");
 }

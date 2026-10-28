@@ -139,7 +139,7 @@ const TABLE: Record<string, readonly [string, string]> = {
   formBusy: ["保存中...", "saving..."],
 
   // key bar labels
-  keyFocus: ["焦点区", "focus"], focusMenu: ["(菜单)", "(menu)"], focusContent: ["(内容)", "(content)"], keyEnterRow: ["操作行", "act"], keyQuit: ["退出", "quit"], keyPick: ["选择", "pick"],
+  keyFocus: ["焦点区", "focus"], keyQuit: ["退出", "quit"], keyPick: ["选择", "pick"],
   keyBack: ["返回", "back"], keyMove: ["移动", "move"], keyOpen: ["打开", "open"],
   keyAnyBack: ["任意键返回", "any key back"], keyReveal: ["显隐", "reveal"],
   keyDetails: ["详情", "details"], keyPreview: ["预览", "preview"],
