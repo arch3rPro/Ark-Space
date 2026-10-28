@@ -3,7 +3,7 @@
  * padV (visibleWidth-aware); all glyphs obey the ADR 0024 ASCII rule.
  */
 import type { SetupInstanceSnapshot, SetupKeySnapshot, SetupProviderSnapshot } from "../config/manage.js";
-import { MENU_VALUES, dirtyOrder, orderRows, pageTabs, type ModalState, type Page, type State } from "./controller.js";
+import { MENU_VALUES, dirtyOrder, orderRows, pageTabs, selectedTab, type ModalState, type Page, type State } from "./controller.js";
 import { msg } from "./messages.js";
 import { DIM, FG, SEL, c, padV } from "./components/style.js";
 import { truncateToWidth, visibleWidth } from "./port.js";
@@ -11,7 +11,7 @@ import { truncateToWidth, visibleWidth } from "./port.js";
 export const WEB_LABELS = ["Exa", "Tavily", "Firecrawl", "SearXNG"] as const;
 
 export function contextLabel(index: number): string {
-  return index < 4 ? WEB_LABELS[index]! : index === 4 ? "WeKnora" : "UseGPT";
+  return index < 4 ? WEB_LABELS[index]! : index === 4 ? "WeKnora" : index === 5 ? "UseGPT" : "Order";
 }
 
 export function currentProvider(state: State): SetupProviderSnapshot | null {
@@ -60,7 +60,7 @@ function sourceText(state: State, source: string): string {
 // Centered, width-deterministic slots and a constant-width status chip: the strip
 // sits mid-screen and never shifts when content, context, or key counts change.
 const CHIP_W = 13;
-const MENU_STRIP_KEYS: Record<typeof MENU_VALUES[number], string> = {
+const MENU_STRIP_KEYS: Record<Page | "exit", string> = {
   providers: "stripProviders", config: "stripConfig", knowledge: "stripKnowledge",
   tools: "stripTools", settings: "pageSettings", diagnostics: "pageDiagnostics", exit: "pageExit",
 };
@@ -71,7 +71,7 @@ function stripView(state: State): { tabs: number[] } | { title: string } {
     const tabs = pageTabs(state.page);
     if (tabs.length) return { tabs };
   }
-  const item = state.region === "menu" ? MENU_VALUES[state.menuCursor]! : (state.page as Page);
+  const item: Page | "exit" = state.region === "menu" ? MENU_VALUES[state.menuCursor]! : state.page;
   return { title: msg(state.lang, MENU_STRIP_KEYS[item]) };
 }
 
@@ -86,7 +86,7 @@ export function stripLine(state: State, width: number): string {
   if ("tabs" in view) {
     const plain = stripSegs(view.tabs);
     contentW = stripInnerW(plain);
-    inner = view.tabs.map((ctx, i) => ctx === state.context
+    inner = view.tabs.map((ctx, i) => ctx === selectedTab(state)
       ? (state.region === "top" ? SEL(plain[i]!) : FG("1;36", plain[i]!))
       : DIM(plain[i]!)).join("   ");
   } else {

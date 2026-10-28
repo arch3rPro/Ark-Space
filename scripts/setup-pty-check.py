@@ -220,8 +220,8 @@ def run(entry):
         try:
             session.wait('[SearXNG]')
             first = session.screen().splitlines()[0]
-            check('top strip shows the four search engines only', all('[' + n + ']' in first for n in ['Exa', 'Tavily', 'Firecrawl', 'SearXNG']) and 'WeKnora' not in first and 'UseGPT' not in first)
-            check('menu lists the seven pages', all(x in session.screen() for x in ['Search', 'Order', 'Knowledge', 'Tools', 'Settings', 'Diagnostics', 'Exit']))
+            check('top strip carries the four engines plus the order tab', all('[' + n + ']' in first for n in ['Exa', 'Tavily', 'Firecrawl', 'SearXNG', 'Order']) and 'WeKnora' not in first and 'UseGPT' not in first)
+            check('menu lists the six pages', all(x in session.screen() for x in ['Search', 'Knowledge', 'Tools', 'Settings', 'Diagnostics', 'Exit']) and '│   Order' not in session.screen())  # the menu column has no order row; the strip does
             session.send('\t\t')
             check('Tab focuses top then menu then content', 'env:EXA_API_KEY' in session.screen() and '[Space]' in session.screen())  # 80-col action row is keys-only
 
@@ -287,12 +287,12 @@ def run(entry):
             check('all-key diagnostics preserve config/credentials/normal state', fingerprint(home) == before)
 
             # diagnostics page keeps the failure rows (pool would clear them by design)
-            session.send('\t\t\x1b[B\x1b[B\x1b[B\x1b[B\x1b[B\r')
+            session.send('\t\t\x1b[B\x1b[B\x1b[B\x1b[B\r')  # live menu: one row per page, Diagnostics at index 4
             session.wait('env:EXA_API_KEY_1')
             check('diagnostics classify failure with a reason only', 'failure' in session.screen() and KEY + '-b' not in session.screen())
 
             # back to Providers, then the pool e2e sample through the real registry
-            session.send('\t\t\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A\r')
+            session.send('\t\t\x1b[A\x1b[A\x1b[A\x1b[A\r')
             session.wait('[Space]')
             session.send('t\x1b[B\r')
             session.wait('Connection success')
@@ -300,7 +300,7 @@ def run(entry):
             check('pool run issues exactly one request', trace.read_text().splitlines()[-1] == 'A')
 
             # order draft: swap shows unsaved, Ctrl-S persists
-            session.send('\t\t\x1b[B\r')   # menu: Providers -> Order
+            session.send('\t\x1b[C\x1b[C\x1b[C\x1b[C\r')   # strip: Exa -> ... -> [Order]
             session.wait('1.')
             session.send('\x1b[A')                 # cursor onto the first row
             before_order = json.loads((home / 'config.json').read_text())['providerOrder']
@@ -314,11 +314,8 @@ def run(entry):
             check('order save changed the persisted sequence', after_order != before_order)
 
             # searxng private endpoint requires an explicit per-instance grant
-            session.send('\t\t\x1b[A\r')   # menu cursor: Order -> Providers page
-            session.send('\t')             # content -> top strip; context arrows belong to the strip
-            session.send('\x1b[C')
-            session.send('\x1b[C')
-            session.send('\x1b[C')
+            session.send('\t')             # content -> top strip (page is Order via the pseudo tab)
+            session.send('\x1b[D')         # left neighbour of [Order] is [SearXNG]
             session.send('\r')             # enter content so the page-scoped letters apply
             session.wait('no instances')
             session.send('a')
@@ -359,7 +356,7 @@ def run(entry):
             check('current diagnostic target is C while completed count remains two', 'Testing EXA_API_KEY_2' in session.screen())
             session.send('\x1b')
             session.wait('Keys: 1/4 passed/stopped')
-            session.send('\t\t\x1b[B\x1b[B\x1b[B\x1b[B\x1b[B\r')  # menu -> Diagnostics page
+            session.send('\t\t\x1b[B\x1b[B\x1b[B\x1b[B\r')  # menu -> Diagnostics page
             session.wait('env:EXA_API_KEY_3')
             screen = session.screen()
             for reference, status in [('env:EXA_API_KEY', 'success'), ('env:EXA_API_KEY_1', 'failure'),
@@ -468,7 +465,8 @@ def run(entry):
             session.key('\x1b[B', '\x1b[1;1:3B')   # one down step; the release must not move again
             time.sleep(0.2)
             check('kitty release events do not double-step the menu',
-                  '> Order' in session.screen() and '> Knowledge' not in session.screen() and '> Settings' not in session.screen())
+                  '> Knowledge' in session.screen() and '> Tools' not in session.screen() and '> Settings' not in session.screen())
+            session.key('\x1b[A', '\x1b[1;1:3A')   # back to Search so the key letters belong to the page
             session.key('\t', '\x1b[9;1:3~')       # menu -> content
             session.key('\x1b[97u', '\x1b[97;1:3u')  # 'a' as kitty sends it with flag 1
             session.wait('Add key')
@@ -499,8 +497,8 @@ def run(entry):
         session = Session(entry, home, trace, rows=16, columns=60, language='zh')
         try:
             session.wait('[Exa]')
-            check('窄屏下搜索标签完整可见', '[Firecrawl]' in session.screen() and '[UseGPT]' not in session.screen())
-            check('中文菜单渲染', all(x in session.screen() for x in ['搜索引擎', '路由顺序', '知识库', '工具库', '诊断']))
+            check('窄屏下搜索标签完整可见', '[Firecrawl]' in session.screen() and '[Order]' in session.screen() and '[UseGPT]' not in session.screen())
+            check('中文菜单渲染', all(x in session.screen() for x in ['搜索引擎', '知识库', '工具库', '诊断']))
             session.send('\t\t')
             session.wait('env:EXA_API_KEY')
             session.send('a')

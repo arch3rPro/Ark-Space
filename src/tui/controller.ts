@@ -13,14 +13,34 @@ export type Region = "top" | "menu" | "content";
 export type Page = "providers" | "config" | "knowledge" | "tools" | "settings" | "diagnostics";
 export type Mode = "browse" | "details" | "preview" | "form";
 export const CONTEXT_COUNT = 6;                       // 4 web providers + WeKnora + UseGPT (ADR 0024 item 3)
-export const MENU_VALUES = ["providers", "config", "knowledge", "tools", "settings", "diagnostics", "exit"] as const;
+export const ORDER_TAB = 6;                           // pseudo context: search order rides the strip, not the menu
+export const MENU_VALUES = ["providers", "knowledge", "tools", "settings", "diagnostics", "exit"] as const;
 
-/** Context tabs the top strip shows per page; null means the strip renders the page's full name instead. */
+/** Context tabs the top strip shows per page; [] means the strip renders the page's full name instead. */
 export function pageTabs(page: Page): number[] {
-  if (page === "providers") return [0, 1, 2, 3]; // search engines
+  if (page === "providers" || page === "config") return [0, 1, 2, 3, ORDER_TAB]; // search engines + order
   if (page === "knowledge") return [4];
   if (page === "tools") return [5];
   return [];
+}
+
+/** Which tab the strip highlights: the order page selects the pseudo tab, pages select their context. */
+export function selectedTab(state: State): number {
+  return state.page === "config" ? ORDER_TAB : state.context;
+}
+
+/** Apply a page change without moving focus; menu navigation and tab switches share this. */
+function switchPage(state: State, page: Page): State {
+  const context = page === "knowledge" ? 4 : page === "tools" ? 5 : page === "providers" && state.context >= 4 ? 0 : state.context;
+  const next = { ...state, page, context, row: 0 };
+  return page === "config" ? { ...next, orderDraft: null } : next;
+}
+
+function tabTo(state: State, target: number): State {
+  if (target === ORDER_TAB) return switchPage(state, "config");
+  if (target === 4) return switchPage(state, "knowledge");
+  if (target === 5) return switchPage(state, "tools");
+  return switchPage({ ...state, context: target }, "providers");
 }
 
 export interface PreviewSource { label: string; value: string }
@@ -390,19 +410,15 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
       // and cycle within the current page's tab group.
       const tabs = pageTabs(state.page);
       if (!tabs.length) return { state, effects: [] };
-      const at = tabs.indexOf(state.context);
-      const context = tabs[(at + event.delta + tabs.length) % tabs.length]!;
-      return { state: { ...rest(state), context, row: 0 }, effects: [] };
+      const at = Math.max(0, tabs.indexOf(selectedTab(state)));
+      return { state: { ...rest(tabTo(state, tabs[(at + event.delta + tabs.length) % tabs.length]!)), row: 0 }, effects: [] };
     }
     case "contextSet": {
       if (!pageTabs(state.page).includes(event.index)) return { state, effects: [] };
-      return { state: { ...rest(state), context: event.index, row: 0 }, effects: [] };
+      return { state: { ...rest(tabTo(state, event.index)), row: 0 }, effects: [] };
     }
-    case "pageSet": {
-      const context = event.page === "knowledge" ? 4 : event.page === "tools" ? 5 : event.page === "providers" && state.context >= 4 ? 0 : state.context;
-      const next = { ...state, page: event.page, context, row: 0, region: "content" as Region };
-      return { state: event.page === "config" ? { ...next, orderDraft: null } : next, effects: [] };
-    }
+    case "pageSet":
+      return { state: { ...rest(switchPage(state, event.page)), region: "content" as Region }, effects: [] };
     case "rowSet": {
       const max = Math.max(0, rowCount(state) - 1);
       return { state: { ...state, region: "content", row: Math.max(0, Math.min(max, event.row)) }, effects: [] };
@@ -418,7 +434,11 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
       if (state.mode !== "browse") return { state: rest(state), effects: [] };
       if (state.region === "top") return { state, effects: [] }; // the strip is one row; vertical arrows act on the list you are in
       if (state.region === "menu") {
-        return { state: { ...state, menuCursor: Math.max(0, Math.min(MENU_VALUES.length - 1, state.menuCursor + event.delta)) }, effects: [] };
+        // menu navigation switches the page live (P8); Enter only steps into the content
+        const cursor = Math.max(0, Math.min(MENU_VALUES.length - 1, state.menuCursor + event.delta));
+        const value = MENU_VALUES[cursor]!;
+        const page = value === "exit" ? state.page : value as Page;
+        return { state: { ...rest({ ...switchPage(state, page), menuCursor: cursor } as State), region: "menu" as Region, menuCursor: cursor }, effects: [] };
       }
       return { state: { ...state, row: Math.max(0, Math.min(Math.max(0, rowCount(state) - 1), state.row + event.delta)) }, effects: [] };
     }
@@ -429,7 +449,7 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
       if (state.region === "menu") {
         const value = MENU_VALUES[state.menuCursor]!;
         if (value === "exit") return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "exitConfirm"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "exit" } }, effects: [] };
-        return reduce(state, { type: "pageSet", page: value });
+        return { state: { ...state, region: "content" as Region }, effects: [] }; // the page already followed the cursor
       }
       if (state.page === "settings") return reduce(state, { type: "languageApply" });
       if (state.page === "knowledge" || state.page === "tools") return connectionEnter(state);
@@ -444,7 +464,11 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
           return { state: { ...state, modal: { kind: "confirm", title, items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "order-discard" } }, effects: [] };
         }
       }
-      if (state.region === "content") return { state: { ...state, region: "menu" }, effects: [] };
+      if (state.region === "content") {
+        if (state.page === "config") return { state: { ...switchPage(state, "providers"), region: "menu" as Region }, effects: [] }; // order lives on the strip; the menu has no row for it
+        const cursor = MENU_VALUES.indexOf(state.page);
+        return { state: { ...state, region: "menu" as Region, menuCursor: cursor >= 0 ? cursor : state.menuCursor }, effects: [] };
+      }
       if (state.region === "menu") return { state: { ...state, region: "top" }, effects: [] };
       return { state, effects: [] };
     }

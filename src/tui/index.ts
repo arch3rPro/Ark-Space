@@ -97,7 +97,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
       const value = menuHitPage(state, e.y);
       if (value === null) return undefined;
       if (value === "exit") return dispatch({ type: "quitIntent" }), { handled: true };
-      dispatch({ type: "pageSet", page: value as "providers" | "config" | "knowledge" | "tools" | "settings" | "diagnostics" });
+      dispatch({ type: "pageSet", page: value as "providers" | "knowledge" | "tools" | "settings" | "diagnostics" });
       return { handled: true };
     },
   };

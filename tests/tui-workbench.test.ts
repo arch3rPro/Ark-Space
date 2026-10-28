@@ -73,7 +73,7 @@ describe("strip and menu geometry", () => {
     const full = stripLine(loaded("zh", Array.from({ length: 9 }, (_, i) => key(`env:K${i}_API_KEY`))), 120);
     expect(visibleWidth(empty)).toBe(120);
     expect(visibleWidth(full)).toBe(120);
-    for (const label of ["Exa", "Tavily", "Firecrawl", "SearXNG"]) expect(full).toContain(`[${label}]`);
+    for (const label of ["Exa", "Tavily", "Firecrawl", "SearXNG", "Order"]) expect(full).toContain(`[${label}]`); // order rides the strip (P8)
     expect(full).not.toContain("[WeKnora]"); // connections moved to their own pages
     const kn = stripLine({ ...loaded(), page: "knowledge" as const, context: 4 }, 120);
     expect(visibleWidth(kn)).toBe(120);
@@ -93,9 +93,11 @@ describe("strip and menu geometry", () => {
     const menuZh = stripLine({ ...loaded(), region: "menu" as const, menuCursor: MENU_VALUES.indexOf("providers") }, 120);
     expect(menuZh).toContain("搜索引擎设置");
     expect(menuZh).not.toContain("[Exa]");
-    const cfg = stripLine({ ...loaded(), region: "content" as const, page: "config" as const }, 120);
-    expect(cfg).toContain("路由顺序设置");
-    expect(cfg).not.toContain("[Exa]");
+    const order = stripLine({ ...loaded(), region: "content" as const, page: "config" as const }, 120);
+    expect(order).toContain("[Order]"); // the order page keeps the strip and highlights the pseudo tab
+    const settings = stripLine({ ...loaded(), region: "content" as const, page: "settings" as const }, 120);
+    expect(settings).toContain("语言设置");
+    expect(settings).not.toContain("[Exa]");
   });
   it("menu rows match the value list and pad to width", () => {
     const rows = menuLines(loaded(), 18);
@@ -118,13 +120,26 @@ describe("navigation", () => {
     expect(reduce(top, { type: "move", delta: 1 }).state).toBe(top); // same state, no teleport, no cursor move
     expect(reduce(top, { type: "enter" }).state.region).toBe("content");
   });
-  it("context switch wraps within the search group and never writes", () => {
+  it("context switch cycles the five search tabs across the order page and never writes", () => {
     expect(loaded().context).toBe(0);
-    expect(reduce(loaded(), { type: "context", delta: -1 }).state.context).toBe(3); // stays among the four search engines
+    const toOrder = reduce(loaded(), { type: "context", delta: -1 }).state; // wrap lands on [Order]
+    expect(toOrder.page).toBe("config");
+    expect(reduce(toOrder, { type: "context", delta: -1 }).state.context).toBe(3); // back to SearXNG
     expect(reduce(loaded(), { type: "context", delta: 1 }).state.context).toBe(1);
     expect(reduce(loaded(), { type: "contextSet", index: 4 }).state.context).toBe(0); // WeKnora is not a search tab
-    const cfg = reduce({ ...loaded(), page: "config" as const, region: "top" as const }, { type: "context", delta: 1 });
-    expect(cfg.state.context).toBe(0); // title pages have no tabs to switch
+    expect(reduce(loaded(), { type: "contextSet", index: 6 }).state.page).toBe("config");
+  });
+  it("menu arrows switch pages live; Enter only moves focus; Esc from Order lands on Search", () => {
+    const menu = { ...loaded(), region: "menu" as const };
+    const down = reduce(menu, { type: "move", delta: 1 }).state;
+    expect([down.menuCursor, down.page, down.context, down.region] as const).toEqual([1, "knowledge", 4, "menu"]);
+    const enter = reduce(down, { type: "enter" }).state;
+    expect(enter.region).toBe("content"); // no page teleport on Enter
+    const atExit = reduce({ ...down, menuCursor: MENU_VALUES.length - 1 }, { type: "move", delta: 1 }).state;
+    expect(atExit.page).toBe("knowledge"); // the exit row never switches the page
+    expect(reduce(atExit, { type: "enter" }).state.modal?.tag).toBe("exit");
+    const back = reduce({ ...loaded(), region: "content" as const, page: "config" as const }, { type: "escape" }).state;
+    expect([back.region, back.page, back.menuCursor] as const).toEqual(["menu", "providers", 0]);
   });
   it("entering knowledge/tools pages pins the context to the single member", () => {
     const kn = reduce(loaded(), { type: "pageSet", page: "knowledge" });

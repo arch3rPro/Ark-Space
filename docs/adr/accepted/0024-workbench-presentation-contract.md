@@ -20,11 +20,13 @@ prototype proved and the engine forced:
    East-Asian-Ambiguous set (`✓ • — … ⋯ ⏸ → ·`) is banned by a deny-list assertion in
    tests. Full-width CJK punctuation and box-drawing borders stay, matching engine
    assumptions.
-3. **Top axis = page-scoped tabs.** The strip follows the active menu page: the
-   Search page tab-cycles Exa/Tavily/Firecrawl/SearXNG, Knowledge carries WeKnora,
-   Tools carries UseGPT; pages without a group render their centered full name, and
-   while the menu owns focus the full name follows the menu cursor. Context switches
-   never enable a provider or issue requests (`arks setup weknora|usegpt` still deep-links).
+3. **Top axis = page-scoped tabs.** The strip follows the active page: Search
+   tab-cycles Exa/Tavily/Firecrawl/SearXNG plus the search-order tab, Knowledge
+   carries WeKnora, Tools carries UseGPT; pages without a group render their
+   centered full name, and while the menu owns focus the full name follows the
+   menu cursor. Menu arrows switch pages live (Enter only steps into content).
+   Context switches never enable a provider or issue requests
+   (`arks setup weknora|usegpt` still deep-links).
 4. **Overlay key fence.** While a modal is open every global shortcut is suppressed;
    modals carry Cancel as the first/default item; Escape always means cancel.
 5. **Focus follows component swaps.** Entering form/details/preview moves terminal
