@@ -175,3 +175,8 @@ Pi worker handoff 故障诊断、全局安装/`/usr/bin/arks` 切换、systemd �
   - PTY：check.py 增 5 断言（config 行存在、tunnel 校验拒写/接受离线保存、密钥掩码不回显、weknora remove 取消零写）；byteLock 简化为单路径无泄露断言。发现 ESC 单发在 check 驱动中被解析器滞留——驱动表单取消须用 `\x1b\x1b` 或退格清稿（脚本层，非产品 bug）。
   - 文档：README/README.zh-CN/INSTALL/architecture 的 v1 长描述段统一改写为 v2 六上下文契约摘要（中英事实对齐，ADR 0016/0017/0023/0024 链接，validate 链接检查通过）。`.scratch` 归档目录为 issue-tracker 记录，按仓库惯例保留。
   - 验收：单测 567/567 + validate=0 + verify:package；`npm run test:setup` 源与离线安装入口各 **72/72**。遗留：macOS/Windows 真实 TTY 人工证据；0.1.5 发布动作本身（未请求）。
+- **P6.1 按键简化（用户试用反馈驱动）**：
+  - 排查：真 PTY 步进探针证明菜单方向键本就单步（"跳两格"未在 Linux 合成终端复现，疑与用户终端键重复/协议层有关；留 `ARKS_TUI_DEBUG=1` stderr 按键 trace，掩码输入只记长度）。
+  - 真问题在路由：① 动作键跨页泄漏——Order/Settings 页按 `a` 会对着隐藏的 provider 上下文开表单；② `[`/`]` 与 Top 区专属 `←/→` 双轨且切上下文强制把焦点传送到 content；③ `j/k/h/l` 别名与动作字母并存混乱。
+  - 简化后模型：`←/→` 任意浏览区切上下文（非 Providers 页自动弹回该页，region 保持）；上下键只动列表、焦点只随 Tab/Esc/Enter 走；`a e d i p Space v t` 仅在 Providers 内容区生效；`u d Del I Ctrl-S` 仅在 Order 内容区生效；模态内删 j/k。删除全部字母别名（`[ ] j k V U D`）。deny-list 增补 `←↑↓`，keyBar 提示改 ASCII `<-/->`。
+  - 验收：单测 567/567（含 context 事件 region/page 语义新测）、validate=0、真 PTY 72/72。ADR 0017 头注记录键位简化（交互契约其余不变）。

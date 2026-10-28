@@ -94,6 +94,10 @@ describe("navigation", () => {
     expect(loaded().context).toBe(0);
     expect(reduce(loaded(), { type: "context", delta: -1 }).state.context).toBe(CONTEXT_COUNT - 1);
     expect(reduce(loaded(), { type: "context", delta: 1 }).state.context).toBe(1);
+    const snapped = reduce({ ...loaded(), page: "config" as never, region: "content" as never }, { type: "context", delta: 1 });
+    expect(snapped.state.page).toBe("providers"); // the strip is only meaningful on the provider list
+    const inPlace = reduce({ ...loaded(), region: "menu" as never }, { type: "context", delta: 1 });
+    expect(inPlace.state.region).toBe("menu"); // arrows switch context without teleporting focus
   });
   it("row movement clamps to page size", () => {
     const atContent = { ...loaded(), region: "content" as const };

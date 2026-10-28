@@ -367,13 +367,16 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
       return { state: { ...rest(state), region }, effects: [] };
     }
     case "context": {
-      // [ ] switches context only: never enables a provider, never issues requests (ADR 0017)
+      // Arrows switch context from anywhere; focus region stays put, but a non-provider
+      // page snaps back to Providers so the strip change is where the action is.
       const context = (state.context + event.delta + CONTEXT_COUNT) % CONTEXT_COUNT;
-      return { state: { ...rest(state), region: "content", context, row: 0 }, effects: [] };
+      const next = { ...rest(state), context, row: 0 };
+      return { state: state.page === "providers" ? next : { ...next, page: "providers" as Page }, effects: [] };
     }
     case "contextSet": {
       const context = Math.max(0, Math.min(CONTEXT_COUNT - 1, event.index));
-      return { state: { ...rest(state), region: "content", context, row: 0 }, effects: [] };
+      const next = { ...rest(state), context, row: 0 };
+      return { state: state.page === "providers" ? next : { ...next, page: "providers" as Page }, effects: [] };
     }
     case "pageSet": {
       const next = { ...state, page: event.page, row: 0, region: "content" as Region };

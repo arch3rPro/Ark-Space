@@ -372,9 +372,10 @@ export function keyBar(state: State): string {
     if (state.context >= 4) parts.push(kb("Enter", msg(state.lang, "keyRowOp")));
     else if (state.context === 3) parts.push(kb("a", msg(state.lang, "keyAdd")), kb("e", msg(state.lang, "keyEdit")), kb("d", msg(state.lang, "keyRemove")));
     else parts.push(kb("a", msg(state.lang, "keyAdd")), kb("e", msg(state.lang, "keyEdit")), kb("i", msg(state.lang, "keyDetails")), kb("p", msg(state.lang, "keyPreview")), kb("d", msg(state.lang, "keyRemove")), kb("Space", msg(state.lang, "keyToggle")));
+    parts.push(kb("v", msg(state.lang, "keyEnable")), kb("t", msg(state.lang, "keyTest")));
   }
   else if (state.region === "content" && state.page === "config") parts.push(kb("u/d", msg(state.lang, "keyMoveRow")), kb("Del", msg(state.lang, "keyDrop")), kb("I", msg(state.lang, "keyInclude")), kb("Ctrl-S", state.orderDraft ? FG(33, msg(state.lang, "keySaveStar")) : msg(state.lang, "keySave")));
   else if (state.region === "menu") parts.push(kb("Enter", msg(state.lang, "keyOpen")), kb("Esc", msg(state.lang, "keyBack")));
-  parts.push(kb("[ ]", msg(state.lang, "keyContext")), kb("v", msg(state.lang, "keyEnable")), kb("q", msg(state.lang, "keyQuit")));
+  parts.push(kb("<-/->", msg(state.lang, "keyContext")), kb("q", msg(state.lang, "keyQuit")));
   return "  " + parts.join(" ");
 }

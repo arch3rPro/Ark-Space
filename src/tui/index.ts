@@ -356,12 +356,13 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
   }
 
   tui.addInputListener((data) => {
+    if (process.env.ARKS_TUI_DEBUG) process.stderr.write(state.mode === "form" && state.form?.typing ? `key:len${data.length}\n` : `key:${JSON.stringify(data)}\n`); // opt-in stdin trace; masked typing is length-only
     if (closed) return { consume: true };
     if (matchesKey(data, "ctrl+c")) { close(); return { consume: true }; }
 
     if (state.modal) {
-      if (matchesKey(data, Key.up) || data === "k") dispatch({ type: "modalMove", delta: -1 });
-      else if (matchesKey(data, Key.down) || data === "j") dispatch({ type: "modalMove", delta: 1 });
+      if (matchesKey(data, Key.up)) dispatch({ type: "modalMove", delta: -1 });
+      else if (matchesKey(data, Key.down)) dispatch({ type: "modalMove", delta: 1 });
       else if (matchesKey(data, Key.enter)) dispatch({ type: "modalPick" });
       else if (matchesKey(data, Key.escape)) dispatch({ type: "escape" });
       else if (data === "y") { state = { ...state, modal: state.modal ? { ...state.modal, cursor: 1 } : null }; dispatch({ type: "modalPick" }); }
@@ -388,30 +389,31 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     if (state.mode === "details") { dispatch({ type: "escape" }); return { consume: true }; } // any key back
     if (state.testing && matchesKey(data, Key.escape)) { testAbort?.abort(); return { consume: true }; } // Esc stops the run, keeps partial rows
     const onConfig = state.region === "content" && state.page === "config";
+    const onProviderList = state.region === "content" && state.page === "providers";
+    // Browse keys are page-scoped: arrows move lists and switch context; every action
+    // letter acts only on the list it is displayed above. No letter aliases.
     if (data === "q") dispatch({ type: "quitIntent" });
     else if (matchesKey(data, "tab")) dispatch({ type: "tab", delta: 1 });
     else if (matchesKey(data, "shift+tab")) dispatch({ type: "tab", delta: -1 });
-    else if (matchesKey(data, Key.up) || data === "k") dispatch({ type: "move", delta: -1 });
-    else if (matchesKey(data, Key.down) || data === "j") dispatch({ type: "move", delta: 1 });
-    else if (matchesKey(data, Key.left) && state.region === "top") dispatch({ type: "context", delta: -1 });
-    else if (matchesKey(data, Key.right) && state.region === "top") dispatch({ type: "context", delta: 1 });
-    else if (data === "[") dispatch({ type: "context", delta: -1 });
-    else if (data === "]") dispatch({ type: "context", delta: 1 });
-    else if (onConfig && (data === "u" || data === "U")) dispatch({ type: "orderMove", delta: -1 });
-    else if (onConfig && (data === "d" || data === "D")) dispatch({ type: "orderMove", delta: 1 });
+    else if (matchesKey(data, Key.up)) dispatch({ type: "move", delta: -1 });
+    else if (matchesKey(data, Key.down)) dispatch({ type: "move", delta: 1 });
+    else if (matchesKey(data, Key.left)) dispatch({ type: "context", delta: -1 });
+    else if (matchesKey(data, Key.right)) dispatch({ type: "context", delta: 1 });
+    else if (onConfig && data === "u") dispatch({ type: "orderMove", delta: -1 });
+    else if (onConfig && data === "d") dispatch({ type: "orderMove", delta: 1 });
     else if (onConfig && matchesKey(data, Key.delete)) dispatch({ type: "orderDrop" });
     else if (onConfig && data === "I") dispatch({ type: "orderIncludeStart" });
     else if (onConfig && matchesKey(data, "ctrl+s")) dispatch({ type: "orderSave" });
     else if (matchesKey(data, Key.enter)) dispatch({ type: "enter" });
     else if (matchesKey(data, Key.escape)) dispatch({ type: "escape" });
-    else if (data === "i") { ioBusy = true; void openDetails().finally(() => { ioBusy = false; }); }
-    else if (data === "p") { ioBusy = true; void openPreview().finally(() => { ioBusy = false; }); }
-    else if (data === "a") dispatch({ type: "keyAdd" });
-    else if (data === "e") dispatch({ type: "keyEdit" });
-    else if (data === "d") dispatch({ type: "keyRemoveStart" });
-    else if (data === " ") dispatch({ type: "keyToggle" });
-    else if (data === "v" || data === "V") dispatch({ type: "providerToggle" });
-    else if (data === "t") dispatch({ type: "testIntent" });
+    else if (onProviderList && data === "i") { ioBusy = true; void openDetails().finally(() => { ioBusy = false; }); }
+    else if (onProviderList && data === "p") { ioBusy = true; void openPreview().finally(() => { ioBusy = false; }); }
+    else if (onProviderList && data === "a") dispatch({ type: "keyAdd" });
+    else if (onProviderList && data === "e") dispatch({ type: "keyEdit" });
+    else if (onProviderList && data === "d") dispatch({ type: "keyRemoveStart" });
+    else if (onProviderList && data === " ") dispatch({ type: "keyToggle" });
+    else if (onProviderList && data === "v") dispatch({ type: "providerToggle" });
+    else if (onProviderList && data === "t") dispatch({ type: "testIntent" });
     return { consume: true };
   });
 

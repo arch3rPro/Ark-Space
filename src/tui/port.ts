@@ -40,7 +40,7 @@ export {
  * alignment. Box-drawing borders and full-width CJK punctuation are whitelisted
  * (the engine measures them the same way mainstream terminals draw them).
  */
-export const FORBIDDEN_GLYPHS = /[✓✗•…⋯⏸→·—]/u;
+export const FORBIDDEN_GLYPHS = /[✓✗•…⋯⏸→←↑↓·—]/u;
 
 /** Throws with the offending character so tests and dev builds fail fast. */
 export function assertWidthSafe(text: string, source: string): void {

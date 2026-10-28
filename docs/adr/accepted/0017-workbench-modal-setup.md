@@ -1,6 +1,6 @@
 # Three-axis workbench for Provider setup
 
-- **Status:** accepted; implemented in 0.1.3 with automated Linux PTY qualification; human UX acceptance pending; engine and presentation clauses superseded by [ADR 0024](0024-workbench-presentation-contract.md), interaction contract and security semantics retained
+- **Status:** accepted; implemented in 0.1.3 with automated Linux PTY qualification; human UX acceptance pending; engine and presentation clauses superseded by [ADR 0024](0024-workbench-presentation-contract.md); the key set was simplified in the 0.1.5 P6 UX pass (bracket/context aliases `[`/`]` and `j`/`k`/`V`/`U`/`D` retired; Left/Right arrows switch context in every region and action letters act only on the focused provider list) — interaction contract otherwise retained
 - **Class:** security and interaction
 - **Supersedes:** the setup interaction contract in [ADR 0016](0016-tui-provider-setup.md); retained security, language, storage, routing, and ownership protections remain in force
 
