@@ -85,7 +85,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     render: (w) => [stripLine(state, w)],
     handleMouse: (e: TuiMouseEvent): TuiMouseEventResult | undefined => {
       if (e.type !== "click") return undefined;
-      for (const [a, b, i] of stripHits(e.width)) if (e.x >= a && e.x <= b) return (dispatch({ type: "contextSet", index: i }), { handled: true });
+      for (const [a, b, i] of stripHits(state, e.width)) if (e.x >= a && e.x <= b) return (dispatch({ type: "contextSet", index: i }), { handled: true });
       return undefined;
     },
   };
@@ -97,7 +97,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
       const value = menuHitPage(state, e.y);
       if (value === null) return undefined;
       if (value === "exit") return dispatch({ type: "quitIntent" }), { handled: true };
-      dispatch({ type: "pageSet", page: value as "providers" | "config" | "settings" | "diagnostics" });
+      dispatch({ type: "pageSet", page: value as "providers" | "config" | "knowledge" | "tools" | "settings" | "diagnostics" });
       return { handled: true };
     },
   };
@@ -375,6 +375,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
       case "details": void openDetails(); break;
       case "preview": void openPreview(); break;
       case "orderSave": dispatch({ type: "orderSave" }); break;
+      case "orderToggle": dispatch({ type: "orderToggle" }); break;
       default: dispatch({ type: "notice", text: msg(state.lang, "pendingP3"), warn: true });
     }
   }
@@ -429,8 +430,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     else if (state.region === "top" && matchesKey(data, Key.right)) dispatch({ type: "context", delta: 1 });
     else if (onConfig && ch === "u") dispatch({ type: "orderMove", delta: -1 });
     else if (onConfig && ch === "d") dispatch({ type: "orderMove", delta: 1 });
-    else if (onConfig && matchesKey(data, Key.delete)) dispatch({ type: "orderDrop" });
-    else if (onConfig && ch === "I") dispatch({ type: "orderIncludeStart" });
+    else if (onConfig && ch === " ") dispatch({ type: "orderToggle" });
     else if (onConfig && matchesKey(data, "ctrl+s")) dispatch({ type: "orderSave" });
     else if (matchesKey(data, Key.enter)) dispatch({ type: "enter" });
     else if (matchesKey(data, Key.escape)) dispatch({ type: "escape" });

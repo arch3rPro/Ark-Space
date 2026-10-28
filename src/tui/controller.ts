@@ -10,10 +10,18 @@ import { msg } from "./messages.js";
 import type { TuiLang } from "./messages.js";
 
 export type Region = "top" | "menu" | "content";
-export type Page = "providers" | "config" | "settings" | "diagnostics";
+export type Page = "providers" | "config" | "knowledge" | "tools" | "settings" | "diagnostics";
 export type Mode = "browse" | "details" | "preview" | "form";
 export const CONTEXT_COUNT = 6;                       // 4 web providers + WeKnora + UseGPT (ADR 0024 item 3)
-export const MENU_VALUES = ["providers", "config", "settings", "diagnostics", "exit"] as const;
+export const MENU_VALUES = ["providers", "config", "knowledge", "tools", "settings", "diagnostics", "exit"] as const;
+
+/** Context tabs the top strip shows per page; null means the strip renders the page's full name instead. */
+export function pageTabs(page: Page): number[] {
+  if (page === "providers") return [0, 1, 2, 3]; // search engines
+  if (page === "knowledge") return [4];
+  if (page === "tools") return [5];
+  return [];
+}
 
 export interface PreviewSource { label: string; value: string }
 export interface DiagEntry { when: string; ref: string; out: string; dur: number }
@@ -118,8 +126,7 @@ export type Event =
   | { type: "formDone" }         // host: op succeeded, leave form
   | { type: "languageApply" }
   | { type: "orderMove"; delta: 1 | -1 }
-  | { type: "orderDrop" }
-  | { type: "orderIncludeStart" }
+  | { type: "orderToggle" }
   | { type: "orderSave" }
   | { type: "modalMove"; delta: 1 | -1 }
   | { type: "modalPick" }
@@ -146,8 +153,9 @@ export type Effect =
   | { type: "service"; action: "wekVerify" | "usegptStart" | "usegptStop" | "usegptDiagnose" };
 
 export function initialState(lang: TuiLang, status: string, context = 0): State {
+  const page: Page = context === 4 ? "knowledge" : context === 5 ? "tools" : "providers";
   return {
-    lang, region: context >= 4 ? "content" : "top", menuCursor: 0, page: "providers", context, row: 0,
+    lang, region: context >= 4 ? "content" : "top", menuCursor: MENU_VALUES.indexOf(page), page, context, row: 0,
     mode: "browse", status, statusWarn: false, loading: true, snapshot: null,
     detailRef: null, preview: null, revealed: false, modal: null, form: null,
     orderDraft: null, diagnostics: [], testing: null, svcBusy: null, weknora: null, usegpt: null,
@@ -170,7 +178,7 @@ export function currentProvider(state: State) {
 export function rowCount(state: State): number {
   const snapshot = state.snapshot;
   if (!snapshot) return 0;
-  if (state.page === "config") return (state.orderDraft ?? snapshot.providerOrder).length;
+  if (state.page === "config") return orderRows(state).length;
   if (state.page === "settings") return 2;
   if (state.page === "diagnostics") return state.diagnostics.length;
   if (state.context === 4) return 5; // endpoint / key / kb / verify / remove
@@ -182,13 +190,17 @@ export function rowCount(state: State): number {
 
 export function dirtyOrder(state: State): boolean {
   const saved = state.snapshot?.providerOrder ?? [];
-  const draft = state.orderDraft;
-  return draft !== null && draft.join(",") !== saved.join(",");
+  return orderRows(state).join(",") !== saved.join(",");
 }
 
-function ensureDraft(state: State): ProviderId[] {
-  return state.orderDraft ?? [...(state.snapshot?.providerOrder ?? [])];
+/** Rows on the order page: the saved order, with SearXNG appended by default until it is saved in. */
+export function orderRows(state: State): ProviderId[] {
+  if (state.orderDraft) return state.orderDraft;
+  const saved = state.snapshot?.providerOrder ?? [];
+  return saved.includes("searxng") || !saved.length ? saved : [...saved, "searxng"];
 }
+
+
 
 /** Leave transient modes; secret values are never retained past preview (ADR 0016). */
 function rest(state: State): State {
@@ -242,14 +254,9 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
         }
         case "form-discard":
           return picked.value === "yes" ? { state: withForm(closed, null), effects: [] } : { state: closed, effects: [] };
-        case "order-include": {
-          if (picked.value === "cancel") return { state: closed, effects: [] };
-          const draft = [...ensureDraft(state), picked.value as ProviderId];
-          return { state: { ...closed, orderDraft: draft, status: msg(state.lang, "draftUpdated"), statusWarn: false }, effects: [] };
-        }
         case "order-save-consent":
-          if (picked.value !== "yes" || !state.orderDraft) return { state: closed, effects: [] };
-          return { state: closed, effects: [{ type: "op", op: { kind: "saveOrder", order: [...state.orderDraft] } }] };
+          if (picked.value !== "yes") return { state: closed, effects: [] };
+          return { state: closed, effects: [{ type: "op", op: { kind: "saveOrder", order: [...orderRows(state)] } }] };
         case "order-discard":
           return picked.value === "yes"
             ? { state: { ...closed, orderDraft: null, status: msg(state.lang, "draftDiscarded"), statusWarn: false }, effects: [] }
@@ -379,19 +386,21 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
       return { state: { ...rest(state), region }, effects: [] };
     }
     case "context": {
-      // Context arrows live in the strip region only (user rule: an area owns its arrows);
-      // a non-provider page snaps back to Providers so the strip change is where the action is.
-      const context = (state.context + event.delta + CONTEXT_COUNT) % CONTEXT_COUNT;
-      const next = { ...rest(state), context, row: 0 };
-      return { state: state.page === "providers" ? next : { ...next, page: "providers" as Page }, effects: [] };
+      // Context arrows live in the strip region only (user rule: an area owns its arrows),
+      // and cycle within the current page's tab group.
+      const tabs = pageTabs(state.page);
+      if (!tabs.length) return { state, effects: [] };
+      const at = tabs.indexOf(state.context);
+      const context = tabs[(at + event.delta + tabs.length) % tabs.length]!;
+      return { state: { ...rest(state), context, row: 0 }, effects: [] };
     }
     case "contextSet": {
-      const context = Math.max(0, Math.min(CONTEXT_COUNT - 1, event.index));
-      const next = { ...rest(state), context, row: 0 };
-      return { state: state.page === "providers" ? next : { ...next, page: "providers" as Page }, effects: [] };
+      if (!pageTabs(state.page).includes(event.index)) return { state, effects: [] };
+      return { state: { ...rest(state), context: event.index, row: 0 }, effects: [] };
     }
     case "pageSet": {
-      const next = { ...state, page: event.page, row: 0, region: "content" as Region };
+      const context = event.page === "knowledge" ? 4 : event.page === "tools" ? 5 : event.page === "providers" && state.context >= 4 ? 0 : state.context;
+      const next = { ...state, page: event.page, context, row: 0, region: "content" as Region };
       return { state: event.page === "config" ? { ...next, orderDraft: null } : next, effects: [] };
     }
     case "rowSet": {
@@ -420,11 +429,10 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
       if (state.region === "menu") {
         const value = MENU_VALUES[state.menuCursor]!;
         if (value === "exit") return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "exitConfirm"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "exit" } }, effects: [] };
-        const next = { ...state, page: value as Page, row: 0, region: "content" as Region };
-        return { state: value === "config" ? { ...next, orderDraft: null } : next, effects: [] };
+        return reduce(state, { type: "pageSet", page: value });
       }
       if (state.page === "settings") return reduce(state, { type: "languageApply" });
-      if (state.page === "providers" && state.context >= 4) return connectionEnter(state);
+      if (state.page === "knowledge" || state.page === "tools") return connectionEnter(state);
       return { state, effects: [] }; // Enter on a key row opens edit via the P2 `e` path
     }
 
@@ -559,30 +567,23 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
 
     // ---------------- order draft ----------------
     case "orderMove": {
-      const draft = ensureDraft(state);
+      const draft = [...orderRows(state)]; // copy: the previous render still reads the old array
       const i = state.row;
       const j = event.delta === -1 ? i - 1 : i + 1;
       if (j < 0 || j >= draft.length) return { state, effects: [] };
       [draft[i], draft[j]] = [draft[j]!, draft[i]!];
       return { state: { ...state, orderDraft: draft, row: j }, effects: [] };
     }
-    case "orderDrop": {
-      const draft = [...ensureDraft(state)];
-      if (!draft.length) return { state, effects: [] };
-      draft.splice(state.row, 1);
-      return { state: { ...state, orderDraft: draft, row: Math.max(0, state.row - 1) }, effects: [] };
-    }
-    case "orderIncludeStart": {
-      const current = ensureDraft(state);
-      const excluded = (["exa", "tavily", "firecrawl", "searxng"] as ProviderId[]).filter(id => !current.includes(id));
-      if (!excluded.length) return notice(state, msg(state.lang, "allIncluded"));
-      const items = [{ value: "cancel", label: msg(state.lang, "cancelDefault") }, ...excluded.map(id => ({ value: id, label: PROV_LABELS[id] ?? id }))];
-      return { state: { ...state, modal: { kind: "choose", title: msg(state.lang, "includeChoose"), items, cursor: 0, tag: "order-include" } }, effects: [] };
+    case "orderToggle": {
+      const id = orderRows(state)[state.row];
+      const provider = id ? state.snapshot?.providers.find(p => p.id === id) : undefined;
+      if (!provider) return notice(state, msg(state.lang, "noRows"), true);
+      return { state, effects: [{ type: "op", op: { kind: "toggleProvider", provider: provider.id, enabled: !provider.enabled } }] };
     }
     case "orderSave": {
       if (!dirtyOrder(state)) return notice(state, msg(state.lang, "orderNoop"));
       const saved = state.snapshot?.providerOrder ?? [];
-      const draft = state.orderDraft!;
+      const draft = orderRows(state);
       const adding = draft.filter(id => !saved.includes(id));
       if (adding.length) {
         const title = msg(state.lang, "orderConsent", { names: adding.map(id => PROV_LABELS[id] ?? id).join(", ") });

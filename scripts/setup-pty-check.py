@@ -218,10 +218,10 @@ def run(entry):
         prepare(entry, home, trace, 2)
         session = Session(entry, home, trace)
         try:
-            session.wait('[UseGPT]')
+            session.wait('[SearXNG]')
             first = session.screen().splitlines()[0]
-            check('top strip shows all six contexts', all('[' + n + ']' in first for n in ['Exa', 'Tavily', 'Firecrawl', 'SearXNG', 'WeKnora', 'UseGPT']))
-            check('menu lists the four pages', all(x in session.screen() for x in ['Providers', 'Order', 'Diagnostics']))
+            check('top strip shows the four search engines only', all('[' + n + ']' in first for n in ['Exa', 'Tavily', 'Firecrawl', 'SearXNG']) and 'WeKnora' not in first and 'UseGPT' not in first)
+            check('menu lists the seven pages', all(x in session.screen() for x in ['Search', 'Order', 'Knowledge', 'Tools', 'Settings', 'Diagnostics', 'Exit']))
             session.send('\t\t')
             check('Tab focuses top then menu then content', 'env:EXA_API_KEY' in session.screen() and '[Space]' in session.screen())  # 80-col action row is keys-only
 
@@ -287,12 +287,12 @@ def run(entry):
             check('all-key diagnostics preserve config/credentials/normal state', fingerprint(home) == before)
 
             # diagnostics page keeps the failure rows (pool would clear them by design)
-            session.send('\t\t\x1b[B\x1b[B\x1b[B\r')
+            session.send('\t\t\x1b[B\x1b[B\x1b[B\x1b[B\x1b[B\r')
             session.wait('env:EXA_API_KEY_1')
             check('diagnostics classify failure with a reason only', 'failure' in session.screen() and KEY + '-b' not in session.screen())
 
             # back to Providers, then the pool e2e sample through the real registry
-            session.send('\t\t\x1b[A\x1b[A\x1b[A\r')
+            session.send('\t\t\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A\r')
             session.wait('[Space]')
             session.send('t\x1b[B\r')
             session.wait('Connection success')
@@ -307,6 +307,8 @@ def run(entry):
             session.send('d')
             session.wait('unsaved')
             session.send('\x13')
+            session.wait('Adding SearXNG')  # implicit default-add consent appears once
+            session.send('\x1b[B\r')
             session.wait('routing order saved')
             after_order = json.loads((home / 'config.json').read_text())['providerOrder']
             check('order save changed the persisted sequence', after_order != before_order)
@@ -348,7 +350,7 @@ def run(entry):
         prepare(entry, home, trace, 4)
         session = Session(entry, home, trace)
         try:
-            session.wait('[UseGPT]')
+            session.wait('[SearXNG]')
             session.send('\t\t')
             before = fingerprint(home)
             session.send('t\x1b[B\x1b[B\r')
@@ -357,7 +359,7 @@ def run(entry):
             check('current diagnostic target is C while completed count remains two', 'Testing EXA_API_KEY_2' in session.screen())
             session.send('\x1b')
             session.wait('Keys: 1/4 passed/stopped')
-            session.send('\t\t\x1b[B\x1b[B\x1b[B\r')  # menu -> Diagnostics page
+            session.send('\t\t\x1b[B\x1b[B\x1b[B\x1b[B\x1b[B\r')  # menu -> Diagnostics page
             session.wait('env:EXA_API_KEY_3')
             screen = session.screen()
             for reference, status in [('env:EXA_API_KEY', 'success'), ('env:EXA_API_KEY_1', 'failure'),
@@ -460,13 +462,13 @@ def run(entry):
         prepare(entry, home, trace, 2)
         session = Session(entry, home, trace, kitty=True)
         try:
-            session.wait('[UseGPT]')
+            session.wait('[SearXNG]')
             check('kitty negotiation was answered and activated', session.kitty_answered)
             session.key('\t', '\x1b[9;1:3~')       # top -> menu
             session.key('\x1b[B', '\x1b[1;1:3B')   # one down step; the release must not move again
             time.sleep(0.2)
             check('kitty release events do not double-step the menu',
-                  '> Order' in session.screen() and '> Settings' not in session.screen())
+                  '> Order' in session.screen() and '> Knowledge' not in session.screen() and '> Settings' not in session.screen())
             session.key('\t', '\x1b[9;1:3~')       # menu -> content
             session.key('\x1b[97u', '\x1b[97;1:3u')  # 'a' as kitty sends it with flag 1
             session.wait('Add key')
@@ -497,8 +499,8 @@ def run(entry):
         session = Session(entry, home, trace, rows=16, columns=60, language='zh')
         try:
             session.wait('[Exa]')
-            check('窄屏下六上下文条优雅截断', '[Firecrawl]' in session.screen())
-            check('中文菜单渲染', '路由顺序' in session.screen() and '诊断' in session.screen())
+            check('窄屏下搜索标签完整可见', '[Firecrawl]' in session.screen() and '[UseGPT]' not in session.screen())
+            check('中文菜单渲染', all(x in session.screen() for x in ['搜索引擎', '路由顺序', '知识库', '工具库', '诊断']))
             session.send('\t\t')
             session.wait('env:EXA_API_KEY')
             session.send('a')

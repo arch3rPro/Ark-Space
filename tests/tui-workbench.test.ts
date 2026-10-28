@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ProviderId } from "../src/protocol/types.js";
 import type { SetupKeySnapshot, SetupProviderSnapshot, SetupSnapshot } from "../src/config/manage.js";
 import { Framed } from "../src/tui/components/framed.js";
-import { CONTEXT_COUNT, MENU_VALUES, dirtyOrder, initialState, reduce, rowCount, type DiagEntry, type Event, type State } from "../src/tui/controller.js";
+import { MENU_VALUES, dirtyOrder, initialState, orderRows, reduce, rowCount, type DiagEntry, type Event, type State } from "../src/tui/controller.js";
 import { assertWidthSafe, visibleWidth } from "../src/tui/port.js";
 import { messageKeys, msg } from "../src/tui/messages.js";
 import { menuLines, stripLine } from "../src/tui/view.js";
@@ -68,22 +68,34 @@ describe("Framed fixed height (ADR 0024 item 1)", () => {
 });
 
 describe("strip and menu geometry", () => {
-  it("strip width is constant regardless of key counts, with all six contexts", () => {
+  it("strip width is constant and shows only the current page group", () => {
     const empty = stripLine(loaded("zh", []), 120);
     const full = stripLine(loaded("zh", Array.from({ length: 9 }, (_, i) => key(`env:K${i}_API_KEY`))), 120);
     expect(visibleWidth(empty)).toBe(120);
     expect(visibleWidth(full)).toBe(120);
-    for (const label of ["Exa", "Tavily", "Firecrawl", "SearXNG", "WeKnora", "UseGPT"]) expect(full).toContain(`[${label}]`);
+    for (const label of ["Exa", "Tavily", "Firecrawl", "SearXNG"]) expect(full).toContain(`[${label}]`);
+    expect(full).not.toContain("[WeKnora]"); // connections moved to their own pages
+    const kn = stripLine({ ...loaded(), page: "knowledge" as const, context: 4 }, 120);
+    expect(visibleWidth(kn)).toBe(120);
+    expect(kn).toContain("[WeKnora]");
   });
   it("strip labels keep the same columns across contexts and chip widths", () => {
     const plain = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
     const base = plain(stripLine(loaded(), 120));
-    for (const ctx of [3, 4]) { // SearXNG renders no key chip, WeKnora no web provider row
+    for (const ctx of [1, 2, 3]) { // same group, different chips (SearXNG renders none)
       const st = reduce(loaded(), { type: "contextSet", index: ctx }).state;
       const line = plain(stripLine(st, 120));
       expect(line.indexOf("[Exa]")).toBe(base.indexOf("[Exa]"));
-      expect(line.indexOf("[UseGPT]")).toBe(base.indexOf("[UseGPT]"));
+      expect(line.indexOf("[SearXNG]")).toBe(base.indexOf("[SearXNG]"));
     }
+  });
+  it("menu focus shows the full name of the item under the cursor; pages without tabs never show tabs", () => {
+    const menuZh = stripLine({ ...loaded(), region: "menu" as const, menuCursor: MENU_VALUES.indexOf("providers") }, 120);
+    expect(menuZh).toContain("搜索引擎设置");
+    expect(menuZh).not.toContain("[Exa]");
+    const cfg = stripLine({ ...loaded(), region: "content" as const, page: "config" as const }, 120);
+    expect(cfg).toContain("路由顺序设置");
+    expect(cfg).not.toContain("[Exa]");
   });
   it("menu rows match the value list and pad to width", () => {
     const rows = menuLines(loaded(), 18);
@@ -106,14 +118,22 @@ describe("navigation", () => {
     expect(reduce(top, { type: "move", delta: 1 }).state).toBe(top); // same state, no teleport, no cursor move
     expect(reduce(top, { type: "enter" }).state.region).toBe("content");
   });
-  it("context switch wraps, resets rows, and never writes", () => {
+  it("context switch wraps within the search group and never writes", () => {
     expect(loaded().context).toBe(0);
-    expect(reduce(loaded(), { type: "context", delta: -1 }).state.context).toBe(CONTEXT_COUNT - 1);
+    expect(reduce(loaded(), { type: "context", delta: -1 }).state.context).toBe(3); // stays among the four search engines
     expect(reduce(loaded(), { type: "context", delta: 1 }).state.context).toBe(1);
-    const snapped = reduce({ ...loaded(), page: "config" as never, region: "content" as never }, { type: "context", delta: 1 });
-    expect(snapped.state.page).toBe("providers"); // the strip is only meaningful on the provider list
-    const inPlace = reduce({ ...loaded(), region: "menu" as never }, { type: "context", delta: 1 });
-    expect(inPlace.state.region).toBe("menu"); // arrows switch context without teleporting focus
+    expect(reduce(loaded(), { type: "contextSet", index: 4 }).state.context).toBe(0); // WeKnora is not a search tab
+    const cfg = reduce({ ...loaded(), page: "config" as const, region: "top" as const }, { type: "context", delta: 1 });
+    expect(cfg.state.context).toBe(0); // title pages have no tabs to switch
+  });
+  it("entering knowledge/tools pages pins the context to the single member", () => {
+    const kn = reduce(loaded(), { type: "pageSet", page: "knowledge" });
+    expect(kn.state.context).toBe(4);
+    expect(kn.state.region).toBe("content");
+    const tools = reduce({ ...loaded(), context: 4 }, { type: "pageSet", page: "tools" });
+    expect(tools.state.context).toBe(5);
+    const back = reduce(tools.state, { type: "pageSet", page: "providers" });
+    expect(back.state.context).toBe(0); // search tab is clamped back into the group
   });
   it("row movement clamps to page size", () => {
     const atContent = { ...loaded(), region: "content" as const };
@@ -302,7 +322,7 @@ describe("P5 regressions found by the PTY qualification", () => {
 
 describe("P4 connection pages", () => {
   const wekState = (): State => ({
-    ...loaded(), region: "content" as const, context: 4,
+    ...loaded(), region: "content" as const, page: "knowledge" as const, context: 4,
     weknora: { baseUrl: "https://kb.example/api/v1", source: "managed", available: true, hasLocal: true, status: "configured (not tested)", sharedProviders: [], warnings: [], allowRanges: [] } as never,
   });
 
@@ -345,7 +365,7 @@ describe("P4 connection pages", () => {
   });
 
   it("usegpt start/stop confirmations default to cancel; diagnose is a plain service call", () => {
-    const s = { ...loaded(), region: "content" as const, context: 5, usegpt: { configured: true, daemonRunning: false, tunnelRunning: false, issues: [], keySource: "missing" as const, savedKey: false } };
+    const s = { ...loaded(), region: "content" as const, page: "tools" as const, context: 5, usegpt: { configured: true, daemonRunning: false, tunnelRunning: false, issues: [], keySource: "missing" as const, savedKey: false } };
     const start = reduce({ ...s, row: 2 }, { type: "enter" }); // row 2 = start
     expect(start.state.modal?.tag).toBe("usegpt-start");
     expect(start.state.modal?.cursor).toBe(0); // cancel first (ADR 0016)
@@ -365,8 +385,9 @@ describe("P4 connection pages", () => {
     expect(busy.state.svcBusy).toBeTruthy();
     expect(reduce(busy.state, { type: "keyAdd" }).effects).toEqual([]);
     expect(reduce(busy.state, { type: "testIntent" }).effects).toEqual([]);
-    const moved = reduce(busy.state, { type: "context", delta: 1 });
-    expect(moved.state.context).toBe(5);
+    const moved = reduce(busy.state, { type: "tab", delta: 1 });
+    expect(moved.state.region).toBe("top"); // single-tab pages ignore context arrows
+    expect(reduce(busy.state, { type: "context", delta: 1 }).state.context).toBe(4);
     const idle = reduce(busy.state, { type: "serviceBusy", on: false });
     expect(idle.state.svcBusy).toBeNull();
   });
@@ -375,20 +396,20 @@ describe("P4 connection pages", () => {
     const s = reduce(loaded(), { type: "connData", weknora: null, usegpt: { configured: false, daemonRunning: false, tunnelRunning: false, issues: ["not-configured"], keySource: "missing" as const, savedKey: false } });
     expect(s.state.weknora).toBeNull();
     expect(s.state.usegpt?.configured).toBe(false);
-    expect(rowCount({ ...loaded(), context: 4, weknora: null })).toBe(5);
-    expect(rowCount({ ...loaded(), context: 5 })).toBe(9);
+    expect(rowCount({ ...loaded(), page: "knowledge" as const, context: 4, weknora: null })).toBe(5);
+    expect(rowCount({ ...loaded(), page: "tools" as const, context: 5 })).toBe(9);
   });
 });
 
 describe("P6 connection parity writes", () => {
   const usegptState = (over: Partial<State> = {}): State => ({
-    ...loaded(), region: "content" as const, context: 5, ...over,
+    ...loaded(), region: "content" as const, page: "tools" as const, context: 5, ...over,
     usegpt: { configured: true, daemonRunning: false, tunnelRunning: false, issues: [], tunnelId: "tunnel_old_00000000", dataDir: "/home/u/.arks/hub", keySource: "missing" as const, savedKey: false },
   });
   const yesPick = (s: State): { state: State; effects: unknown[] } => reduce({ ...s, modal: { ...s.modal!, cursor: 1 } }, { type: "modalPick" });
 
   it("weknora remove row asks cancel-default consent and writes only on yes", () => {
-    const s = { ...loaded(), region: "content" as const, context: 4, row: 4 } as State;
+    const s = { ...loaded(), region: "content" as const, page: "knowledge" as const, context: 4, row: 4 } as State;
     const asked = reduce(s, { type: "enter" });
     expect(asked.state.modal?.tag).toBe("wek-remove");
     expect(asked.effects).toEqual([]);
@@ -455,26 +476,36 @@ describe("P2 order draft", () => {
     expect(r.state.status).toContain("无更改");
   });
 
-  it("Del drops from the draft; Esc with a dirty draft asks discard with Cancel default", () => {
-    const dropped = reduce(config(), { type: "orderDrop" });
-    expect(dropped.state.orderDraft).toEqual(["tavily", "firecrawl", "searxng"]);
-    const esc = reduce(dropped.state, { type: "escape" });
+  it("u/d reorders; Esc with a dirty draft asks discard with Cancel default", () => {
+    const moved = reduce(config(), { type: "orderMove", delta: 1 }); // row 0 down
+    expect(moved.state.orderDraft).toEqual(["tavily", "exa", "firecrawl", "searxng"]);
+    const esc = reduce(moved.state, { type: "escape" });
     expect(esc.state.modal?.tag).toBe("order-discard");
     const yes = reduce({ ...esc.state, modal: { ...esc.state.modal!, cursor: 1 } }, { type: "modalPick" });
     expect(yes.state.orderDraft).toBeNull();
     expect(yes.effects).toEqual([]);
   });
 
-  it("I chooser re-includes a dropped provider; identical set saves without consent prompt", () => {
-    const dropped = reduce({ ...config(), row: 3 }, { type: "orderDrop" }).state;   // searxng out of draft
-    const chooser = reduce(dropped, { type: "orderIncludeStart" });
-    expect(chooser.state.modal?.tag).toBe("order-include");
-    const pick = reduce({ ...chooser.state, modal: { ...chooser.state.modal!, cursor: 1 } }, { type: "modalPick" });
-    expect(pick.state.orderDraft).toEqual(["exa", "tavily", "firecrawl", "searxng"]);
-    const save = reduce(pick.state, { type: "orderSave" }); // draft back to the saved set -> honest no-op, nothing to persist
-    expect(save.effects).toEqual([]);
-    expect(dirtyOrder(pick.state)).toBe(false);
-    expect(save.state.status).toContain("无更改");
+  it("SearXNG rides along by default; saving the implicit add asks consent once, then persists the full list", () => {
+    const base = config();
+    const legacy = { ...base, snapshot: { ...base.snapshot!, providerOrder: ["exa", "tavily", "firecrawl"] } };
+    expect(orderRows(legacy).join()).toBe("exa,tavily,firecrawl,searxng");
+    expect(dirtyOrder(legacy)).toBe(true);
+    const save = reduce(legacy, { type: "orderSave" });
+    expect(save.state.modal?.tag).toBe("order-save-consent");
+    const yes = reduce({ ...save.state, modal: { ...save.state.modal!, cursor: 1 } }, { type: "modalPick" });
+    expect(yes.effects).toEqual([{ type: "op", op: { kind: "saveOrder", order: ["exa", "tavily", "firecrawl", "searxng"] } }]);
+    const clean = reduce({ ...base, orderDraft: ["exa", "tavily", "firecrawl", "searxng"] }, { type: "orderSave" });
+    expect(clean.effects).toEqual([]); // identical to saved -> honest no-op
+    expect(clean.state.status).toContain("无更改");
+  });
+
+  it("Space toggles the routing participation of the row under the cursor only", () => {
+    const t = reduce(config(), { type: "orderToggle" }); // exa, enabled in fixture
+    expect(t.effects).toEqual([{ type: "op", op: { kind: "toggleProvider", provider: "exa", enabled: false } }]);
+    expect(t.state.orderDraft).toBeNull(); // toggling is not a reorder; the draft stays untouched
+    const firecrawl = reduce({ ...config(), row: 2 }, { type: "orderToggle" }); // fixture: enabled false
+    expect(firecrawl.effects).toEqual([{ type: "op", op: { kind: "toggleProvider", provider: "firecrawl", enabled: true } }]);
   });
 
   it("adding a provider that was never routed demands consent before saveOrder", () => {

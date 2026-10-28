@@ -3,10 +3,10 @@
  * padV (visibleWidth-aware); all glyphs obey the ADR 0024 ASCII rule.
  */
 import type { SetupInstanceSnapshot, SetupKeySnapshot, SetupProviderSnapshot } from "../config/manage.js";
-import { CONTEXT_COUNT, MENU_VALUES, dirtyOrder, type ModalState, type State } from "./controller.js";
+import { MENU_VALUES, dirtyOrder, orderRows, pageTabs, type ModalState, type Page, type State } from "./controller.js";
 import { msg } from "./messages.js";
 import { DIM, FG, SEL, c, padV } from "./components/style.js";
-import { truncateToWidth } from "./port.js";
+import { truncateToWidth, visibleWidth } from "./port.js";
 
 export const WEB_LABELS = ["Exa", "Tavily", "Firecrawl", "SearXNG"] as const;
 
@@ -60,37 +60,59 @@ function sourceText(state: State, source: string): string {
 // Centered, width-deterministic slots and a constant-width status chip: the strip
 // sits mid-screen and never shifts when content, context, or key counts change.
 const CHIP_W = 13;
-const stripInnerWidth = (): number =>
-  Array.from({ length: CONTEXT_COUNT }, (_, i) => `[${contextLabel(i)}]`.length).reduce((a, s) => a + s, 0) + 3 * (CONTEXT_COUNT - 1);
-const stripX0 = (width: number): number => Math.max(1, Math.floor((width - stripInnerWidth() - CHIP_W) / 2));
+const MENU_STRIP_KEYS: Record<typeof MENU_VALUES[number], string> = {
+  providers: "stripProviders", config: "stripConfig", knowledge: "stripKnowledge",
+  tools: "stripTools", settings: "pageSettings", diagnostics: "pageDiagnostics", exit: "pageExit",
+};
+
+/** The strip follows the page: tabs for grouped pages, a centered full name otherwise (and while the menu has focus). */
+function stripView(state: State): { tabs: number[] } | { title: string } {
+  if (state.region !== "menu") {
+    const tabs = pageTabs(state.page);
+    if (tabs.length) return { tabs };
+  }
+  const item = state.region === "menu" ? MENU_VALUES[state.menuCursor]! : (state.page as Page);
+  return { title: msg(state.lang, MENU_STRIP_KEYS[item]) };
+}
+
+const stripSegs = (tabs: number[]): string[] => tabs.map(i => `[${contextLabel(i)}]`);
+const stripInnerW = (plain: string[]): number => plain.reduce((a, s) => a + s.length, 0) + 3 * Math.max(0, plain.length - 1);
+const stripX0 = (width: number, contentW: number): number => Math.max(1, Math.floor((width - contentW - CHIP_W) / 2));
 
 export function stripLine(state: State, width: number): string {
-  const segs = Array.from({ length: CONTEXT_COUNT }, (_, i) => `[${contextLabel(i)}]`);
-  const labels = segs.map((s, i) => {
-    if (i === state.context) return state.region === "top" ? SEL(s) : FG("1;36", s);
-    const provider = state.snapshot?.providers[i];
-    if (!provider) return DIM(s); // connection contexts: no enabled state until P4
-    return provider.enabled ? DIM(s) : c("2", s);
-  });
-  const inner = labels.join("   ");
+  const view = stripView(state);
+  let inner: string;
+  let contentW: number;
+  if ("tabs" in view) {
+    const plain = stripSegs(view.tabs);
+    contentW = stripInnerW(plain);
+    inner = view.tabs.map((ctx, i) => ctx === state.context
+      ? (state.region === "top" ? SEL(plain[i]!) : FG("1;36", plain[i]!))
+      : DIM(plain[i]!)).join("   ");
+  } else {
+    contentW = visibleWidth(view.title);
+    inner = c("1", view.title);
+  }
   let chip = padV(" ", CHIP_W);
   const provider = currentProvider(state);
-  if (provider && provider.id !== "searxng") {
+  if (provider && provider.id !== "searxng" && provider.keys.length) {
     const n = (pred: (k: SetupKeySnapshot) => boolean) => provider.keys.filter(pred).length;
     chip = padV(` ${FG(32, "+" + n(k => k.available && k.status === "enabled"))} ${FG(33, "~" + n(k => k.status === "cooldown" || k.status === "exhausted"))} ${c(2, "-" + n(k => !k.available || k.status === "disabled"))}`, CHIP_W);
   }
-  const x0 = stripX0(width);
-  const gap = Math.max(1, width - x0 - stripInnerWidth() - CHIP_W);
+  const x0 = stripX0(width, contentW);
+  const gap = Math.max(1, width - x0 - contentW - CHIP_W);
   return truncateToWidth(padV(" ".repeat(x0) + inner + " ".repeat(gap) + chip, width), width);
 }
 
-/** Visible-column hit ranges for context clicks; must match stripLine's slot layout. */
-export function stripHits(width: number): [number, number, number][] {
-  const segs = Array.from({ length: CONTEXT_COUNT }, (_, i) => `[${contextLabel(i)}]`);
+/** Visible-column hit ranges for context clicks; absolute context indices; empty in title mode. */
+export function stripHits(state: State, width: number): [number, number, number][] {
+  const view = stripView(state);
+  if (!("tabs" in view) || view.tabs.length < 2) return [];
+  const plain = stripSegs(view.tabs);
   const hits: [number, number, number][] = [];
-  const x0 = stripX0(width);
   let off = 0;
-  for (let i = 0; i < segs.length; i++) { hits.push([x0 + off, x0 + off + segs[i]!.length, i]); off += segs[i]!.length + 3; }
+  const x0 = stripX0(width, stripInnerW(plain));
+  for (let i = 0; i < plain.length; i++) { hits.push([x0 + off, x0 + off + plain[i]!.length, view.tabs[i]!]); off += plain[i]!.length + 3; }
   return hits;
 }
 
@@ -116,6 +138,8 @@ export function pageLines(state: State, width: number): string[] {
   if (state.mode === "form" && state.form) return formLines(state, width);
   switch (state.page) {
     case "providers": return providerLines(state, width);
+    case "knowledge": return weknoraLines(state, width);
+    case "tools": return usegptLines(state, width);
     case "config": return orderLines(state, width);
     case "settings": return languageLines(state, width);
     case "diagnostics": return diagnosticLines(state, width);
@@ -146,14 +170,11 @@ export function providerButtons(state: State): ButtonDef[] {
 /** Page-scoped actions, pinned as the centered bottom row of the content frame. */
 export function actionDefs(state: State): { key: string; label: string; event?: string }[] {
   if (state.mode !== "browse") return [];
-  if (state.page === "providers") {
-    if (state.context >= 4) return [{ key: "Enter", label: msg(state.lang, "keyRowOp") }];
-    return providerButtons(state).map(b => ({ key: b.key, label: b.label, event: b.event }));
-  }
+  if (state.page === "providers") return providerButtons(state).map(b => ({ key: b.key, label: b.label, event: b.event }));
+  if (state.page === "knowledge" || state.page === "tools") return [{ key: "Enter", label: msg(state.lang, "keyRowOp") }];
   if (state.page === "config") return [
     { key: "u/d", label: msg(state.lang, "keyMoveRow") },
-    { key: "Del", label: msg(state.lang, "keyDrop") },
-    { key: "I", label: msg(state.lang, "keyInclude") },
+    { key: "Space", label: msg(state.lang, "keyToggle"), event: "orderToggle" },
     { key: "Ctrl-S", label: msg(state.lang, dirtyOrder(state) ? "keySaveStar" : "keySave"), event: "orderSave" },
   ];
   return [];
@@ -220,7 +241,7 @@ function providerLines(state: State, width: number): string[] {
 }
 
 function orderLines(state: State, width: number): string[] {
-  const order = state.orderDraft ?? state.snapshot?.providerOrder ?? [];
+  const order = orderRows(state);
   const out = order.map((id, i) => {
     const index = state.snapshot?.providers.findIndex(p => p.id === id) ?? -1;
     const provider = index >= 0 ? state.snapshot?.providers[index] : undefined;
@@ -386,6 +407,8 @@ export function contentTitle(state: State): string {
   if (state.mode === "preview") return msg(state.lang, "previewTitle") + " / " + (state.preview?.variable ?? "");
   if (state.mode === "form" && state.form) return msg(state.lang, formTitleKey(state.form)) + " / " + contextLabel(state.context);
   if (state.page === "providers") return contextLabel(state.context);
+  if (state.page === "knowledge") return "WeKnora";
+  if (state.page === "tools") return "UseGPT";
   if (state.page === "config") {
     return msg(state.lang, "pageConfig") + " / " + (dirtyOrder(state) ? FG(33, msg(state.lang, "unsaved")) : msg(state.lang, "unchanged"));
   }
