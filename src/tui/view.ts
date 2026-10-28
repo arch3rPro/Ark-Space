@@ -6,11 +6,11 @@ import type { SetupInstanceSnapshot, SetupKeySnapshot, SetupProviderSnapshot } f
 import { CONTEXT_COUNT, MENU_VALUES, dirtyOrder, type ModalState, type State } from "./controller.js";
 import { msg } from "./messages.js";
 import { DIM, FG, SEL, c, padV } from "./components/style.js";
-import { truncateToWidth, visibleWidth } from "./port.js";
+import { truncateToWidth } from "./port.js";
 
 export const WEB_LABELS = ["Exa", "Tavily", "Firecrawl", "SearXNG"] as const;
 
-export function contextLabel(state: State, index: number): string {
+export function contextLabel(index: number): string {
   return index < 4 ? WEB_LABELS[index]! : index === 4 ? "WeKnora" : "UseGPT";
 }
 
@@ -57,8 +57,15 @@ function sourceText(state: State, source: string): string {
 }
 
 // ---------------- top strip ----------------
+// Fixed left-aligned slots and a constant-width status chip: the labels never
+// shift when content, context, or provider counts change (user complaint P6: strip drift).
+const STRIP_X0 = 2;
+const CHIP_W = 13;
+const stripInnerWidth = (): number =>
+  Array.from({ length: CONTEXT_COUNT }, (_, i) => `[${contextLabel(i)}]`.length).reduce((a, s) => a + s, 0) + 3 * (CONTEXT_COUNT - 1);
+
 export function stripLine(state: State, width: number): string {
-  const segs = Array.from({ length: CONTEXT_COUNT }, (_, i) => `[${contextLabel(state, i)}]`);
+  const segs = Array.from({ length: CONTEXT_COUNT }, (_, i) => `[${contextLabel(i)}]`);
   const labels = segs.map((s, i) => {
     if (i === state.context) return state.region === "top" ? SEL(s) : FG("1;36", s);
     const provider = state.snapshot?.providers[i];
@@ -66,28 +73,22 @@ export function stripLine(state: State, width: number): string {
     return provider.enabled ? DIM(s) : c("2", s);
   });
   const inner = labels.join("   ");
+  let chip = padV(" ", CHIP_W);
   const provider = currentProvider(state);
-  let chip = " ";
   if (provider && provider.id !== "searxng") {
     const n = (pred: (k: SetupKeySnapshot) => boolean) => provider.keys.filter(pred).length;
-    chip = padV(` ${FG(32, "+" + n(k => k.available && k.status === "enabled"))} ${FG(33, "~" + n(k => k.status === "cooldown" || k.status === "exhausted"))} ${c(2, "-" + n(k => !k.available || k.status === "disabled"))}`, 13);
+    chip = padV(` ${FG(32, "+" + n(k => k.available && k.status === "enabled"))} ${FG(33, "~" + n(k => k.status === "cooldown" || k.status === "exhausted"))} ${c(2, "-" + n(k => !k.available || k.status === "disabled"))}`, CHIP_W);
   }
-  const innerW = segs.reduce((a, s) => a + s.length, 0) + 3 * (segs.length - 1);
-  let x0 = Math.max(1, Math.floor((width - innerW - visibleWidth(chip)) / 2));
-  x0 = Math.min(x0, Math.max(1, width - innerW - visibleWidth(chip) - 1));
-  const line = " ".repeat(x0) + inner;
-  return padV(line + " ".repeat(Math.max(1, width - x0 - innerW - visibleWidth(chip))) + chip, width);
+  const gap = Math.max(1, width - STRIP_X0 - stripInnerWidth() - CHIP_W);
+  return truncateToWidth(padV(" ".repeat(STRIP_X0) + inner + " ".repeat(gap) + chip, width), width);
 }
 
-/** Visible-column hit ranges for context clicks. */
-export function stripHits(width: number): [number, number, number][] {
-  const segs = Array.from({ length: CONTEXT_COUNT }, (_, i) => `[${contextLabel({} as State, i)}]`);
-  const innerW = segs.reduce((a, s) => a + s.length, 0) + 3 * (segs.length - 1);
-  let x0 = Math.max(1, Math.floor((width - innerW - 13) / 2));
-  x0 = Math.min(x0, Math.max(1, width - innerW - 13 - 1));
+/** Visible-column hit ranges for context clicks; must match stripLine's slot layout. */
+export function stripHits(_width: number): [number, number, number][] {
+  const segs = Array.from({ length: CONTEXT_COUNT }, (_, i) => `[${contextLabel(i)}]`);
   const hits: [number, number, number][] = [];
   let off = 0;
-  for (let i = 0; i < segs.length; i++) { hits.push([x0 + off, x0 + off + segs[i]!.length, i]); off += segs[i]!.length + 3; }
+  for (let i = 0; i < segs.length; i++) { hits.push([STRIP_X0 + off, STRIP_X0 + off + segs[i]!.length, i]); off += segs[i]!.length + 3; }
   return hits;
 }
 
@@ -100,7 +101,7 @@ export function menuLines(state: State, width: number): string[] {
 }
 
 /** Menu rows for mouse hit-testing (row y = index + 1 inside the frame body). */
-export function menuHitPage(state: State, y: number): string | null {
+export function menuHitPage(_state: State, y: number): string | null {
   const value = MENU_VALUES[y];
   return value === undefined ? null : value;
 }
@@ -217,7 +218,7 @@ function diagnosticLines(state: State, width: number): string[] {
   return out;
 }
 
-function detailField(lang: State["lang"], label: string, value: string): string {
+function detailField(label: string, value: string): string {
   return padV(" " + label, 14) + value;
 }
 
@@ -230,14 +231,14 @@ function detailsLines(state: State, width: number): string[] {
   const routing = provider.automaticPosition ? msg(state.lang, "autoPosition", { n: provider.automaticPosition }) : msg(state.lang, "explicitOnly");
   const owners = msg(state.lang, "owned", { n: key.ownedResources });
   const out = [
-    detailField(state.lang, msg(state.lang, "fieldSource"), sourceText(state, key.source)),
-    detailField(state.lang, msg(state.lang, "fieldStatus"), statusText(state, key)),
-    detailField(state.lang, msg(state.lang, "fieldReason"), reasonText(state, key)),
-    detailField(state.lang, msg(state.lang, "fieldCooldownLeft"), cooldown),
-    detailField(state.lang, msg(state.lang, "fieldOwners"), owners),
-    detailField(state.lang, msg(state.lang, "fieldShared"), shared),
-    detailField(state.lang, msg(state.lang, "fieldRouting"), routing),
-    detailField(state.lang, msg(state.lang, "fieldAvailable"), key.available ? "+" : "?"),
+    detailField(msg(state.lang, "fieldSource"), sourceText(state, key.source)),
+    detailField(msg(state.lang, "fieldStatus"), statusText(state, key)),
+    detailField(msg(state.lang, "fieldReason"), reasonText(state, key)),
+    detailField(msg(state.lang, "fieldCooldownLeft"), cooldown),
+    detailField(msg(state.lang, "fieldOwners"), owners),
+    detailField(msg(state.lang, "fieldShared"), shared),
+    detailField(msg(state.lang, "fieldRouting"), routing),
+    detailField(msg(state.lang, "fieldAvailable"), key.available ? "+" : "?"),
     "", DIM(" " + msg(state.lang, "refreshNote")),
   ];
   return out.map(line => padV(line, width));
@@ -252,7 +253,7 @@ function previewLines(state: State, width: number): string[] {
   ];
   for (const source of preview.sources) {
     const shown = state.revealed ? source.value : "*".repeat(Math.min(24, source.value.length));
-    out.push(detailField(state.lang, source.label, shown));
+    out.push(detailField(source.label, shown));
     out.push(padV("", 14) + DIM(msg(state.lang, "chars", { n: source.value.length })));
   }
   return out.map(line => padV(line, width));
@@ -352,8 +353,8 @@ export function modalLines(modal: ModalState, width: number): string[] {
 export function contentTitle(state: State): string {
   if (state.mode === "details") return msg(state.lang, "detailsTitle") + " / " + (state.detailRef ?? "");
   if (state.mode === "preview") return msg(state.lang, "previewTitle") + " / " + (state.preview?.variable ?? "");
-  if (state.mode === "form" && state.form) return msg(state.lang, formTitleKey(state.form)) + " / " + contextLabel(state, state.context);
-  if (state.page === "providers") return contextLabel(state, state.context);
+  if (state.mode === "form" && state.form) return msg(state.lang, formTitleKey(state.form)) + " / " + contextLabel(state.context);
+  if (state.page === "providers") return contextLabel(state.context);
   if (state.page === "config") {
     return msg(state.lang, "pageConfig") + " / " + (dirtyOrder(state) ? FG(33, msg(state.lang, "unsaved")) : msg(state.lang, "unchanged"));
   }

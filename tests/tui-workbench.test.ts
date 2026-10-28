@@ -75,6 +75,16 @@ describe("strip and menu geometry", () => {
     expect(visibleWidth(full)).toBe(120);
     for (const label of ["Exa", "Tavily", "Firecrawl", "SearXNG", "WeKnora", "UseGPT"]) expect(full).toContain(`[${label}]`);
   });
+  it("strip labels keep the same columns across contexts and chip widths", () => {
+    const plain = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
+    const base = plain(stripLine(loaded(), 120));
+    for (const ctx of [3, 4]) { // SearXNG renders no key chip, WeKnora no web provider row
+      const st = reduce(loaded(), { type: "contextSet", index: ctx }).state;
+      const line = plain(stripLine(st, 120));
+      expect(line.indexOf("[Exa]")).toBe(base.indexOf("[Exa]"));
+      expect(line.indexOf("[UseGPT]")).toBe(base.indexOf("[UseGPT]"));
+    }
+  });
   it("menu rows match the value list and pad to width", () => {
     const rows = menuLines(loaded(), 18);
     expect(rows.length).toBe(MENU_VALUES.length);

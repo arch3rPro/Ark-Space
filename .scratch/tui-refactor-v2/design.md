@@ -184,3 +184,7 @@ Pi worker handoff 故障诊断、全局安装/`/usr/bin/arks` 切换、systemd �
   - 复现代码级定位：pi-tui `terminal.js` 以 flags=7 协商 kitty 键盘协议（1=disambiguate、2=report events、4=alternate keys）；`keys.js:488 matchesKittySequence` 不区分 press/repeat/release；引擎的 release 过滤只在 focusedComponent 路径（`tui.js:777`），本项目的 `addInputListener` 在其之前消费（`tui.js:719`）→ kitty/WezTerm/Ghostty/foot 等新终端上**每次按键 = press+release 两次派发**（菜单一跳两格、←/→ 一跳多个）；flag 1 下字母以 CSI-u（`\x1b[97u`）到达，主机里 `data === "a"` 类比较**永不命中**（部分按键看似失灵）。此前 PTY 夹具从不响应 `\x1b[?u` 协商 → 恒 legacy 回退，永远测不出。
   - 修复：监听器入口 `isKeyRelease(data)` 即滤 release（repeat 保留，长按连发不受影响）；新增 `printableChar()` 统一解码 legacy 字节 / kitty CSI-u / modifyOtherKeys-2 三种可打印编码，全部字母比较改走解码值；`port.ts` 增加 `decodeKittyPrintable`/`isKeyRelease` 透传（唯一引擎缝隙不变）。P6.2 已被否决回退，交互模型保持 P6.1 原样。
   - 回归：check.py 新增 kitty 仿真会话（应答 `?7u` 协商、press+release 成对发送、CSI-u 字母/表单输入/ctrl+s）——7 项逻辑断言；RED（修复前 double-step=True、CSI-u=form=False）→ GREEN。总断言 72→83，源与离线安装入口双过；单测 567/567；非 TTY 206B 字节锁不变。
+- **P6.4 区域按键归属 + 顶条定位（2026-11，用户复测反馈，两条独立提交）**：
+  - 用户规则落地：`←/→` 仅顶条聚焦时切上下文（host 门控），菜单/内容区不再截获；顶条区 `↑/↓` 由"传送进内容区"改为无操作（进入内容区走 Enter/Tab）。check.py searxng 序列与 reducer 回归测同步。
+  - 顶条漂移修复：`stripLine` 从居中公式（x0 随 chip 实际宽度变）改为固定左对齐槽位（STRIP_X0=2）+ 恒宽 13 徽标 + `truncateToWidth` 窄屏裁剪；`stripHits` 共用同一常量。新增列位置稳定性测（context 0/3/4 下 `[Exa]`/`[UseGPT]` 同列）。
+  - 验收：单测 569/569、validate=0、真 PTY 源入口 83/83（含 kitty 会话）。ADR 0017 状态行改写（撤销 P6.1 曾记录的"任意区域 ←/→ 切上下文"条款）。
