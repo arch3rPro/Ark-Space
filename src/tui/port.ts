@@ -8,8 +8,10 @@
  */
 export {
   Box,
+  decodeKittyPrintable,
   HStack,
   Input,
+  isKeyRelease,
   Key,
   matchesKey,
   ProcessTerminal,

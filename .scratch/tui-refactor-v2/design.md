@@ -180,3 +180,7 @@ Pi worker handoff 故障诊断、全局安装/`/usr/bin/arks` 切换、systemd �
   - 真问题在路由：① 动作键跨页泄漏——Order/Settings 页按 `a` 会对着隐藏的 provider 上下文开表单；② `[`/`]` 与 Top 区专属 `←/→` 双轨且切上下文强制把焦点传送到 content；③ `j/k/h/l` 别名与动作字母并存混乱。
   - 简化后模型：`←/→` 任意浏览区切上下文（非 Providers 页自动弹回该页，region 保持）；上下键只动列表、焦点只随 Tab/Esc/Enter 走；`a e d i p Space v t` 仅在 Providers 内容区生效；`u d Del I Ctrl-S` 仅在 Order 内容区生效；模态内删 j/k。删除全部字母别名（`[ ] j k V U D`）。deny-list 增补 `←↑↓`，keyBar 提示改 ASCII `<-/->`。
   - 验收：单测 567/567（含 context 事件 region/page 语义新测）、validate=0、真 PTY 72/72。ADR 0017 头注记录键位简化（交互契约其余不变）。
+- **P6.3 kitty 键盘协议双触发/死键根因修复（2026-11，读代码定位，模型不动）**：
+  - 复现代码级定位：pi-tui `terminal.js` 以 flags=7 协商 kitty 键盘协议（1=disambiguate、2=report events、4=alternate keys）；`keys.js:488 matchesKittySequence` 不区分 press/repeat/release；引擎的 release 过滤只在 focusedComponent 路径（`tui.js:777`），本项目的 `addInputListener` 在其之前消费（`tui.js:719`）→ kitty/WezTerm/Ghostty/foot 等新终端上**每次按键 = press+release 两次派发**（菜单一跳两格、←/→ 一跳多个）；flag 1 下字母以 CSI-u（`\x1b[97u`）到达，主机里 `data === "a"` 类比较**永不命中**（部分按键看似失灵）。此前 PTY 夹具从不响应 `\x1b[?u` 协商 → 恒 legacy 回退，永远测不出。
+  - 修复：监听器入口 `isKeyRelease(data)` 即滤 release（repeat 保留，长按连发不受影响）；新增 `printableChar()` 统一解码 legacy 字节 / kitty CSI-u / modifyOtherKeys-2 三种可打印编码，全部字母比较改走解码值；`port.ts` 增加 `decodeKittyPrintable`/`isKeyRelease` 透传（唯一引擎缝隙不变）。P6.2 已被否决回退，交互模型保持 P6.1 原样。
+  - 回归：check.py 新增 kitty 仿真会话（应答 `?7u` 协商、press+release 成对发送、CSI-u 字母/表单输入/ctrl+s）——7 项逻辑断言；RED（修复前 double-step=True、CSI-u=form=False）→ GREEN。总断言 72→83，源与离线安装入口双过；单测 567/567；非 TTY 206B 字节锁不变。

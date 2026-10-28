@@ -6,16 +6,17 @@
  */
 import {
   Box, HStack, Key, ProcessTerminal, TuiAltScreen, VStack, matchesKey,
+  decodeKittyPrintable, isKeyRelease,
   type Component, type OverlayHandle, type TuiMouseEvent, type TuiMouseEventResult,
 } from "./port.js";
 import type { ArkSpacePaths } from "../config/paths.js";
 import { setupSafeError } from "../cli/setup-language.js";
 import { Framed } from "./components/framed.js";
 import { Line } from "./components/line.js";
-import { DIM, SEL, FG, padV } from "./components/style.js";
+import { FG } from "./components/style.js";
 import { msg } from "./messages.js";
 import type { TuiLang } from "./messages.js";
-import { initialState, reduce, type Event, type Op, type State } from "./controller.js";
+import { initialState, reduce, type Event, type Op } from "./controller.js";
 import {
   buttonHits, contentTitle, currentProvider, currentRowItems, keyBar, menuHitPage,
   menuLines, modalLines, pageLines, stripHits, stripLine,
@@ -54,6 +55,17 @@ const printable = (data: string) => [...data].filter(ch => {
   return cp >= 33 && cp !== 127; // secrets are token-like; spaces/controls refused at input
 }).join("");
 
+// Printable character across keyboard protocols: legacy raw byte, kitty CSI-u (flag 1),
+// modifyOtherKeys level 2. "" for anything that is not plain/shift text input.
+const printableChar = (data: string): string => {
+  if (data.length === 1) return data;
+  const kitty = decodeKittyPrintable(data);
+  if (kitty !== undefined) return kitty;
+  const mok = /^\x1b\[27;(\d+);(\d+)~$/.exec(data);
+  if (mok && (Number(mok[1]) === 1 || Number(mok[1]) === 2)) return String.fromCodePoint(Number(mok[2]));
+  return "";
+};
+
 const CONTEXT_BY_ID: Record<string, number> = { exa: 0, tavily: 1, firecrawl: 2, searxng: 3, weknora: 4, usegpt: 5 };
 
 export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
@@ -91,7 +103,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
   };
   const page: Component = {
     invalidate() {},
-    render: (w) => { lastWidth = w; return pageLines(state, w); },
+    render: (w) => pageLines(state, w),
     handleMouse: (e: TuiMouseEvent): TuiMouseEventResult | undefined => {
       if (e.type !== "click" || state.mode !== "browse") return undefined;
       if (state.page === "providers" && state.region !== "menu") {
@@ -106,7 +118,6 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
       return { handled: true };
     },
   };
-  let lastWidth = 80;
   const modalBox: Component = {
     invalidate() {},
     render: (w) => state.modal ? modalLines(state.modal, w) : [""],
@@ -359,14 +370,18 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     if (process.env.ARKS_TUI_DEBUG) process.stderr.write(state.mode === "form" && state.form?.typing ? `key:len${data.length}\n` : `key:${JSON.stringify(data)}\n`); // opt-in stdin trace; masked typing is length-only
     if (closed) return { consume: true };
     if (matchesKey(data, "ctrl+c")) { close(); return { consume: true }; }
+    // Flag-2 kitty terminals also emit key-release events; the engine's own filter
+    // lives on the focused-component path, which this global listener bypasses.
+    if (isKeyRelease(data)) return { consume: true };
+    const ch = printableChar(data); // CSI-u / modifyOtherKeys printables decode to the plain character
 
     if (state.modal) {
       if (matchesKey(data, Key.up)) dispatch({ type: "modalMove", delta: -1 });
       else if (matchesKey(data, Key.down)) dispatch({ type: "modalMove", delta: 1 });
       else if (matchesKey(data, Key.enter)) dispatch({ type: "modalPick" });
       else if (matchesKey(data, Key.escape)) dispatch({ type: "escape" });
-      else if (data === "y") { state = { ...state, modal: state.modal ? { ...state.modal, cursor: 1 } : null }; dispatch({ type: "modalPick" }); }
-      else if (data === "n") dispatch({ type: "escape" });
+      else if (ch === "y") { state = { ...state, modal: state.modal ? { ...state.modal, cursor: 1 } : null }; dispatch({ type: "modalPick" }); }
+      else if (ch === "n") dispatch({ type: "escape" });
       return { consume: true };
     }
 
@@ -377,13 +392,13 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
       else if (matchesKey(data, Key.enter)) dispatch({ type: "formEnter" });
       else if (matchesKey(data, Key.backspace)) dispatch({ type: "formBackspace" });
       else if (paste && state.form?.typing) dispatch({ type: "formType", text: printable(paste[1]!.trim()) });
-      else if (state.form?.typing && data.length === 1) dispatch({ type: "formType", text: printable(data) });
+      else if (state.form?.typing && ch) dispatch({ type: "formType", text: printable(ch) });
       return { consume: true };
     }
 
     if (ioBusy) return { consume: true }; // keys during in-flight IO: drop, never queue
     if (state.mode === "preview") { // r toggles reveal, any other key leaves (values cleared on exit)
-      if (data === "r") dispatch({ type: "reveal" }); else dispatch({ type: "escape" });
+      if (ch === "r") dispatch({ type: "reveal" }); else dispatch({ type: "escape" });
       return { consume: true };
     }
     if (state.mode === "details") { dispatch({ type: "escape" }); return { consume: true }; } // any key back
@@ -392,28 +407,28 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     const onProviderList = state.region === "content" && state.page === "providers";
     // Browse keys are page-scoped: arrows move lists and switch context; every action
     // letter acts only on the list it is displayed above. No letter aliases.
-    if (data === "q") dispatch({ type: "quitIntent" });
+    if (ch === "q") dispatch({ type: "quitIntent" });
     else if (matchesKey(data, "tab")) dispatch({ type: "tab", delta: 1 });
     else if (matchesKey(data, "shift+tab")) dispatch({ type: "tab", delta: -1 });
     else if (matchesKey(data, Key.up)) dispatch({ type: "move", delta: -1 });
     else if (matchesKey(data, Key.down)) dispatch({ type: "move", delta: 1 });
     else if (matchesKey(data, Key.left)) dispatch({ type: "context", delta: -1 });
     else if (matchesKey(data, Key.right)) dispatch({ type: "context", delta: 1 });
-    else if (onConfig && data === "u") dispatch({ type: "orderMove", delta: -1 });
-    else if (onConfig && data === "d") dispatch({ type: "orderMove", delta: 1 });
+    else if (onConfig && ch === "u") dispatch({ type: "orderMove", delta: -1 });
+    else if (onConfig && ch === "d") dispatch({ type: "orderMove", delta: 1 });
     else if (onConfig && matchesKey(data, Key.delete)) dispatch({ type: "orderDrop" });
-    else if (onConfig && data === "I") dispatch({ type: "orderIncludeStart" });
+    else if (onConfig && ch === "I") dispatch({ type: "orderIncludeStart" });
     else if (onConfig && matchesKey(data, "ctrl+s")) dispatch({ type: "orderSave" });
     else if (matchesKey(data, Key.enter)) dispatch({ type: "enter" });
     else if (matchesKey(data, Key.escape)) dispatch({ type: "escape" });
-    else if (onProviderList && data === "i") { ioBusy = true; void openDetails().finally(() => { ioBusy = false; }); }
-    else if (onProviderList && data === "p") { ioBusy = true; void openPreview().finally(() => { ioBusy = false; }); }
-    else if (onProviderList && data === "a") dispatch({ type: "keyAdd" });
-    else if (onProviderList && data === "e") dispatch({ type: "keyEdit" });
-    else if (onProviderList && data === "d") dispatch({ type: "keyRemoveStart" });
-    else if (onProviderList && data === " ") dispatch({ type: "keyToggle" });
-    else if (onProviderList && data === "v") dispatch({ type: "providerToggle" });
-    else if (onProviderList && data === "t") dispatch({ type: "testIntent" });
+    else if (onProviderList && ch === "i") { ioBusy = true; void openDetails().finally(() => { ioBusy = false; }); }
+    else if (onProviderList && ch === "p") { ioBusy = true; void openPreview().finally(() => { ioBusy = false; }); }
+    else if (onProviderList && ch === "a") dispatch({ type: "keyAdd" });
+    else if (onProviderList && ch === "e") dispatch({ type: "keyEdit" });
+    else if (onProviderList && ch === "d") dispatch({ type: "keyRemoveStart" });
+    else if (onProviderList && ch === " ") dispatch({ type: "keyToggle" });
+    else if (onProviderList && ch === "v") dispatch({ type: "providerToggle" });
+    else if (onProviderList && ch === "t") dispatch({ type: "testIntent" });
     return { consume: true };
   });
 

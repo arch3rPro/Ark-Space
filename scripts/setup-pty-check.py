@@ -84,7 +84,9 @@ class Grid:
 
 
 class Session:
-    def __init__(self, entry, home, trace, rows=24, columns=80, language='en', service=None):
+    def __init__(self, entry, home, trace, rows=24, columns=80, language='en', service=None, kitty=False):
+        self.kitty = kitty
+        self.kitty_answered = False
         self.master, self.slave = pty.openpty()
         self.process = None
         self.grid = Grid(rows, columns)
@@ -93,9 +95,12 @@ class Session:
             command = [str(entry)] if entry.name == 'arks' else ['node', str(entry)]
             argv = ['setup'] + ([service] if service else []) + ['--lang', language]
             fcntl.ioctl(self.slave, termios.TIOCSWINSZ, struct.pack('HHHH', rows, columns, 0, 0))
+            env = environment(home, trace)
+            if kitty:
+                env['PI_PROGRAM_STATUS'] = '0'  # keep negotiation to the keyboard-protocol query only
             self.process = subprocess.Popen(command + argv,
                 stdin=self.slave, stdout=self.slave, stderr=self.slave,
-                env=environment(home, trace), cwd=home, start_new_session=True)
+                env=env, cwd=home, start_new_session=True)
         except BaseException:
             os.close(self.master)
             os.close(self.slave)
@@ -117,7 +122,15 @@ class Session:
                 if not data:
                     break
                 self.grid.feed(data)
+                if self.kitty and not self.kitty_answered and b'\x1b[?u' in self.grid.raw:
+                    # answer the kitty push like a flags-7 terminal, then the trailing DA1 query
+                    self.kitty_answered = True
+                    os.write(self.master, b'\x1b[?7u\x1b[?1;2c')
         return self.screen()
+
+    def key(self, press, release):
+        """Send a press and its kitty release event back to back, like flag-2 terminals do."""
+        self.send(press + release)
 
     def screen(self):
         return self.grid.text()
@@ -439,6 +452,42 @@ def run(entry):
             session.until(lambda: session.proc.poll() is not None, 'usegpt exit')
         finally:
             session.finish([])
+
+        # ---- kitty keyboard protocol session: press+release pairs and CSI-u printables ----
+        home = base / 'kitty'
+        prepare(entry, home, trace, 2)
+        session = Session(entry, home, trace, kitty=True)
+        try:
+            session.wait('[UseGPT]')
+            check('kitty negotiation was answered and activated', session.kitty_answered)
+            session.key('\t', '\x1b[9;1:3~')       # top -> menu
+            session.key('\x1b[B', '\x1b[1;1:3B')   # one down step; the release must not move again
+            time.sleep(0.2)
+            check('kitty release events do not double-step the menu',
+                  '> Order' in session.screen() and '> Settings' not in session.screen())
+            session.key('\t', '\x1b[9;1:3~')       # menu -> content
+            session.key('\x1b[97u', '\x1b[97;1:3u')  # 'a' as kitty sends it with flag 1
+            session.wait('Add key')
+            check('CSI-u printable letters drive the form', True)
+            for cp in (115, 107, 45, 116, 121, 45, 57):  # "sk-tyy09"-ish via CSI-u: s k - t y y 0 9
+                session.key('\x1b[' + str(cp) + 'u', '\x1b[' + str(cp) + ';1:3u')
+            check('CSI-u typing counts characters without echo', '7 characters' in session.screen())
+            session.send(KEY[:24])  # mixed legacy bytes are still plain printables
+            session.send('\r')
+            session.key('\x1b[115;5u', '\x1b[115;5:3u')  # ctrl+s press+release saves exactly once
+            session.wait('key added')
+            refs = json.loads((home / 'config.json').read_text())['providers']['exa']['keyRefs']
+            check('kitty save wrote exactly one new reference', len(refs) == 3)
+            session.send('q')
+            session.wait('Exit ArkSpace Setup? (cancel default)')
+            session.key('\x1b[B', '\x1b[1;1:3B')
+            session.key('\r', '\x1b[13;1:3u')
+            session.until(lambda: session.proc.poll() is not None, 'kitty confirmed exit')
+            check('kitty confirmed exit returns 0', session.proc.returncode == 0)
+            session.finish([KEY[:24]], revealed=True)
+        finally:
+            if session.process and session.process.poll() is None:
+                session.finish([KEY[:24]], revealed=True)
 
         # ---- Chinese session at a small terminal: geometry holds and labels localize ----
         home = base / 'zh'
