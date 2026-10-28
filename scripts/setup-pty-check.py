@@ -209,8 +209,8 @@ def run(entry):
             first = session.screen().splitlines()[0]
             check('top strip shows all six contexts', all('[' + n + ']' in first for n in ['Exa', 'Tavily', 'Firecrawl', 'SearXNG', 'WeKnora', 'UseGPT']))
             check('menu lists the four pages', all(x in session.screen() for x in ['Providers', 'Order', 'Diagnostics']))
-            session.send('\t\t')
-            check('Tab focuses top then menu then content', 'env:EXA_API_KEY' in session.screen() and '[a] add' in session.screen())
+            session.send('\t')
+            check('Tab moves focus menu to content', 'env:EXA_API_KEY' in session.screen() and '[a]add' in session.screen())
 
             # add key: masked entry persists a new reference with 0600 credentials
             session.send('a')
@@ -274,20 +274,20 @@ def run(entry):
             check('all-key diagnostics preserve config/credentials/normal state', fingerprint(home) == before)
 
             # diagnostics page keeps the failure rows (pool would clear them by design)
-            session.send('\t\t\x1b[B\x1b[B\x1b[B\r')
+            session.send('\t\x1b[B\x1b[B\x1b[B\r')
             session.wait('env:EXA_API_KEY_1')
             check('diagnostics classify failure with a reason only', 'failure' in session.screen() and KEY + '-b' not in session.screen())
 
             # back to Providers, then the pool e2e sample through the real registry
-            session.send('\t\t\x1b[A\x1b[A\x1b[A\r')
-            session.wait('[a] add')
+            session.send('\t\x1b[A\x1b[A\x1b[A\r')
+            session.wait('[a]add')
             session.send('t\x1b[B\r')
             session.wait('Connection success')
             session.wait('exa success')
             check('pool run issues exactly one request', trace.read_text().splitlines()[-1] == 'A')
 
             # order draft: swap shows unsaved, Ctrl-S persists
-            session.send('\t\t\x1b[B\r')   # menu: Providers -> Order
+            session.send('\t\x1b[B\r')   # menu: Providers -> Order
             session.wait('1.')
             session.send('\x1b[A')                 # cursor onto the first row
             before_order = json.loads((home / 'config.json').read_text())['providerOrder']
@@ -299,7 +299,7 @@ def run(entry):
             check('order save changed the persisted sequence', after_order != before_order)
 
             # searxng private endpoint requires an explicit per-instance grant
-            session.send('\t\t\x1b[A\r')   # menu cursor: Order -> Providers page
+            session.send('\t\x1b[A\r')   # menu cursor: Order -> Providers page
             session.send('\x1b[C')
             session.send('\x1b[C')
             session.send('\x1b[C')
@@ -334,7 +334,7 @@ def run(entry):
         session = Session(entry, home, trace)
         try:
             session.wait('[UseGPT]')
-            session.send('\t\t')
+            session.send('\t')
             before = fingerprint(home)
             session.send('t\x1b[B\x1b[B\r')
             session.until(lambda: trace.read_text().splitlines() == ['A', 'B', 'C'] and '2/4' in session.screen(),
@@ -342,7 +342,7 @@ def run(entry):
             check('current diagnostic target is C while completed count remains two', 'Testing EXA_API_KEY_2' in session.screen())
             session.send('\x1b')
             session.wait('Keys: 1/4 passed/stopped')
-            session.send('\t\t\x1b[B\x1b[B\x1b[B\r')  # menu -> Diagnostics page
+            session.send('\t\x1b[B\x1b[B\x1b[B\r')  # menu -> Diagnostics page
             session.wait('env:EXA_API_KEY_3')
             screen = session.screen()
             for reference, status in [('env:EXA_API_KEY', 'success'), ('env:EXA_API_KEY_1', 'failure'),
@@ -362,7 +362,7 @@ def run(entry):
         session = Session(entry, home, trace, columns=100, service='weknora')
         try:
             session.wait('API endpoint')
-            check('weknora deep link opens content focus directly', 'verify connection' in session.screen() and '[a] add' not in session.screen())
+            check('weknora deep link opens content focus directly', 'verify connection' in session.screen() and '[a]add' not in session.screen())
             empty = fingerprint(home)
             session.send('\x1b[B\r')
             session.wait('WeKnora API key')
@@ -448,7 +448,7 @@ def run(entry):
             session.wait('[Exa]')
             check('窄屏下六上下文条优雅截断', '[Firecrawl]' in session.screen())
             check('中文菜单渲染', '路由顺序' in session.screen() and '诊断' in session.screen())
-            session.send('\t\t')
+            session.send('\t')
             session.wait('env:EXA_API_KEY')
             session.send('a')
             session.wait('添加密钥')

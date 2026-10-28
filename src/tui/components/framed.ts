@@ -8,7 +8,7 @@ import { visibleWidth, type Component, type TuiMouseEvent, type TuiMouseEventRes
 
 export class Framed implements Component {
   private h = 0;
-  constructor(private child: Component, private title: string | (() => string)) {}
+  constructor(private child: Component, private title: string | (() => string), private focusFn?: () => boolean) {}
 
   setH(h: number): void { this.h = h; }
   invalidate(): void { this.child.invalidate?.(); }
@@ -18,17 +18,18 @@ export class Framed implements Component {
   }
 
   render(width: number): string[] {
+    const frame = this.focusFn?.() ? "36" : 90; // the border answers "where do my arrows act" (P6.2)
     const t = typeof this.title === "function" ? this.title() : this.title;
     const head = t ? `─ ${t} ` : "─";
-    const out = [c(90, "╭" + head + "─".repeat(Math.max(0, width - visibleWidth(head) - 2)) + "╮")];
+    const out = [c(frame, "╭" + head + "─".repeat(Math.max(0, width - visibleWidth(head) - 2)) + "╮")];
     let inner = this.child.render(width - 4);
     if (this.h >= 3) {
       const need = this.h - 2;
       inner = inner.slice(0, need);
       while (inner.length < need) inner.push("");
     }
-    for (const line of inner) out.push(c(90, "│") + " " + padV(line, width - 4) + " " + c(90, "│"));
-    out.push(c(90, "╰" + "─".repeat(width - 2) + "╯"));
+    for (const line of inner) out.push(c(frame, "│") + " " + padV(line, width - 4) + " " + c(frame, "│"));
+    out.push(c(frame, "╰" + "─".repeat(width - 2) + "╯"));
     return out;
   }
 }

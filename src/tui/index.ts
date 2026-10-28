@@ -12,12 +12,12 @@ import type { ArkSpacePaths } from "../config/paths.js";
 import { setupSafeError } from "../cli/setup-language.js";
 import { Framed } from "./components/framed.js";
 import { Line } from "./components/line.js";
-import { DIM, SEL, FG, padV } from "./components/style.js";
+import { FG } from "./components/style.js";
 import { msg } from "./messages.js";
 import type { TuiLang } from "./messages.js";
-import { initialState, reduce, type Event, type Op, type State } from "./controller.js";
+import { initialState, reduce, type Event, type Op } from "./controller.js";
 import {
-  buttonHits, contentTitle, currentProvider, currentRowItems, keyBar, menuHitPage,
+  contentTitle, currentProvider, currentRowItems, keyBar, menuHitPage,
   menuLines, modalLines, pageLines, stripHits, stripLine,
 } from "./view.js";
 import { getSetupSnapshot, getConnections, loadPreview } from "./data.js";
@@ -91,22 +91,17 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
   };
   const page: Component = {
     invalidate() {},
-    render: (w) => { lastWidth = w; return pageLines(state, w); },
+    render: (w) => pageLines(state, w),
     handleMouse: (e: TuiMouseEvent): TuiMouseEventResult | undefined => {
       if (e.type !== "click" || state.mode !== "browse") return undefined;
-      if (state.page === "providers" && state.region !== "menu") {
+      if (state.page === "providers" && state.region === "content") {
         const items = currentRowItems(state);
         if (e.y >= 1 && e.y <= items.length) return (dispatch({ type: "rowSet", row: e.y - 1 }), { handled: true });
-        const buttonRow = 1 + Math.max(items.length, 1) + 1; // header, rows, blank, buttons
-        if (e.y === buttonRow) {
-          for (const hit of buttonHits(state)) if (e.x >= hit.start && e.x <= hit.end) return fireButton(hit.event), { handled: true };
-        }
       }
       if (e.y >= 1) dispatch({ type: "rowSet", row: e.y - 1 });
       return { handled: true };
     },
   };
-  let lastWidth = 80;
   const modalBox: Component = {
     invalidate() {},
     render: (w) => state.modal ? modalLines(state.modal, w) : [""],
@@ -117,9 +112,9 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
   function render(): void {
     const rows = process.stdout.rows || 24; // winsize race can report 0/undefined at startup
     const height = Math.max(8, rows - 4);  // strip + body + status + footer constant, or borders jump
-    const left = new Framed(menu, () => msg(state.lang, "menuTitle"));
+    const left = new Framed(menu, () => msg(state.lang, "menuTitle"), () => state.region === "menu");
     left.setH(height);
-    const right = new Framed(page, () => contentTitle(state));
+    const right = new Framed(page, () => contentTitle(state), () => state.region === "content");
     right.setH(height);
     const stripBox = new Box(1, 0);
     stripBox.addChild(strip);
@@ -342,19 +337,6 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     dispatch({ type: "notice", text: msg(state.lang, reason), warn: true });
   }
 
-  function fireButton(event: string): void {
-    switch (event) {
-      case "keyAdd": dispatch({ type: "keyAdd" }); break;
-      case "keyEdit": dispatch({ type: "keyEdit" }); break;
-      case "keyRemove": dispatch({ type: "keyRemoveStart" }); break;
-      case "keyToggle": dispatch({ type: "keyToggle" }); break;
-      case "testIntent": dispatch({ type: "testIntent" }); break;
-      case "details": void openDetails(); break;
-      case "preview": void openPreview(); break;
-      default: dispatch({ type: "notice", text: msg(state.lang, "pendingP3"), warn: true });
-    }
-  }
-
   tui.addInputListener((data) => {
     if (process.env.ARKS_TUI_DEBUG) process.stderr.write(state.mode === "form" && state.form?.typing ? `key:len${data.length}\n` : `key:${JSON.stringify(data)}\n`); // opt-in stdin trace; masked typing is length-only
     if (closed) return { consume: true };
@@ -388,8 +370,8 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     }
     if (state.mode === "details") { dispatch({ type: "escape" }); return { consume: true }; } // any key back
     if (state.testing && matchesKey(data, Key.escape)) { testAbort?.abort(); return { consume: true }; } // Esc stops the run, keeps partial rows
-    const onConfig = state.region === "content" && state.page === "config";
-    const onProviderList = state.region === "content" && state.page === "providers";
+    const onConfig = state.page === "config";
+    const onProviderList = state.page === "providers";
     // Browse keys are page-scoped: arrows move lists and switch context; every action
     // letter acts only on the list it is displayed above. No letter aliases.
     if (data === "q") dispatch({ type: "quitIntent" });

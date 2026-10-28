@@ -9,7 +9,7 @@ import type { SetupSnapshot, WeknoraConnectionSnapshot } from "../config/manage.
 import { msg } from "./messages.js";
 import type { TuiLang } from "./messages.js";
 
-export type Region = "top" | "menu" | "content";
+export type Region = "menu" | "content";
 export type Page = "providers" | "config" | "settings" | "diagnostics";
 export type Mode = "browse" | "details" | "preview" | "form";
 export const CONTEXT_COUNT = 6;                       // 4 web providers + WeKnora + UseGPT (ADR 0024 item 3)
@@ -146,14 +146,14 @@ export type Effect =
 
 export function initialState(lang: TuiLang, status: string, context = 0): State {
   return {
-    lang, region: context >= 4 ? "content" : "top", menuCursor: 0, page: "providers", context, row: 0,
+    lang, region: context >= 4 ? "content" : "menu", menuCursor: 0, page: "providers", context, row: 0,
     mode: "browse", status, statusWarn: false, loading: true, snapshot: null,
     detailRef: null, preview: null, revealed: false, modal: null, form: null,
     orderDraft: null, diagnostics: [], testing: null, svcBusy: null, weknora: null, usegpt: null,
   };
 }
 
-const REGIONS: Region[] = ["top", "menu", "content"];
+const REGIONS: Region[] = ["menu", "content"];
 const CONFIRM_ITEMS = (lang: TuiLang) => [
   { value: "no", label: msg(lang, "cancelDefault") },
   { value: "yes", label: msg(lang, "confirm") },
@@ -395,7 +395,6 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
 
     case "move": {
       if (state.mode !== "browse") return { state: rest(state), effects: [] };
-      if (state.region === "top") return { state: { ...state, region: "content" }, effects: [] };
       if (state.region === "menu") {
         return { state: { ...state, menuCursor: Math.max(0, Math.min(MENU_VALUES.length - 1, state.menuCursor + event.delta)) }, effects: [] };
       }
@@ -404,7 +403,6 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
 
     case "enter": {
       if (state.mode !== "browse") return { state: rest(state), effects: [] };
-      if (state.region === "top") return { state: { ...state, region: "content" }, effects: [] };
       if (state.region === "menu") {
         const value = MENU_VALUES[state.menuCursor]!;
         if (value === "exit") return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "exitConfirm"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "exit" } }, effects: [] };
@@ -425,8 +423,7 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
         }
       }
       if (state.region === "content") return { state: { ...state, region: "menu" }, effects: [] };
-      if (state.region === "menu") return { state: { ...state, region: "top" }, effects: [] };
-      return { state, effects: [] };
+      return { state, effects: [] }; // the menu is the outer region; Esc there is a no-op
     }
 
     case "detailsOpen": return { state: { ...state, mode: "details", detailRef: event.reference }, effects: [] };
