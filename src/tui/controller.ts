@@ -326,6 +326,18 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
         }
         return { state: withForm(rest(state), null), effects: [] };
       }
+      // read-only events must pass through: refresh() lands while the form is still
+      // open (applyOp order), and swallowing opFailed notices hid write errors (P5 fix)
+      case "data": {
+        const next = { ...state, snapshot: event.snapshot, loading: false };
+        return { state: { ...next, row: Math.max(0, Math.min(next.row, Math.max(0, rowCount(next) - 1))) }, effects: [] };
+      }
+      case "connData":
+        return { state: { ...state, weknora: event.weknora, usegpt: event.usegpt }, effects: [] };
+      case "loadError":
+        return { state: { ...state, loading: false, status: event.text, statusWarn: true }, effects: [] };
+      case "notice":
+        return notice(state, event.text, event.warn);
       default: return { state, effects: [] };
     }
   }

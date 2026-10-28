@@ -61,7 +61,7 @@ const TABLE: Record<string, readonly [string, string]> = {
   connNote: ["连接操作不改变 Web 路由或密钥健康；外部来源只读", "connection actions never touch Web routing or key health; external sources are read-only"],
   diagNote: ["本次会话诊断（内存态，不持久化）", "session diagnostics (memory only)"],
   diagEmpty: ["暂无本次会话的诊断记录", "no session diagnostics yet"],
-  searxngNote: ["SearXNG 免密钥 / 实例增删与 CIDR 授权在 P4", "SearXNG keyless; instance add/remove and CIDR grants land in P4"],
+  searxngNote: ["SearXNG 免密钥；实例需逐条授权私有 CIDR 后才可达", "SearXNG is keyless; private endpoints need per-instance CIDR grants before any request"],
   refreshNote: ["详情/预览读取前均刷新快照，引用变更则拒绝", "details and preview refresh the snapshot before read"],
   pendingP2: ["管理动作（增删改/启停）在 P2 接线", "mutations (add/edit/remove/toggle) land in P2"],
   pendingP3: ["测试流在 P3 接线", "test flow lands in P3"],

@@ -37,6 +37,8 @@ function prompts(text: string[], secrets: string[] = [], confirmations: boolean[
   };
 }
 const options = { environment: {} };
+// v1 native-shell contract tests; they retire with the old workbench in P6.
+const legacy = { environment: { ARKS_TUI: "v1" } };
 it.each(["cancel", "fatal"])("uses the selected native session language for %s exit messages", async mode => {
   const { paths, output } = await fixture(); const keys = ["down", "down", "return", "down", "return"];
   vi.spyOn(SetupTerminal.prototype, "workbench").mockImplementation(async () => {
@@ -44,13 +46,13 @@ it.each(["cancel", "fatal"])("uses the selected native session language for %s e
     throw new Error(mode === "cancel" ? "Setup cancelled." : "Synthetic failure");
   });
   vi.spyOn(SetupTerminal.prototype, "notice").mockResolvedValue();
-  await runSetup(paths, undefined, { ...options, language: "en" });
+  await runSetup(paths, undefined, { ...legacy, language: "en" });
   expect(String(output.mock.calls.at(-1)![0])).toContain(mode === "cancel" ? "设置已取消" : "操作失败");
 });
 it.each(["exa", "tavily", "firecrawl", "searxng"])("opens the native %s entry with Menu focus and a three-region browse contract", async provider => {
   const { paths, output } = await fixture(); const screens: ReturnType<Parameters<SetupTerminal["workbench"]>[0]>[] = [];
   vi.spyOn(SetupTerminal.prototype, "workbench").mockImplementation(async get => { screens.push(get()); throw new Error("Setup cancelled."); });
-  await runSetup(paths, undefined, { ...options, provider });
+  await runSetup(paths, undefined, { ...legacy, provider });
   expect(screens[0]).toMatchObject({ focus: "menu", route: "providers", menuCursor: 0, openedMenu: 0, providerIndex: ["exa", "tavily", "firecrawl", "searxng"].indexOf(provider) });
   expect(screens[0]!.menu).toEqual(["Providers", "Configuration", "Settings", "Exit"]);
   expect(screens[0]).not.toHaveProperty("actions"); expect(screens[0]).not.toHaveProperty("controls");
@@ -219,6 +221,38 @@ it("localizes only exact safe errors, preserving honest partial-write recovery",
   expect(setupSafeError("zh", "Setup: The selected reference is environment-managed; change it externally or add a new local key.")).toContain("由环境管理");
   expect(setupSafeError("zh", "SearXNG instance is already configured; permissions were not changed.")).toContain("权限未更改");
   expect(setupSafeError("zh", "Setup: fake-private-secret")).toBeUndefined();
+});
+it("every P2-P4 workbench failure literal stays on the localized safe list", () => {
+  // commands.ts may only surface these exact strings from manage/store write paths; anything else shows a suppressed generic.
+  const reachable = [
+    "Setup: Credential values must be non-empty and must not contain controls or placeholders.",
+    "Setup: The selected key reference is no longer configured; refresh setup.",
+    "Setup: The selected reference is environment-managed; change it externally or add a new local key.",
+    "Setup: Unable to read or update local setup files safely; inspect their permissions and format.",
+    "Setup: Automatic provider order must be nonempty and contain no duplicates.",
+    "Setup: Unknown provider in automatic order.",
+    "Setup: Invalid SearXNG endpoint or per-instance CIDR configuration.",
+    "Setup: Invalid SearXNG instance identity.",
+    "Setup: The selected instance is no longer configured; refresh setup.",
+    "Setup: SearXNG has no local entry; environment endpoints are external. Add a local instance explicitly first.",
+    "Setup: Change automatic provider order before removing the last SearXNG instance.",
+    "SearXNG instance is already configured; permissions were not changed.",
+    "Invalid SearXNG endpoint or CIDR configuration.",
+    "WeKnora is not configured yet; set the API root first.",
+    "Setup: An existing WeKnora credential requires explicit replacement consent; refresh setup before replacing it.",
+    "Setup: Changing the WeKnora API root requires explicit consent to reuse its saved key.",
+    "Setup: Invalid WeKnora API root or connection settings.",
+    "Setup: WeKnora connection is no longer configured; refresh configuration.",
+    "Setup: WeKnora has no saved key to reuse; supply a new credential explicitly.",
+    "Setup: WeKnora connection save failed; the saved credential was not changed.",
+    "Setup: WeKnora environment-managed configuration is read-only; change it externally.",
+    "Setup: Setup language must be en or zh.",
+  ];
+  for (const message of reachable) {
+    expect(setupSafeError("en", message), message).toBeDefined();
+    expect(setupSafeError("zh", message), message).toBeTruthy();
+  }
+  expect(setupSafeError("zh", "Setup: Unexpected internal detail with a path /home/user/.ssh/id_rsa")).toBeUndefined();
 });
 it("uses original locale precedence and never treats blank Chinese consent as affirmative", () => {
   expect(initialSetupLanguage(undefined, undefined, {})).toBe("en");

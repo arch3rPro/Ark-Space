@@ -286,7 +286,7 @@ function formLines(state: State, width: number): string[] {
 /** Connection pages: label/value rows; Enter on a row triggers its action (contexts 4/5). */
 function connRows(state: State, width: number, rows: [string, string][], note: string): string[] {
   const out = rows.map((r, i) => {
-    const line = " " + padV(r[0], 16) + r[1];
+    const line = " " + padV(r[0], 24) + r[1];
     return i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width);
   });
   out.push("", DIM(" " + note));

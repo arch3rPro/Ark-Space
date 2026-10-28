@@ -162,3 +162,10 @@ Pi worker handoff 故障诊断、全局安装/`/usr/bin/arks` 切换、systemd �
   - 架构：新增 `service` Effect 车道（与 op 平行，host `runService` 统一 busy/notice/refresh）；`connData` 事件携带 weknora/usegpt 快照（`data.getConnections` 只读，与主快照同批加载）；`initialState(context)` + `arks setup <id>` 直达六上下文；setupSafeError 对新串未覆盖处走受控英文兑底（opFailed）。
   - 发现并修复 P1 遗留布局 bug：searxng 实例行表头/正文列宽不一致（16 vs 34）且英文状态串超宽重叠 → 行布局收窄至 URL26/状态12，状态/来源文案缩短（未探测/env-managed）。
   - 验收：reducer +12 测（共 48），全量 **822/822** + validate=0；PTY 沙箱 p4pty.py 16/16（公开实例直写/私有 gate 取消零写/grant 写 /32/删除确认/掩码不回显/退出恢复序列）+ env 围栏 3/3；非 TTY 输出带/不带 ARKS_TUI=v2 逐字节一致。
+- **P5 资格套件 + 翻默认（2026-11，Linux 部分完成）**：
+  - `scripts/setup-pty-check.py` 重写为 v2 网格重建断言（Grid：H/J/K+可打印流重建画面，适配差分渲染）；覆盖六上下文条/Tab 焦点环/密钥增改删切换/覆盖同意默认取消/预览掩码→r 揭示→离开即清除/chooser 零请求/allKeys A+B 精确一次/pool e2e 单请求/诊断页分类无泄露/order 草稿落盘/CIDR gate 取消与精确 /32/退出围栏与 5 序列恢复/termios 规范态回存；另：Esc 部分结果 4 Key 会话、WeKnora 链式首配+错序安全失败+verify 零请求、UseGPT start 同意不拉起进程、zh 60×16 窄屏。
+  - 非 TTY 字节锁入 `test-setup-pty.mjs`：源/离线安装入口各跑带与不带 ARKS_TUI=v1 的 pipe 输出逐字节比对 + 控制序列泄露检查。
+  - **翻默认**：v2 成为缺省入口，`ARKS_TUI=v1` 为过渡出口（P6 删旧后移除）；两个 v1 native 契约测改为显式 v1 环境。
+  - 资格过程揪出 3 个真 bug：① form 围栏吞 `data`/`connData`/`loadError`/`notice`（刷新丢更新+失败通知不可见）→ 只读事件透传，补回归单测；② host 缺 preview/details 模式按键路由（r 揭示死键）→ 补齐；③ pool 多行通知在单行状态栏不可见 → 改单行拼接。另补 setup-language 9 条 P2–P4 错误串中英表 + 覆盖哨兵测（枚举可达字面量，未知串仍拒绝）。
+  - 验收：**源与离线安装入口各 67 项逻辑断言全过**（npm run test:setup）；全量 **824/824** + validate=0；未复现旧套件 flaky（本轮两次满载全绿）。
+  - 遗留：macOS/Windows 真实 TTY 人工证据；README/INSTALL/architecture 的 v1 详细描述段落归 P6 重写；`ARKS_TUI=v1` 出口 P6 删除。

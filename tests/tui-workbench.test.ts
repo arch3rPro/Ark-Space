@@ -266,6 +266,20 @@ describe("P2 key management", () => {
   });
 });
 
+describe("P5 regressions found by the PTY qualification", () => {
+  it("refresh and failure notices pass through an open form", () => {
+    const s = loaded();
+    const open = reduce(s, { type: "keyAdd" }).state;
+    expect(open.mode).toBe("form");
+    const next = reduce(open, { type: "data", snapshot: { ...s.snapshot!, providers: s.snapshot!.providers.map((p, i) => i === 0 ? { ...p, keys: [...p.keys, key("env:EXA_API_KEY_2")] } : p) } });
+    expect(next.state.mode).toBe("form"); // the form itself must survive the refresh
+    expect(next.state.snapshot!.providers[0]?.keys).toHaveLength(3);
+    const told = reduce(open, { type: "notice", text: "operation failed", warn: true });
+    expect(told.state.status).toBe("operation failed");
+    expect(told.state.statusWarn).toBe(true);
+  });
+});
+
 describe("P4 connection pages", () => {
   const wekState = (): State => ({
     ...loaded(), region: "content" as const, context: 4,

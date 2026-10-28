@@ -59,6 +59,26 @@ async function qualify() {
     // Missing Python on Linux is a failed prerequisite, never a verified skip.
     await run("python3", ["--version"]);
     const python = join(root, "scripts/setup-pty-check.py");
+    async function nonTTY(entry, extraEnv, tag) {
+      const h = join(temporary, "nontty-" + tag);
+      await mkdir(h);
+      return new Promise((resolvePromise, reject) => {
+        const child = spawn(entry[0], [...entry.slice(1), "setup"], { cwd: h, env: { ...env, ...extraEnv }, stdio: ["ignore", "pipe", "pipe"] });
+        let out = "";
+        child.stdout.on("data", chunk => { out += chunk; });
+        child.stderr.on("data", chunk => { out += chunk; });
+        child.on("error", reject);
+        child.on("close", code => code === 0 && out.length ? resolvePromise(out)
+          : reject(new Error(`Non-TTY setup (${tag}) exited ${code} with ${out.length} bytes.`)));
+      });
+    }
+    async function byteLock(entry, tag) {
+      const [plain, v1] = await Promise.all([nonTTY(entry, {}, tag), nonTTY(entry, { ARKS_TUI: "v1" }, tag + "-v1")]);
+      if (plain !== v1) throw new Error(`Non-TTY machine output changed with ARKS_TUI=v1 (${tag}).`);
+      if (plain.includes("1049") || plain.includes("[?25")) throw new Error(`Non-TTY output leaked terminal control (${tag}).`);
+      return plain.length;
+    }
+    const sourceLock = await byteLock([process.execPath, join(root, "dist/cli/main.js")], "source");
     const source = parse(await run("python3", [python, "--entry", join(root, "dist/cli/main.js")]), "source PTY report");
     const packDirectory = join(temporary, "packs");
     await mkdir(packDirectory);
@@ -81,12 +101,14 @@ async function qualify() {
     await run("npm", ["install", "--prefix", install, "--omit=dev", "--package-lock=false", artifact, ...dependencies, ...npm]);
     const executable = join(install, "node_modules/.bin/arks");
     if ((await run(executable, ["--version"])).trim() !== "0.1.5") throw new Error("Installed arks version changed.");
+    const installedLock = await byteLock([executable], "installed");
     const installed = parse(await run("python3", [python, "--entry", executable]), "installed PTY report");
     for (const report of [source, installed]) if (report.status !== "passed" || !report.logicalChecks) throw new Error("PTY seam did not qualify.");
     process.stdout.write(JSON.stringify({ status: "passed", platform: "linux", source, installed,
+      nonTTYByteLock: { sourceBytes: sourceLock, installedBytes: installedLock, compared: "with and without ARKS_TUI escape hatch" },
       installation: "offline npm, owned empty cache, local runtime tarballs, lifecycle scripts denied",
       unverified: ["Windows real TTY", "macOS real TTY", "real services", "human UX acceptance"] }) + "\n");
-    process.stderr.write(`Linux real PTY: source ${source.logicalChecks}, offline installed arks ${installed.logicalChecks} logical checks passed.\n`);
+    process.stderr.write(`Linux real PTY: source ${source.logicalChecks}, offline installed arks ${installed.logicalChecks} logical checks passed; non-TTY output byte-locked.\n`);
   } finally {
     process.off("SIGINT", interrupt); process.off("SIGTERM", interrupt);
     await rm(temporary, { recursive: true, force: true });

@@ -296,7 +296,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
         } });
         dispatch({ type: "testEnd", cancelled: ac.signal.aborted });
         dispatch({ type: "notice", text: msg(state.lang, "testPoolSummary", { res: msg(state.lang, kind), n: result.attempts.length })
-          + "\n" + result.attempts.map(a => `${a.provider} / ${a.ok ? msg(state.lang, "stSuccess") : msg(state.lang, REASON_KEYS[(a.errorKind ?? "unknown") as FailureKind]!)}`).join("\n"), warn: !result.ok });
+          + " / " + result.attempts.map(a => `${a.provider} ${a.ok ? msg(state.lang, "stSuccess") : msg(state.lang, REASON_KEYS[(a.errorKind ?? "unknown") as FailureKind]!)}`).join(", "), warn: !result.ok });
       }
     } catch {
       // testSetupKeys/executeWebSearch sanitize their own failures, but display nothing raw from here (ADR 0016)
@@ -374,6 +374,11 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     }
 
     if (ioBusy) return { consume: true }; // keys during in-flight IO: drop, never queue
+    if (state.mode === "preview") { // r toggles reveal, any other key leaves (values cleared on exit)
+      if (data === "r") dispatch({ type: "reveal" }); else dispatch({ type: "escape" });
+      return { consume: true };
+    }
+    if (state.mode === "details") { dispatch({ type: "escape" }); return { consume: true }; } // any key back
     if (state.testing && matchesKey(data, Key.escape)) { testAbort?.abort(); return { consume: true }; } // Esc stops the run, keeps partial rows
     const onConfig = state.region === "content" && state.page === "config";
     if (data === "q") dispatch({ type: "quitIntent" });

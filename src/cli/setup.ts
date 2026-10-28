@@ -61,8 +61,8 @@ export async function runSetup(paths: ArkSpacePaths, injected?: SetupPrompts, op
     return;
   }
   const terminal = new SetupTerminal();
-  if (!injected && environment.ARKS_TUI === "v2") {
-    // Staged migration entry (ADR 0023 plan P0): old workbench stays the default until P5 qualification passes.
+  if (!injected && environment.ARKS_TUI !== "v1") {
+    // v2 is the default entry (P5 qualification); ARKS_TUI=v1 is the transition escape hatch until the old workbench is deleted in P6.
     const { runSetupTui } = await import("../tui/index.js");
     await runSetupTui({ paths, environment, language: () => language, provider: options.provider, onLanguageChange: (next) => { language = next; }, signal: options.signal });
     return;

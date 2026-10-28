@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """ArkSpace MIT; adapted from repository-owned setup PTY fixtures, not external code.
-Linux real PTY qualification only. No scratch imports, services, or real credentials.
+Linux real PTY qualification for the v2 workbench (ADR 0023/0024) only.
+No scratch imports, services, or real credentials. Grid reconstruction mirrors the
+differential renderer: assertions read the visible terminal picture, not escape spew.
 """
 import argparse
 import hashlib
@@ -15,8 +17,7 @@ import tempfile
 import time
 
 KEY = 'synthetic-pty?credential-only'
-CLEAR = '\x1b[2J\x1b[H'
-ANSI = re.compile(r'\x1b\[[0-?]*[ -/]*[@-~]')
+ANSI = re.compile(r'\x1b\[(\??)([\d;]*)([A-Za-z])|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|([^\x1b]+|\x1b)')
 checks = []
 
 
@@ -40,17 +41,59 @@ def environment(home, trace):
             'NODE_OPTIONS': '--import=' + pathlib.Path(__file__).with_name('setup-pty-fetch-fixture.mjs').as_uri()}
 
 
+class Grid:
+    """Terminal picture reconstructed from the differential output stream."""
+
+    def __init__(self, rows, columns):
+        self.rows, self.columns, self.raw = rows, columns, b''
+
+    def feed(self, data):
+        self.raw += data
+
+    def text(self):
+        scr = [[' '] * self.columns for _ in range(self.rows)]
+        row = col = 0
+        for m in ANSI.finditer(self.raw.decode('utf-8', errors='replace')):
+            if m.group(3):
+                if m.group(1):
+                    continue
+                ps = [int(x) for x in m.group(2).split(';') if x]
+                cmd = m.group(3)
+                if cmd == 'H':
+                    row = (ps[0] - 1 if ps else 0)
+                    col = (ps[1] - 1) if len(ps) > 1 else 0
+                elif cmd == 'J':
+                    scr = [[' '] * self.columns for _ in range(self.rows)]
+                elif cmd == 'K':
+                    scr[row][col:] = [' '] * (self.columns - col)
+            elif m.group(4):
+                for ch in m.group(4):
+                    if ch == '\x1b':
+                        pass
+                    elif ch == '\r':
+                        col = 0
+                    elif ch == '\n':
+                        row = min(row + 1, self.rows - 1); col = 0
+                    elif ord(ch) < 32:
+                        pass
+                    else:
+                        if 0 <= row < self.rows and 0 <= col < self.columns:
+                            scr[row][col] = ch
+                            col += 1
+        return '\n'.join(''.join(r).rstrip() for r in scr)
+
+
 class Session:
     def __init__(self, entry, home, trace, rows=24, columns=80, language='en', service=None):
         self.master, self.slave = pty.openpty()
         self.process = None
-        self.raw = b''
+        self.grid = Grid(rows, columns)
         self.original = termios.tcgetattr(self.slave)
         try:
-            self.resize(rows, columns)
-            # Both executable seams use the real CLI, never a controller import.
             command = [str(entry)] if entry.name == 'arks' else ['node', str(entry)]
-            self.process = subprocess.Popen(command + ['setup'] + ([service] if service else []) + ['--lang', language],
+            argv = ['setup'] + ([service] if service else []) + ['--lang', language]
+            fcntl.ioctl(self.slave, termios.TIOCSWINSZ, struct.pack('HHHH', rows, columns, 0, 0))
+            self.process = subprocess.Popen(command + argv,
                 stdin=self.slave, stdout=self.slave, stderr=self.slave,
                 env=environment(home, trace), cwd=home, start_new_session=True)
         except BaseException:
@@ -58,29 +101,28 @@ class Session:
             os.close(self.slave)
             raise
 
-    def resize(self, rows, columns):
-        fcntl.ioctl(self.slave, termios.TIOCSWINSZ, struct.pack('HHHH', rows, columns, 0, 0))
-        if self.process:
-            os.kill(self.process.pid, signal.SIGWINCH)
-            self.read(0.15)
+    @property
+    def proc(self):
+        assert self.process is not None
+        return self.process
 
     def read(self, duration=0.12):
         until = time.monotonic() + duration
         while time.monotonic() < until:
-            if select.select([self.master], [], [], min(0.03, max(0, until-time.monotonic())))[0]:
+            if select.select([self.master], [], [], min(0.03, max(0, until - time.monotonic())))[0]:
                 try:
                     data = os.read(self.master, 65536)
                 except OSError:
                     break
                 if not data:
                     break
-                self.raw += data
+                self.grid.feed(data)
         return self.screen()
 
     def screen(self):
-        return ANSI.sub('', self.raw.decode('utf-8', errors='replace').rsplit(CLEAR, 1)[-1])
+        return self.grid.text()
 
-    def send(self, keys, delay=0.15):
+    def send(self, keys, delay=0.18):
         # Each control sequence is a separate raw write, not a multi-command paste.
         if isinstance(keys, str):
             tokens = re.findall(r'\x1b\[[0-9;]*[A-Za-z~]|[\x00-\x1f\x7f]', keys)
@@ -91,7 +133,7 @@ class Session:
         os.write(self.master, keys.encode() if isinstance(keys, str) else keys)
         return self.read(delay)
 
-    def until(self, probe, description, timeout=4):
+    def until(self, probe, description, timeout=6):
         assert self.process is not None
         deadline = time.monotonic() + timeout
         while not probe() and time.monotonic() < deadline:
@@ -99,21 +141,12 @@ class Session:
             if self.process.poll() is not None:
                 break
         if not probe():
-            raise AssertionError('Timed out: ' + description)
+            raise AssertionError('Timed out: ' + description + '\n' + self.screen())
 
     def wait(self, text):
-        frame = self.screen().replace(KEY, '<synthetic secret>').splitlines()
-        self.until(lambda: text in self.screen(), text + '\n' + '\n'.join(frame[:7] + frame[-2:]))
+        self.until(lambda: text in self.screen(), text)
 
-    def wait_unchanged(self, language):
-        def closed_frame():
-            frame = self.screen()
-            return (('No changes.' if language == 'en' else '没有修改。') in frame
-                    and ('Reference' if language == 'en' else '引用') in frame
-                    and ('Edit Exa' if language == 'en' else '编辑 Exa') not in frame)
-        self.until(closed_frame, 'unchanged Save completed and edit page closed')
-
-    def finish(self):
+    def finish(self, typed_secrets, revealed=False):
         assert self.process is not None
         try:
             if self.process.poll() is None:
@@ -127,8 +160,12 @@ class Session:
             self.read()
             flags = termios.ICANON | termios.ECHO
             check('terminal canonical/echo restored', termios.tcgetattr(self.slave)[3] & flags == self.original[3] & flags)
-            check('alternate screen and cursor restored', b'\x1b[?1049l' in self.raw and b'\x1b[?25h' in self.raw)
-            check('no synthetic secret or hostile response body in terminal history', KEY.encode() not in self.raw)
+            raw = self.grid.raw
+            check('alternate screen, cursor, mouse and paste restored', all(s.encode() in raw for s in ['\x1b[?1049l', '\x1b[?25h', '\x1b[?1000l', '\x1b[?1003l', '\x1b[?2004l']))
+            for secret in typed_secrets + [KEY + '-b']:
+                check('secret/hostile body absent from output stream', secret.encode() not in raw)
+            if not revealed:
+                check('no synthetic secret in terminal history', KEY.encode() not in raw)
         finally:
             if self.process.poll() is None:
                 os.killpg(self.process.pid, signal.SIGKILL)
@@ -152,7 +189,7 @@ def prepare(entry, home, trace, count):
     config['providers']['exa']['enabled'] = True
     config['providers']['exa']['keyRefs'] = ['env:' + v for v in variables]
     (home / 'config.json').write_text(json.dumps(config))
-    values = [KEY] + [KEY + '-' + c for c in 'bcd'[:count-1]]
+    values = [KEY] + [KEY + '-' + c for c in 'bcd'[:count - 1]]
     credentials = home / 'credentials.json'
     credentials.write_text(json.dumps({'version': 1, 'values': dict(zip(variables, values, strict=True))}))
     credentials.chmod(0o600)
@@ -162,228 +199,243 @@ def run(entry):
     with tempfile.TemporaryDirectory(prefix='arks-setup-pty-') as temporary:
         base = pathlib.Path(temporary)
         trace = base / 'attempts.txt'
-        for language, rows, columns in [('en', 24, 80), ('zh', 16, 60)]:
-            home = base / language
-            prepare(entry, home, trace, 2)
-            session = Session(entry, home, trace, rows, columns, language)
-            try:
-                session.wait('Config' if language == 'en' else '配置')
-                if language == 'en':
-                    check('80-column default header shows all five services', all('[' + name + ']' in session.screen().splitlines()[0] for name in ['Exa', 'Tavily', 'Firecrawl', 'SearXNG', 'WeKnora']))
-                before = fingerprint(home)
-                session.send('\x1b[Z\x1b[C')
-                check('raw Shift-Tab and Right select Tavily in Top', '*[Tavily]' in session.screen())
-                session.send('\x1b[D\t\t')
-                session.send('\n')
-                session.wait('Edit Exa' if language == 'en' else '编辑 Exa')
-                session.wait(f'{len(KEY)} characters' if language == 'en' else f'{len(KEY)} 字符')
-                check('raw LF opens existing masked draft without writes', KEY not in session.screen() and fingerprint(home) == before)
-                session.send('\r')
-                session.send('X')
-                session.send('\t')
-                check('editing Tab cannot submit draft', fingerprint(home) == before)
-                session.send('\x1b')
-                session.wait(f'{len(KEY)} characters' if language == 'en' else f'{len(KEY)} 字符')
-                check('field Esc restores masked preload without writes', fingerprint(home) == before)
-                session.send('\x13')
-                session.wait_unchanged(language)
-                check('unchanged Save closes without overwrite consent or writes', fingerprint(home) == before)
-                session.send('\r')
-                session.wait('Edit Exa' if language == 'en' else '编辑 Exa')
-                check('raw CR opens masked edit draft only', fingerprint(home) == before and KEY not in session.screen())
-                session.send('\x13')
-                session.wait_unchanged(language)
-                session.send('d')
-                session.wait('Delete' if language == 'en' else '删除')
-                session.send('\r')
-                check('delete confirmation defaults Cancel', fingerprint(home) == before)
-                session.send(' ')
-                session.send('\x1b[B')
-                session.send(' ')
-                session.send('\x1b[A')
-                before = fingerprint(home)
-                check('disabled references have persistent normal health state', (home / 'state.json').exists())
-                session.send('t')
-                session.wait('Test all 2 keys individually' if language == 'en' else '逐一测试全部 2 个 Key')
-                session.wait('fees/logging' if language == 'en' else '可能计费')
-                session.send('\r')
-                check('provider test defaults Cancel and makes zero requests', trace.read_text() == '')
-                session.send('t')
-                session.send('\x1b[B\x1b[C\r')
-                session.wait('Key results: 1/2 passed' if language == 'en' else 'Key 结果：1/2 通过')
-                check('all-key test attempts A then B exactly once', trace.read_text().splitlines() == ['A', 'B'])
-                check('all-key diagnostics preserve config/credentials/normal state', fingerprint(home) == before)
-                check('results classify A success and B failure', ('passed' in session.screen() and 'failed' in session.screen()) if language == 'en' else ('通过' in session.screen() and '失败' in session.screen()))
-                session.send('\r')
-                session.send('i')
-                session.wait('Effective source' if language == 'en' else '生效来源')
-                detail_frames = session.screen()
-                for _ in range(4):
-                    session.send('\x1b[6~')
-                    detail_frames += '\n' + session.screen()
-                check('details separate normal manual disable from session success',
-                      ('Key health: disabled' in detail_frames and 'manually disabled' in detail_frames and 'Last diagnostic: passed' in detail_frames)
-                      if language == 'en' else ('密钥健康: 已禁用' in detail_frames and '手动禁用' in detail_frames and '最近诊断: 通过' in detail_frames))
-                check('session detail includes diagnostic completion and duration',
-                      ('Completed:' in detail_frames and 'Duration:' in detail_frames) if language == 'en' else ('完成时间:' in detail_frames and '耗时:' in detail_frames))
-                check('session detail explicitly warns historical result is not current validation',
-                      'Historical session result' in detail_frames if language == 'en' else '本次会话的历史结果' in detail_frames)
-                check('detail readback does not write normal or credential state', fingerprint(home) == before)
-                session.send('\r')
-                session.send('e')
-                session.wait('Edit Exa' if language == 'en' else '编辑 Exa')
-                session.send('\r')
-                session.send('X')
-                session.resize(8, 24)
-                session.wait('Window too small' if language == 'en' else '窗口过小')
-                session.send('\x13\t\r')
-                check('tiny resize blocks hidden Save and masks secret', fingerprint(home) == before and KEY not in session.screen())
-                session.resize(rows, columns)
-                session.wait(f'{len(KEY)+1} characters' if language == 'en' else f'{len(KEY)+1} 字符')
-                session.send('\x1b')
-                session.send('\x1b')
-                check('resize retains draft and field/form Esc cancel without writes', fingerprint(home) == before)
-            finally:
-                session.finish()
-            check('owned diagnostic temporary directories removed', not any(p.is_dir() for p in home.iterdir()))
+
+        # ---- main English session: six contexts, keys, tests, instances, order, exit ----
+        home = base / 'en'
+        prepare(entry, home, trace, 2)
+        session = Session(entry, home, trace)
+        try:
+            session.wait('[UseGPT]')
+            first = session.screen().splitlines()[0]
+            check('top strip shows all six contexts', all('[' + n + ']' in first for n in ['Exa', 'Tavily', 'Firecrawl', 'SearXNG', 'WeKnora', 'UseGPT']))
+            check('menu lists the four pages', all(x in session.screen() for x in ['Providers', 'Order', 'Diagnostics']))
+            session.send('\t\t')
+            check('Tab focuses top then menu then content', 'env:EXA_API_KEY' in session.screen() and '[a] add' in session.screen())
+
+            # add key: masked entry persists a new reference with 0600 credentials
+            session.send('a')
+            session.wait('Add key')
+            session.send(KEY + '-z')
+            session.send('\r\x13')
+            session.wait('key added: env:EXA_API_KEY_2')
+            creds = json.loads((home / 'credentials.json').read_text())
+            check('added key persists and stays masked', 'EXA_API_KEY_2' in creds['values'] and KEY + '-z' not in session.screen())
+            check('credential file mode remains 0600', (home / 'credentials.json').stat().st_mode & 0o777 == 0o600)
+
+            # replace with overwrite consent; cancel default must not write
+            before = fingerprint(home)
+            session.send('\x1b[B\x1b[B')   # down to the new env:EXA_API_KEY_2 row
+            session.send('e')
+            session.wait('Edit key')
+            session.send(KEY + '-y')       # edit form opens already typing
+            session.send('\r\x13')
+            session.wait('Overwrite env:EXA_API_KEY_2? (cancel default)')
+            session.send('\r')
+            check('overwrite defaults Cancel and keeps the form open', fingerprint(home) == before and 'Edit key' in session.screen())
+            session.send('\x13\x1b[B\r')
+            session.wait('key replaced: env:EXA_API_KEY_2')
+
+            # toggle enable/disable on row 0
+            session.send('\x1b[A\x1b[A ')
+            session.wait('env:EXA_API_KEY disabled')
+            session.send(' ')
+            session.wait('env:EXA_API_KEY enabled')
+
+            # preview: masked by default, r reveals, leaving clears
+            session.send('p')
+            session.wait('Key preview')
+            check('preview starts masked', KEY not in session.screen())
+            session.send('r')
+            session.wait(KEY)
+            session.send('\x1b')
+            session.wait('env:EXA_API_KEY')
+            check('preview value cleared on leave', KEY not in session.screen())
+
+            # remove the synthetic third key again (its secret is unknown to the fixture)
+            session.send('\x1b[B\x1b[B')
+            session.send('d')
+            session.wait('Remove env:EXA_API_KEY_2? (cancel default)')
+            session.send('\x1b[B\r')
+            session.wait('env:EXA_API_KEY_2 removed/its diagnostics invalidated')
+            check('confirmed remove deletes the reference', 'env:EXA_API_KEY_2' not in (home / 'config.json').read_text())
+
+            # chooser cancel default makes zero requests
+            session.send('t')
+            session.wait('Test connection')
+            check('test consent mentions billing/logging', 'billed and logged' in session.screen())
+            session.send('\r')
+            check('test chooser defaults Cancel with zero requests', trace.read_text() == '')
+
+            # all-keys run: A passes, B fails 401 once each, nothing else mutated
+            before = fingerprint(home)
+            session.send('t\x1b[B\x1b[B\r')
+            session.wait('Keys: 1/2 passed')
+            check('all-key test attempts A then B exactly once', trace.read_text().splitlines() == ['A', 'B'])
+            check('all-key diagnostics preserve config/credentials/normal state', fingerprint(home) == before)
+
+            # diagnostics page keeps the failure rows (pool would clear them by design)
+            session.send('\t\t\x1b[B\x1b[B\x1b[B\r')
+            session.wait('env:EXA_API_KEY_1')
+            check('diagnostics classify failure with a reason only', 'failure' in session.screen() and KEY + '-b' not in session.screen())
+
+            # back to Providers, then the pool e2e sample through the real registry
+            session.send('\t\t\x1b[A\x1b[A\x1b[A\r')
+            session.wait('[a] add')
+            session.send('t\x1b[B\r')
+            session.wait('Connection success')
+            session.wait('exa success')
+            check('pool run issues exactly one request', trace.read_text().splitlines()[-1] == 'A')
+
+            # order draft: swap shows unsaved, Ctrl-S persists
+            session.send('\t\t\x1b[B\r')   # menu: Providers -> Order
+            session.wait('1.')
+            session.send('\x1b[A')                 # cursor onto the first row
+            before_order = json.loads((home / 'config.json').read_text())['providerOrder']
+            session.send('d')
+            session.wait('unsaved')
+            session.send('\x13')
+            session.wait('routing order saved')
+            after_order = json.loads((home / 'config.json').read_text())['providerOrder']
+            check('order save changed the persisted sequence', after_order != before_order)
+
+            # searxng private endpoint requires an explicit per-instance grant
+            session.send('\t\t\x1b[A\r')   # menu cursor: Order -> Providers page
+            session.send(']')
+            session.send(']')
+            session.send(']')
+            session.wait('no instances')
+            session.send('a')
+            session.send('http://127.0.0.1:8080')
+            session.send('\r\x13')
+            session.wait('Authorize 127.0.0.1/32')
+            check('CIDR gate defaults Cancel', 'cancel' in session.screen().lower())
+            session.send('\x1b[B\r')
+            session.wait('instance added')
+            instances = json.loads((home / 'config.json').read_text())['providers']['searxng']['instances']
+            check('grant writes the exact /32 only', instances == [{'baseUrl': 'http://127.0.0.1:8080', 'allowRanges': ['127.0.0.1/32']}])
+
+            # exit confirmation defaults Cancel, then restores cleanly
+            before = fingerprint(home)
+            session.send('q')
+            session.wait('Exit ArkSpace Setup? (cancel default)')
+            session.send('\r')
+            check('exit defaults Cancel with no further writes', session.proc.poll() is None and fingerprint(home) == before)
+            session.send('q\x1b[B\r')
+            session.until(lambda: session.proc.poll() is not None, 'confirmed exit')
+            check('confirmed exit returns 0', session.proc.returncode == 0)
+            session.finish([KEY + '-z', KEY + '-y'], revealed=True)
+        finally:
+            if session.process and session.process.poll() is None:
+                session.finish([KEY + '-z', KEY + '-y'], revealed=True)
+
+        # ---- mid-run Esc keeps partial results and never submits pending keys ----
         home = base / 'cancel'
         prepare(entry, home, trace, 4)
         session = Session(entry, home, trace)
         try:
-            session.wait('Config')
+            session.wait('[UseGPT]')
+            session.send('\t\t')
             before = fingerprint(home)
-            session.send('\x1b[C')
-            session.send('t')
-            session.wait('Test all 4 keys individually')
-            session.send('\x1b[B\x1b[C\r', 0.05)
-            # C is actually in flight; wording before the count may change independently.
-            session.until(lambda: trace.read_text().splitlines() == ['A', 'B', 'C'] and '2/4' in session.screen(), 'A/B completed, C in flight with visible completed count')
-            check('visible progress counts completed A/B, not C or pending D', '2/4' in session.screen())
-            check('current diagnostic target is C while completed count remains two', 'Testing env:EXA_API_KEY_2' in session.screen())
+            session.send('t\x1b[B\x1b[B\r')
+            session.until(lambda: trace.read_text().splitlines() == ['A', 'B', 'C'] and '2/4' in session.screen(),
+                          'A/B completed, C in flight with visible completed count')
+            check('current diagnostic target is C while completed count remains two', 'Testing EXA_API_KEY_2' in session.screen())
             session.send('\x1b')
-            session.wait('Key results: 1/4 passed · stopped')
-            for reference, status in [('EXA_API_KEY ·', 'passed'), ('EXA_API_KEY_1 ·', 'failed'), ('EXA_API_KEY_2 ·', 'cancelled'), ('EXA_API_KEY_3 ·', 'not tested')]:
-                check('partial result ' + reference + ' ' + status, any(reference in line and status in line for line in session.screen().splitlines()))
+            session.wait('Keys: 1/4 passed/stopped')
+            session.send('\t\t\x1b[B\x1b[B\x1b[B\r')  # menu -> Diagnostics page
+            session.wait('env:EXA_API_KEY_3')
+            screen = session.screen()
+            for reference, status in [('env:EXA_API_KEY', 'success'), ('env:EXA_API_KEY_1', 'failure'),
+                                      ('env:EXA_API_KEY_2', 'cancelled'), ('env:EXA_API_KEY_3', 'not tested')]:
+                check('partial result ' + reference + ' ' + status,
+                      any(reference in line and status in line for line in screen.splitlines()))
             check('Esc never submits pending D', trace.read_text().splitlines() == ['A', 'B', 'C'])
             check('partial diagnostics preserve normal state', fingerprint(home) == before)
-            session.send('\r')
-            assert session.process is not None
-            check('diagnostic Esc cancellation keeps setup alive', session.process.poll() is None)
+            session.send('q\x1b[B\r')
+            session.until(lambda: session.proc.poll() is not None, 'exit after cancellation')
         finally:
-            session.finish()
-        check('cancelled diagnostic temporary directories removed', not any(p.is_dir() for p in home.iterdir()))
+            session.finish([KEY + '-z', KEY + '-y'])
+
+        # ---- WeKnora deep link: masked chain save, guards, consented verify cancel ----
         home = base / 'weknora'
         prepare(entry, home, trace, 1)
         session = Session(entry, home, trace, columns=100, service='weknora')
         try:
-            session.wait('WeKnora configuration')
-            check('WeKnora primary list distinguishes two required and one optional setting', session.screen().count('Required ·') == 2 and session.screen().count('Optional ·') == 1)
+            session.wait('API endpoint')
+            check('weknora deep link opens content focus directly', 'verify connection' in session.screen() and '[a] add' not in session.screen())
             empty = fingerprint(home)
-            session.send('\x1b[C\r')
-            session.wait('*API URL')
-            check('empty WeKnora edits only selected address', '*API key' not in session.screen() and 'KB ID' not in session.screen())
-            session.send('\r')
-            session.send('https://kb.example/prefix/api/v1')
-            session.send('\r\x13')
-            # Require the table label delimiter; "Setting" alone also matches menu "Settings".
-            session.wait('│   Setting ')
-            check('incomplete WeKnora address remains session-only without file changes', fingerprint(home) == empty and 'Draft · add key' in session.screen())
-            session.send('\x1b[B')
-            session.send('e')
-            session.wait('*API key')
-            check('empty WeKnora edits only selected key', '*API URL' not in session.screen() and 'KB ID' not in session.screen())
-            session.send('\r')
+            session.send('\x1b[B\r')
+            session.wait('WeKnora API key')
             session.send(KEY)
             session.send('\r\x13')
-            session.wait('│   Setting ')
-            session.wait('Configured · not tested')
-            session.send('\x1b[B')
-            session.send('e')
-            session.wait('KB ID')
-            session.send('\r')
-            session.send('kb-default')
-            session.send('\r\x13')
-            session.wait('│   Setting ')
-            session.send('\x1b[A\x1b[A')
-            connection = json.loads((home / 'config.json').read_text())['connections']['weknora']
-            check('WeKnora real PTY saves explicit API prefix and offline default', connection['baseUrl'] == 'https://kb.example/prefix/api/v1' and connection['defaultKnowledgeBaseId'] == 'kb-default')
-            check('WeKnora real PTY stores dedicated credential separately', json.loads((home / 'credentials.json').read_text())['values']['ARKSPACE_WEKNORA_API_KEY'] == KEY and KEY not in (home / 'config.json').read_text())
-            check('WeKnora save stays offline and outside Web order', trace.read_text() == '' and 'weknora' not in json.loads((home / 'config.json').read_text())['providerOrder'])
-            before = fingerprint(home)
-            session.send('e')
-            session.wait('*API URL')
-            check('WeKnora selected address edit has one field', '*API key' not in session.screen() and 'KB ID' not in session.screen())
-            session.send('\x13')
-            session.wait('│   Setting ')
-            check('WeKnora unchanged field save has no writes', fingerprint(home) == before)
-            session.send('\x1b[B')
-            session.send('e')
-            session.wait('*API key')
-            session.wait(str(len(KEY)) + ' characters')
-            check('WeKnora selected key edit is masked and field-specific', '*API URL' not in session.screen() and 'KB ID' not in session.screen() and KEY not in session.screen())
-            session.send('\x13')
-            session.wait('│   Setting ')
-            session.send('p')
-            session.wait('API key preview')
-            session.wait('Show full')
-            check('WeKnora real PTY preview starts masked without requests or writes', KEY not in session.screen() and fingerprint(home) == before and trace.read_text() == '')
-            session.send('\x1b')
-            session.wait('│   Setting ')
-            session.send('\x1b[B')
-            session.send('e')
-            session.wait('KB ID')
-            check('WeKnora selected default edit has no address or secret field', '*API URL' not in session.screen() and '*API key' not in session.screen())
-            session.send('\r\x05')
-            session.send('\x7f' * len('kb-default'))
-            session.send('kb-pty-new')
-            session.send('\r\x13')
-            session.wait('│   Setting ')
-            updated = json.loads((home / 'config.json').read_text())['connections']['weknora']
-            expected = dict(connection, defaultKnowledgeBaseId='kb-pty-new')
-            check('WeKnora per-field save changes only default and keeps credential bytes', updated == expected and fingerprint(home)['credentials.json'] == before['credentials.json'])
-            before = fingerprint(home)
-            session.send('t')
-            session.wait('Test connection')
-            session.send('\r')
-            session.wait('│   Setting ')
-            check('WeKnora probe defaults Cancel without requests or writes', trace.read_text() == '' and fingerprint(home) == before)
-            session.send('d')
-            session.wait('Remove local connection')
-            session.send('\r')
-            check('WeKnora removal defaults Cancel', fingerprint(home) == before)
-            session.send('d')
-            session.wait('Remove local connection')
-            session.send('\x1b[C\r')
-            session.wait('Not configured')
-            check('WeKnora confirmed removal unlinks local connection and unshared key', 'connections' not in json.loads((home / 'config.json').read_text()) and 'ARKSPACE_WEKNORA_API_KEY' not in json.loads((home / 'credentials.json').read_text())['values'])
-            removed = fingerprint(home)
+            session.wait('WeKnora is not configured yet')
+            check('key without endpoint fails safely, masked, unwritten', KEY not in session.screen() and fingerprint(home) == empty and trace.read_text() == '')
+            # the failed form already closed itself; move up and start with the endpoint
             session.send('\x1b[A')
-            session.send('e')
-            session.wait('*API key')
             session.send('\r')
+            session.send('\r')          # start typing in the prefilled field
+            session.send('https://kb.example/api/v1')
+            session.send('\r\x13')       # save chains straight into the key field
+            session.wait('WeKnora API key')  # chained second field, one write
             session.send(KEY)
             session.send('\r\x13')
-            session.wait('│   Setting ')
-            session.send('p')
-            session.wait('API key preview')
-            check('WeKnora pending key preview is masked and marked unsaved', 'not saved' in session.screen() and KEY not in session.screen() and fingerprint(home) == removed)
-            session.send('\x1b')
-            session.wait('│   Setting ')
-            session.send('\x1b\x1b')
-            session.wait('Discard unsaved drafts and exit?')
+            session.wait('WeKnora connection saved')
+            connection = json.loads((home / 'config.json').read_text())['connections']['weknora']
+            check('chained setup stores prefix endpoint', connection['baseUrl'] == 'https://kb.example/api/v1')
+            check('credential stored separately from config', json.loads((home / 'credentials.json').read_text())['values']['ARKSPACE_WEKNORA_API_KEY'] == KEY and KEY not in (home / 'config.json').read_text())
+            session.send('\x1b[B\x1b[B\r')   # knowledge base row
+            session.send('\r')                # prefilled edit: Enter starts typing
+            session.send('kb-pty')
+            session.send('\r\x13')
+            session.wait('WeKnora connection saved')
+            check('knowledge base row updates only the default', json.loads((home / 'config.json').read_text())['connections']['weknora']['defaultKnowledgeBaseId'] == 'kb-pty')
+            before = fingerprint(home)
+            session.send('\x1b[B\r')
+            session.wait('GET /auth/me')
             session.send('\r')
-            session.wait('│   Setting ')
-            process = session.process
-            assert process is not None
-            check('WeKnora draft exit defaults Cancel and keeps the draft without writes', 'Draft · add address' in session.screen() and fingerprint(home) == removed and process.poll() is None)
-            session.send('\x1b')
-            session.wait('Discard unsaved drafts and exit?')
-            session.send('\x1b[C\r')
-            session.until(lambda: process.poll() is not None, 'confirmed draft discard exits')
-            check('WeKnora confirmed exit discards incomplete secret without file writes', process.returncode == 0 and fingerprint(home) == removed)
+            check('verify defaults Cancel with zero requests and no writes', trace.read_text() == '' and fingerprint(home) == before)
+            session.send('q\x1b[B\r')
+            session.until(lambda: session.proc.poll() is not None, 'weknora exit')
         finally:
-            session.finish()
-    return {'status': 'passed', 'platform': 'linux', 'qualification': 'real PTY; synthetic fetch only; no real services or human UX acceptance',
+            session.finish([])
+
+        # ---- UseGPT deep link: status, diagnosis, start consent defaults Cancel ----
+        home = base / 'usegpt'
+        prepare(entry, home, trace, 1)
+        session = Session(entry, home, trace, columns=100, service='usegpt')
+        try:
+            session.wait('Hub artifact store')
+            check('usegpt page lists services and actions', all(x in session.screen() for x in ['Tunnel service', 'Start services', 'Stop services', 'Diagnose']))
+            session.send('\x1b[B\x1b[B\x1b[B\x1b[B\r')
+            session.wait('configuration_incomplete')
+            session.send('\x1b[A\x1b[A\r')   # up from Diagnose to Start services
+            session.wait('Start the Hub and Tunnel')
+            session.send('\r')
+            check('start defaults Cancel: no processes spawned', trace.read_text() == '' and not any((home / p).exists() for p in ['tunnel.pid', 'hub.pid']))
+            session.send('q\x1b[B\r')
+            session.until(lambda: session.proc.poll() is not None, 'usegpt exit')
+        finally:
+            session.finish([])
+
+        # ---- Chinese session at a small terminal: geometry holds and labels localize ----
+        home = base / 'zh'
+        prepare(entry, home, trace, 2)
+        session = Session(entry, home, trace, rows=16, columns=60, language='zh')
+        try:
+            session.wait('[Exa]')
+            check('窄屏下六上下文条优雅截断', '[Firecrawl]' in session.screen())
+            check('中文菜单渲染', '路由顺序' in session.screen() and '诊断' in session.screen())
+            session.send('\t\t')
+            session.wait('env:EXA_API_KEY')
+            session.send('a')
+            session.wait('添加密钥')
+            check('小尺寸表单不溢出', len(max(session.screen().splitlines(), key=len)) <= 60)
+            session.send('\x1b\x1b')
+            session.send('q\x1b[B\r')
+            session.until(lambda: session.proc.poll() is not None, 'zh exit')
+        finally:
+            session.finish([KEY + '-z'])
+    return {'status': 'passed', 'platform': 'linux', 'qualification': 'real PTY against the v2 default entry; synthetic fetch only; no real services or human UX acceptance',
             'unverified': ['Windows real TTY', 'macOS real TTY'], 'logicalChecks': len(checks), 'checks': checks}
 
 
@@ -403,7 +455,7 @@ if __name__ == '__main__':
         raise KeyboardInterrupt('PTY qualification interrupted')
     signal.signal(signal.SIGTERM, interrupted)
     try:
-        print(json.dumps(run(args.entry.absolute())))
+        print(json.dumps(run(entry=args.entry.absolute())))
     except (Exception, KeyboardInterrupt) as error:
         print('Setup PTY qualification failed: ' + str(error), file=sys.stderr)
         print(json.dumps({'status': 'failed', 'platform': 'linux', 'logicalChecks': len(checks), 'checks': checks}))
