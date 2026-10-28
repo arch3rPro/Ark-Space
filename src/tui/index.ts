@@ -124,11 +124,12 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     render: (w) => state.modal ? modalLines(state.modal, w) : [""],
   };
   const statusLine = new Line();
-  const footerLine = new Line();
+  let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+  let lastNotice = "";
 
   function render(): void {
     const rows = process.stdout.rows || 24; // winsize race can report 0/undefined at startup
-    const height = Math.max(8, rows - 4);  // strip + body + status + footer constant, or borders jump
+    const height = Math.max(8, rows - 3);  // strip + body + single bottom row; keep constant or borders jump
     const left = new Framed(menu, () => msg(state.lang, "menuTitle"));
     left.setH(height);
     const right = new Framed(page, () => contentTitle(state));
@@ -141,10 +142,17 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
       { component: stripBox, basis: 1 },
       { component: new HStack([{ component: left, basis: 22, shrink: 0 }, { component: right, basis: 0, grow: 1 }]), basis: height, grow: 0 },
       { component: statusLine, basis: 1 },
-      { component: footerLine, basis: 1 },
     ]));
-    statusLine.set(" " + (state.statusWarn ? FG(33, state.status) : state.status));
-    footerLine.set(keyBar(state));
+    // one bottom row: notices show briefly over the global key hints, then fall back
+    statusLine.set(state.status ? " " + (state.statusWarn ? FG(33, state.status) : state.status) : keyBar(state));
+    if (state.status !== lastNotice) {
+      lastNotice = state.status;
+      if (noticeTimer) clearTimeout(noticeTimer);
+      if (state.status) {
+        noticeTimer = setTimeout(() => { if (!closed) dispatch({ type: "statusClear" }); }, 6000);
+        noticeTimer.unref?.();
+      }
+    }
     tui.requestRender(true);
   }
 
@@ -173,6 +181,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
   function close(): void {
     if (closed) return;
     closed = true;
+    if (noticeTimer) clearTimeout(noticeTimer);
     testAbort?.abort(); // never leave a live provider request after the terminal restores
     options.signal?.removeEventListener("abort", close);
     tui.stop(); // restores alt-screen, cursor, mouse, bracketed paste on every path

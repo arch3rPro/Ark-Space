@@ -103,6 +103,7 @@ export type Event =
   | { type: "detailsOpen"; reference: string }
   | { type: "previewOpen"; variable: string; sources: PreviewSource[] }
   | { type: "notice"; text: string; warn?: boolean }
+  | { type: "statusClear" }
   | { type: "reveal" }
   // P2 mutations and modals
   | { type: "keyAdd" }
@@ -223,6 +224,7 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
       return { state: { ...state, modal: { ...modal, cursor: Math.max(0, Math.min(modal.items.length - 1, modal.cursor + delta)) } }, effects: [] };
     }
     if (event.type === "escape") return { state: { ...state, modal: null }, effects: [] };
+    if (event.type === "statusClear") return { state: { ...state, status: "", statusWarn: false }, effects: [] }; // notices age out even while a modal is open
     if (event.type === "enter" || event.type === "modalPick") {
       const picked = modal.items[modal.cursor]!;
       const closed: State = { ...state, modal: null };
@@ -308,7 +310,7 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
       case "testBegin": case "testProgress": case "testResult": case "testEnd":
       case "serviceBusy": case "connData":
       case "notice": case "data": case "language": case "tab": case "context":
-      case "contextSet": case "move": case "pageSet": case "rowSet":
+      case "contextSet": case "move": case "pageSet": case "rowSet": case "statusClear":
         break; // handled by the main switch below
       case "testIntent":
         return notice(state, msg(state.lang, "testBusy"), true);
@@ -341,8 +343,12 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
       // open (applyOp order), and swallowing opFailed notices hid write errors (P5 fix)
       case "data": {
         const next = { ...state, snapshot: event.snapshot, loading: false };
-        return { state: { ...next, row: Math.max(0, Math.min(next.row, Math.max(0, rowCount(next) - 1))) }, effects: [] };
+        const settled = state.loading ? { ...next, status: "", statusWarn: false } : next;
+        return { state: { ...settled, row: Math.max(0, Math.min(next.row, Math.max(0, rowCount(next) - 1))) }, effects: [] };
       }
+      case "statusClear":
+        if (state.loading || state.testing) return { state, effects: [] };
+        return { state: { ...state, status: "", statusWarn: false }, effects: [] };
       case "connData":
         return { state: { ...state, weknora: event.weknora, usegpt: event.usegpt }, effects: [] };
       case "loadError":
@@ -355,9 +361,15 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
 
   switch (event.type) {
     case "data": {
+      const first = state.loading;
       const next = { ...state, snapshot: event.snapshot, loading: false };
-      return { state: { ...next, row: Math.max(0, Math.min(next.row, Math.max(0, rowCount(next) - 1))) }, effects: [] };
+      const settled = first ? { ...next, status: "", statusWarn: false } : next; // "loading config..." clears itself once data lands
+      return { state: { ...settled, row: Math.max(0, Math.min(next.row, Math.max(0, rowCount(next) - 1))) }, effects: [] };
     }
+    case "statusClear":
+      // the bottom row reverts to the global key hints after a notice ages out
+      if (state.loading || state.testing) return { state, effects: [] };
+      return { state: { ...state, status: "", statusWarn: false }, effects: [] };
     case "loadError": return { state: { ...state, loading: false, status: event.text, statusWarn: true }, effects: [] };
     case "language": return { state: { ...state, lang: event.lang }, effects: [] };
     case "notice": return notice(state, event.text, event.warn);

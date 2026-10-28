@@ -584,3 +584,17 @@ describe("P3 test flow", () => {
     expect(lines.length).toBe(open.items.length + 1 + open.note!.split("\n").length);
   });
 });
+
+describe("single bottom row semantics (P6.6)", () => {
+  it("first data clears the loading notice", () => {
+    const boot = reduce(initialState("en", "loading config..."), { type: "data", snapshot: snapshot([key("env:EXA_API_KEY")]) }).state;
+    expect(boot.status).toBe("");
+  });
+  it("statusClear reverts a notice but never interrupts loading or test progress", () => {
+    const st = reduce(loaded("en"), { type: "notice", text: "done" }).state;
+    expect(reduce(st, { type: "statusClear" }).state.status).toBe("");
+    const running = reduce(st, { type: "testBegin", provider: "exa", mode: "allKeys", total: 2 }).state;
+    expect(running.status).toContain("0/2"); // testBegin takes the row over with progress
+    expect(reduce(running, { type: "statusClear" }).state.status).toBe(running.status); // and aging must not blank it
+  });
+});
