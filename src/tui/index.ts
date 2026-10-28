@@ -144,7 +144,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
       { component: statusLine, basis: 1 },
     ]));
     // one bottom row: notices show briefly over the global key hints, then fall back
-    statusLine.set(state.status ? " " + (state.statusWarn ? FG(33, state.status) : state.status) : keyBar(state));
+    statusLine.set(state.status ? " " + (state.statusWarn ? FG(33, state.status) : state.status) : keyBar(state, process.stdout.columns || 80));
     if (state.status !== lastNotice) {
       lastNotice = state.status;
       if (noticeTimer) clearTimeout(noticeTimer);

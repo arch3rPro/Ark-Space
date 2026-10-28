@@ -147,7 +147,7 @@ const TABLE: Record<string, readonly [string, string]> = {
   keyBack: ["返回", "back"], keyMove: ["移动", "move"], keyOpen: ["打开", "open"],
   keyAnyBack: ["任意键返回", "any key back"], keyReveal: ["显隐", "reveal"],
   keyDetails: ["详情", "details"], keyPreview: ["预览", "preview"],
-  keyContext: ["切标签(顶条)", "tabs(strip)"], keyHelp: ["帮助", "help"],
+  keyContext: ["切换标签", "switch tabs"], keyHelp: ["帮助", "help"],
   keyAdd: ["添加", "add"], keyEdit: ["编辑", "edit"], keyRemove: ["移除", "remove"],
   keyToggle: ["启停", "toggle"], keyTest: ["测试", "test"], keyEnable: ["启停Provider", "enable"],
   keyQuickPick: ["快选", "quick"], keyCommit: ["提交/编辑", "commit/edit"],

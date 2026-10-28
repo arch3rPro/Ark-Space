@@ -415,10 +415,10 @@ export function contentTitle(state: State): string {
   return msg(state.lang, "page" + state.page.charAt(0).toUpperCase() + state.page.slice(1));
 }
 
-const kb = (key: string, label: string) => c("1;36", `[${key}]`) + label;
+const kb = (key: string, label: string) => c("1;35", `[${key}]`) + label; // magenta: globals must not look like the cyan page-action row
 
-export function keyBar(state: State): string {
-  // global keys only; page actions live in the content frame's pinned bottom row
+export function keyBar(state: State, width: number): string {
+  // global keys only, centered; page actions live in the content frame's pinned bottom row
   const parts = [kb("Tab", msg(state.lang, "keyFocus"))];
   if (state.modal) parts.push(kb("up/dn", msg(state.lang, "keyMove")), kb("Enter", msg(state.lang, "keyPick")), kb("y/n", msg(state.lang, "keyQuickPick")), kb("Esc", msg(state.lang, "keyBack")));
   else if (state.mode === "details") parts.push(kb("...", msg(state.lang, "keyAnyBack")));
@@ -426,5 +426,7 @@ export function keyBar(state: State): string {
   else if (state.mode === "browse") parts.push(kb("Enter", msg(state.lang, "keyOpen")), kb("Esc", msg(state.lang, "keyBack")));
   // form mode: commit/save/cancel hints render inside the form itself
   parts.push(kb("<-/->", msg(state.lang, "keyContext")), kb("q", msg(state.lang, "keyQuit")));
-  return "  " + parts.join(" ");
+  const line = parts.join(" ");
+  const x0 = Math.max(1, Math.floor((width - visibleWidth(line)) / 2));
+  return truncateToWidth(padV(" ".repeat(x0) + line, width), width);
 }
