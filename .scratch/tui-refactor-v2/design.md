@@ -188,3 +188,4 @@ Pi worker handoff 故障诊断、全局安装/`/usr/bin/arks` 切换、systemd �
   - 用户规则落地：`←/→` 仅顶条聚焦时切上下文（host 门控），菜单/内容区不再截获；顶条区 `↑/↓` 由"传送进内容区"改为无操作（进入内容区走 Enter/Tab）。check.py searxng 序列与 reducer 回归测同步。
   - 顶条漂移修复：`stripLine` 从居中公式（x0 随 chip 实际宽度变）改为固定左对齐槽位（STRIP_X0=2）+ 恒宽 13 徽标 + `truncateToWidth` 窄屏裁剪；`stripHits` 共用同一常量。新增列位置稳定性测（context 0/3/4 下 `[Exa]`/`[UseGPT]` 同列）。
   - 验收：单测 569/569、validate=0、真 PTY 源入口 83/83（含 kitty 会话）。ADR 0017 状态行改写（撤销 P6.1 曾记录的"任意区域 ←/→ 切上下文"条款）。
+- **P6.4b 顶条改居中固定（用户指示，2026-11）**：`stripX0(width) = max(1, floor((width - innerW - 13) / 2))`，起点只由终端宽度决定（innerW/徽标恒宽），任意上下文/密钥数/内容下不漂移；渲染与 `stripHits` 共用同一函数。窄屏（<79 列）钳左缘并截断徽标。验收：单测 55/55（含列稳定测）、真 PTY 83/83。

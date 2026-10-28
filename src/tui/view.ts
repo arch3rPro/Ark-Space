@@ -57,12 +57,12 @@ function sourceText(state: State, source: string): string {
 }
 
 // ---------------- top strip ----------------
-// Fixed left-aligned slots and a constant-width status chip: the labels never
-// shift when content, context, or provider counts change (user complaint P6: strip drift).
-const STRIP_X0 = 2;
+// Centered, width-deterministic slots and a constant-width status chip: the strip
+// sits mid-screen and never shifts when content, context, or key counts change.
 const CHIP_W = 13;
 const stripInnerWidth = (): number =>
   Array.from({ length: CONTEXT_COUNT }, (_, i) => `[${contextLabel(i)}]`.length).reduce((a, s) => a + s, 0) + 3 * (CONTEXT_COUNT - 1);
+const stripX0 = (width: number): number => Math.max(1, Math.floor((width - stripInnerWidth() - CHIP_W) / 2));
 
 export function stripLine(state: State, width: number): string {
   const segs = Array.from({ length: CONTEXT_COUNT }, (_, i) => `[${contextLabel(i)}]`);
@@ -79,16 +79,18 @@ export function stripLine(state: State, width: number): string {
     const n = (pred: (k: SetupKeySnapshot) => boolean) => provider.keys.filter(pred).length;
     chip = padV(` ${FG(32, "+" + n(k => k.available && k.status === "enabled"))} ${FG(33, "~" + n(k => k.status === "cooldown" || k.status === "exhausted"))} ${c(2, "-" + n(k => !k.available || k.status === "disabled"))}`, CHIP_W);
   }
-  const gap = Math.max(1, width - STRIP_X0 - stripInnerWidth() - CHIP_W);
-  return truncateToWidth(padV(" ".repeat(STRIP_X0) + inner + " ".repeat(gap) + chip, width), width);
+  const x0 = stripX0(width);
+  const gap = Math.max(1, width - x0 - stripInnerWidth() - CHIP_W);
+  return truncateToWidth(padV(" ".repeat(x0) + inner + " ".repeat(gap) + chip, width), width);
 }
 
 /** Visible-column hit ranges for context clicks; must match stripLine's slot layout. */
-export function stripHits(_width: number): [number, number, number][] {
+export function stripHits(width: number): [number, number, number][] {
   const segs = Array.from({ length: CONTEXT_COUNT }, (_, i) => `[${contextLabel(i)}]`);
   const hits: [number, number, number][] = [];
+  const x0 = stripX0(width);
   let off = 0;
-  for (let i = 0; i < segs.length; i++) { hits.push([STRIP_X0 + off, STRIP_X0 + off + segs[i]!.length, i]); off += segs[i]!.length + 3; }
+  for (let i = 0; i < segs.length; i++) { hits.push([x0 + off, x0 + off + segs[i]!.length, i]); off += segs[i]!.length + 3; }
   return hits;
 }
 
