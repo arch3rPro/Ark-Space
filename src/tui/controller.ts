@@ -4,6 +4,7 @@
  * command execution and feeds results back as plain events, so every
  * transition (including all form/draft/modal flows) is unit-testable.
  */
+import { isAbsolute } from "node:path";
 import type { ProviderId } from "../protocol/types.js";
 import type { SetupSnapshot, WeknoraConnectionSnapshot } from "../config/manage.js";
 import { msg } from "./messages.js";
@@ -164,6 +165,7 @@ export type Event =
   | { type: "testEnd"; cancelled: boolean }
   // P4 connection events
   | { type: "connData"; weknora: WeknoraConnectionSnapshot | null; usegpt: UseGptStatus | null }
+  | { type: "usegptDiagnosis"; issues: string[] }
   | { type: "serviceBusy"; on: boolean };
 
 export type Effect =
@@ -334,7 +336,7 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
   if (state.testing || state.svcBusy) {
     switch (event.type) {
       case "testBegin": case "testProgress": case "testResult": case "testEnd":
-      case "serviceBusy": case "connData":
+      case "serviceBusy": case "connData": case "usegptDiagnosis":
       case "notice": case "data": case "language": case "tab": case "context":
       case "contextSet": case "move": case "pageSet": case "rowSet": case "statusClear":
         break; // handled by the main switch below
@@ -519,6 +521,10 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
 
     case "connData":
       return { state: { ...state, weknora: event.weknora, usegpt: event.usegpt }, effects: [] };
+    case "usegptDiagnosis": {
+      const note = event.issues.length ? event.issues.join("\n") : msg(state.lang, "svcDiagClean");
+      return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "usegptDiagTitle"), note, items: [CONFIRM_ITEMS(state.lang)[0]!], cursor: 0, tag: "usegpt-diagnose" } }, effects: [] };
+    }
     case "serviceBusy":
       return { state: { ...state, svcBusy: event.on ? "op" : null, status: event.on ? msg(state.lang, "svcBusy") : state.status }, effects: [] };
 
@@ -699,7 +705,7 @@ function formSaveEvent(state: State, form: FormState): { state: State; effects: 
       if (!/^tunnel_[A-Za-z0-9_-]{8,128}$/.test(draft)) return notice(state, msg(state.lang, "usegptTunnelInvalid"), true);
       return { state: { ...state, form: null, mode: "browse" as Mode }, effects: [{ type: "op", op: { kind: "usegptSave", field: "tunnelId", value: draft } }] };
     case "usegptDir":
-      if (!draft.startsWith("/") || /[\s\u0000-\u001f\u007f\\]/.test(draft) || draft.includes("..")) return notice(state, msg(state.lang, "usegptDirInvalid"), true);
+      if (!isAbsolute(draft) || /[\u0000-\u001f\u007f]/.test(draft) || draft.split(/[\\/]+/).includes("..")) return notice(state, msg(state.lang, "usegptDirInvalid"), true);
       return { state: { ...state, form: null, mode: "browse" as Mode }, effects: [{ type: "op", op: { kind: "usegptSave", field: "dataDir", value: draft } }] };
     case "usegptKey":
       if (!form.draft) return notice(state, msg(state.lang, "emptySecret"), true);
@@ -726,9 +732,14 @@ function connectionEnter(state: State): { state: State; effects: Effect[] } {
   }
   const u = state.usegpt;
   switch (state.row) {
-    case 0: case 1: return notice(state, msg(state.lang, "statusNote"));
-    case 2: return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "rowStart"), note: msg(state.lang, "usegptStartConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "usegpt-start" } }, effects: [] };
-    case 3: return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "rowStop"), note: msg(state.lang, "usegptStopConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "usegpt-stop" } }, effects: [] };
+    case 0: case 1: return { state, effects: [{ type: "service", action: "usegptDiagnose" }] };
+    case 2:
+      if (!u?.configured) return notice(state, msg(state.lang, "usegptConfigureFirst"), true);
+      if (u.daemonRunning && u.tunnelRunning) return notice(state, msg(state.lang, "svcAlreadyRunning"));
+      return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "rowStart"), note: msg(state.lang, "usegptStartConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "usegpt-start" } }, effects: [] };
+    case 3:
+      if (!u?.daemonRunning && !u?.tunnelRunning) return notice(state, msg(state.lang, "svcAlreadyStopped"));
+      return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "rowStop"), note: msg(state.lang, "usegptStopConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "usegpt-stop" } }, effects: [] };
     case 4: return { state, effects: [{ type: "service", action: "usegptDiagnose" }] };
     case 5: return { state: withForm(state, { provider: "usegpt", reference: null, draft: u?.tunnelId ?? "", typing: false, intent: "usegptTunnel", field: "text" }), effects: [] };
     case 6: return { state: withForm(state, { provider: "usegpt", reference: null, draft: u?.dataDir ?? "", typing: false, intent: "usegptDir", field: "text" }), effects: [] };

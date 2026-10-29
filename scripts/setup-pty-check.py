@@ -73,7 +73,8 @@ class Grid:
                     elif ch == '\r':
                         col = 0
                     elif ch == '\n':
-                        row = min(row + 1, self.rows - 1); col = 0
+                        row = min(row + 1, self.rows - 1)
+                        col = 0
                     elif ord(ch) < 32:
                         pass
                     else:
@@ -421,11 +422,11 @@ def run(entry):
             check('usegpt page lists services and actions', all(x in session.screen() for x in ['Tunnel service', 'Start services', 'Stop services', 'Diagnose']))
             check('usegpt page exposes the retired-shell config surface', all(x in session.screen() for x in ['Tunnel ID', 'Data directory', 'API key', 'Unlink configuration']))
             session.send('\x1b[B\x1b[B\x1b[B\x1b[B\r')
-            session.wait('configuration_incomplete')
+            session.wait('UseGPT diagnosis')
+            session.send('\x1b')             # close the diagnostic details
             session.send('\x1b[A\x1b[A\r')   # up from Diagnose to Start services
-            session.wait('Start the Hub and Tunnel')
-            session.send('\r')
-            check('start defaults Cancel: no processes spawned', trace.read_text() == '' and not any((home / p).exists() for p in ['tunnel.pid', 'hub.pid']))
+            session.wait('UseGPT is not configured')
+            check('unconfigured start is blocked without spawning services', trace.read_text() == '' and not any((home / p).exists() for p in ['tunnel.pid', 'hub.pid']))
             empty = fingerprint(home)
             session.send('\x1b[B\x1b[B\x1b[B\r')   # row 2 (after Start) -> down 3 = Tunnel ID row
             session.wait('UseGPT Tunnel ID')

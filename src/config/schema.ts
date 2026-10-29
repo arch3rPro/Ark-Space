@@ -6,7 +6,7 @@ import { FAILURE_KINDS, PROVIDER_IDS, type Capability, type ProviderId } from ".
 export const USEGPT_TOKEN_VARIABLE = "ARKSPACE_USEGPT_TOKEN";
 export const USEGPT_API_KEY_VARIABLE = "CONTROL_PLANE_API_KEY";
 export const USEGPT_TUNNEL_ID_VARIABLE = "CONTROL_PLANE_TUNNEL_ID";
-const AbsolutePathSchema = z.string().max(4_096).refine(value => isAbsolute(value) && !/[\\\\\u0000-\u001f\u007f]/.test(value), "Use an absolute local data directory.");
+const AbsolutePathSchema = z.string().max(4_096).refine(value => isAbsolute(value) && !/[\u0000-\u001f\u007f]/.test(value), "Use an absolute local data directory.");
 export const UseGptConfigSchema = z.object({
   enabled: z.boolean().default(true),
   tunnelId: z.string().regex(/^tunnel_[A-Za-z0-9_-]{8,128}$/).optional(),

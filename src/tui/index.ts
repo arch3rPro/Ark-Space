@@ -258,7 +258,11 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
       } else if (action === "usegptDiagnose") {
         const d = await diagnoseUseGpt(options.environment);
         detail = d.issues.length ? d.issues.join(", ") : "clean";
-        dispatch({ type: "notice", text: d.issues.length ? msg(state.lang, "svcDiag", { issues: detail }) : msg(state.lang, "svcDiagClean"), warn: d.issues.length > 0 });
+        const issueKeys: Record<string, string> = {
+          configuration_incomplete: "usegptIssueConfig", configuration_unreadable: "usegptIssueConfigFile",
+          hub_stopped: "usegptIssueHub", hub_unavailable: "usegptIssueHubUnavailable", tunnel_stopped: "usegptIssueTunnel",
+        };
+        dispatch({ type: "usegptDiagnosis", issues: d.issues.length ? d.issues.map(issue => msg(state.lang, issueKeys[issue] ?? "svcDiag", { issues: issue })) : [msg(state.lang, "svcDiagClean")] });
       } else {
         if (action === "usegptStart") await startUseGptServices(options.environment); else await stopUseGptServices(options.environment);
         const d = await diagnoseUseGpt(options.environment);

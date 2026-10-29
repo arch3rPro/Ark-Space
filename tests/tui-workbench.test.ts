@@ -174,7 +174,7 @@ describe("exit modal", () => {
 describe("preview and details hygiene", () => {
   it("escape from preview clears secret values", () => {
     const previewing = reduce(loaded(), {
-      type: "previewOpen", variable: "EXA_API_KEY", sources: [{ label: "本地已保存", value: "sk-secret-value" }],
+      type: "previewOpen", variable: "EXA_API_KEY", sources: [{ label: "本地存储", value: "sk-secret-value" }],
     }).state;
     expect(previewing.mode).toBe("preview");
     const rested = reduce(previewing, { type: "escape" }).state;
@@ -387,12 +387,21 @@ describe("P4 connection pages", () => {
     expect(start.state.modal?.note).toBeTruthy();
     const yes = reduce({ ...start.state, modal: { ...start.state.modal!, cursor: 1 } }, { type: "modalPick" });
     expect(yes.effects).toEqual([{ type: "service", action: "usegptStart" }]);
-    const stop = reduce({ ...s, row: 3 }, { type: "enter" });
+    const stop = reduce({ ...s, usegpt: { ...s.usegpt!, daemonRunning: true, tunnelRunning: true }, row: 3 }, { type: "enter" });
     expect(stop.state.modal?.tag).toBe("usegpt-stop");
     const diag = reduce({ ...s, row: 4 }, { type: "enter" });
     expect(diag.effects).toEqual([{ type: "service", action: "usegptDiagnose" }]);
     const info = reduce({ ...s, row: 0 }, { type: "enter" });
-    expect(info.state.modal).toBeNull();
+    expect(info.effects).toEqual([{ type: "service", action: "usegptDiagnose" }]);
+    const incomplete = reduce({ ...s, usegpt: { ...s.usegpt!, configured: false }, row: 2 }, { type: "enter" });
+    expect(incomplete.effects).toEqual([]);
+    expect(incomplete.state.status).toContain("UseGPT");
+    const running = reduce({ ...s, usegpt: { ...s.usegpt!, daemonRunning: true, tunnelRunning: true }, row: 2 }, { type: "enter" });
+    expect(running.effects).toEqual([]);
+    expect(running.state.status).toContain("已在运行");
+    const stopped = reduce({ ...s, row: 3 }, { type: "enter" });
+    expect(stopped.effects).toEqual([]);
+    expect(stopped.state.status).toContain("已停止");
   });
 
   it("service busy fences mutations but navigation and refresh stay live", () => {
@@ -444,6 +453,8 @@ describe("P6 connection parity writes", () => {
     const dForm = reduce({ ...usegptState(), row: 6 }, { type: "enter" });
     const rel = { ...dForm.state, form: { ...dForm.state.form!, draft: "relative/path" } };
     expect(reduce(rel, { type: "formSave" }).effects).toEqual([]);
+    const traversal = { ...rel, form: { ...rel.form!, draft: "/home/u/../hub2" } };
+    expect(reduce(traversal, { type: "formSave" }).effects).toEqual([]);
     const abs = { ...rel, form: { ...rel.form!, draft: "/home/u/hub2" } };
     expect(reduce(abs, { type: "formSave" }).effects).toEqual([{ type: "op", op: { kind: "usegptSave", field: "dataDir", value: "/home/u/hub2" } }]);
   });

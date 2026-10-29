@@ -218,22 +218,29 @@ function providerLines(state: State, width: number): string[] {
   const provider = currentProvider(state);
   if (!provider) return state.context === 4 ? weknoraLines(state, width) : usegptLines(state, width);
   if (provider.id === "searxng") {
-    const out = [DIM(padV(" " + msg(state.lang, "colUrl"), 28) + padV("  " + msg(state.lang, "colStatus"), 14) + msg(state.lang, "colCidr"))];
+    const urlWidth = Math.min(36, Math.max(18, Math.floor(width * 0.45)));
+    const statusWidth = Math.min(14, Math.max(10, Math.floor(width * 0.2)));
+    const detailWidth = Math.max(1, width - urlWidth - statusWidth);
+    const out = [DIM(padV(" " + truncateToWidth(msg(state.lang, "colUrl"), urlWidth), urlWidth) + padV(truncateToWidth(msg(state.lang, "colStatus"), statusWidth), statusWidth) + truncateToWidth(msg(state.lang, "colCidr"), detailWidth))];
     if (!provider.instances.length) out.push(DIM(" " + msg(state.lang, "noInstances")));
     provider.instances.forEach((instance, i) => {
       const icon: readonly [string, number] = instance.status === "disabled" ? ["-", 2] : instance.status === "cooldown" ? ["~", 33] : ["?", 2];
       const text = instance.status === "disabled" ? msg(state.lang, "stDisabled") : instance.status === "cooldown" ? msg(state.lang, "stCooldown") : msg(state.lang, "stNotProbed");
-      const line = padV(" " + truncateToWidth(instance.baseUrl, 26), 28) + FG(icon[1], `${icon[0]} `) + padV(text, 12) + (instance.source === "environment" ? DIM(msg(state.lang, "externalEnv")) : DIM(msg(state.lang, "srcLocal") + " / " + instance.allowRanges.length));
+      const detail = instance.source === "environment" ? msg(state.lang, "externalEnv") : msg(state.lang, "srcLocal") + " / " + instance.allowRanges.length;
+      const line = padV(" " + truncateToWidth(instance.baseUrl, urlWidth - 1), urlWidth) + FG(icon[1], padV(truncateToWidth(`${icon[0]} ${text}`, statusWidth), statusWidth)) + truncateToWidth(detail, detailWidth);
       out.push(i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width));
     });
     out.push("", DIM(" " + msg(state.lang, "searxngNote")));
     return [...out, ...diagRows(state, "searxng")];
   }
-  const out = [DIM(padV(` ${msg(state.lang, "colKey")}`, 22) + padV(msg(state.lang, "colStatus"), 12) + padV(msg(state.lang, "colSource"), 12) + msg(state.lang, "colOwner"))];
+  const referenceWidth = Math.min(36, Math.max(18, Math.floor(width * 0.45)));
+  const statusWidth = Math.min(14, Math.max(10, Math.floor(width * 0.2)));
+  const sourceWidth = Math.max(1, width - referenceWidth - statusWidth);
+  const out = [DIM(padV(` ${msg(state.lang, "colKey")}`, referenceWidth) + padV(truncateToWidth(msg(state.lang, "colStatus"), statusWidth), statusWidth) + truncateToWidth(msg(state.lang, "colSource"), sourceWidth))];
   if (!provider.keys.length) out.push(DIM(" " + msg(state.lang, "noKeys")));
   provider.keys.forEach((key, i) => {
     const [icon, color] = keyIcon(key);
-    const line = padV(" " + truncateToWidth(key.reference, 20), 22) + FG(color, padV(`${icon} ${statusText(state, key)}`, 12)) + padV(sourceText(state, key.source), 12) + msg(state.lang, "owned", { n: key.ownedResources });
+    const line = padV(" " + truncateToWidth(key.reference, referenceWidth - 1), referenceWidth) + FG(color, padV(truncateToWidth(`${icon} ${statusText(state, key)}`, statusWidth), statusWidth)) + truncateToWidth(sourceText(state, key.source), sourceWidth);
     out.push(i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width));
   });
   return [...out, ...diagRows(state, provider.id)];
