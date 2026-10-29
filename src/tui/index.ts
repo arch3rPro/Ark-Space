@@ -175,8 +175,9 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
       else if (effect.type === "service") void runService(effect.action);
       else void applyOp(effect.op);
     }
-    syncModal();
     render();
+    syncModal();
+    tui.requestRender(true);
   }
 
   function close(): void {

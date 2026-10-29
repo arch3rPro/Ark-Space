@@ -258,6 +258,7 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
     }
     if (event.type === "escape") return { state: { ...state, modal: null }, effects: [] };
     if (event.type === "statusClear") return { state: { ...state, status: "", statusWarn: false }, effects: [] }; // notices age out even while a modal is open
+    if (event.type === "serviceBusy") return { state: { ...state, svcBusy: event.on ? "op" : null }, effects: [] };
     if (event.type === "enter" || event.type === "modalPick") {
       const picked = modal.items[modal.cursor]!;
       const closed: State = { ...state, modal: null };
