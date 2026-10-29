@@ -426,7 +426,7 @@ export function keyBar(state: State, width: number, offset = 0): string {
   else if (state.mode === "browse") parts.push(kb("Enter", msg(state.lang, "keyOpen")), kb("Esc", msg(state.lang, "keyBack")));
   // form mode: commit/save/cancel hints render inside the form itself
   parts.push(kb("<-/->", msg(state.lang, "keyContext")), kb("q", msg(state.lang, "keyQuit")));
-  const line = parts.join(" ");
+  const line = parts.join("   "); // roomy gaps: this row must not read like the dense action strip above it
   const x0 = offset + Math.max(1, Math.floor((width - offset - visibleWidth(line)) / 2)); // center over the content column, not the whole screen
   return truncateToWidth(padV(" ".repeat(x0) + line, width), width);
 }
