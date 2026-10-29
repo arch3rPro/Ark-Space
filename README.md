@@ -10,12 +10,12 @@
 ![ArkSpace as a futuristic ark-like workspace containing research, knowledge, workflow, toolbox, planning, and engineering capabilities.](./assets/readme/hero.png)
 
 [![npm](https://img.shields.io/npm/v/%40arkspace%2Fcli?label=%40arkspace%2Fcli)](https://www.npmjs.com/package/@arkspace/cli)
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-339933?logo=nodedotjs&logoColor=white)](package.json)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-339933?logo=nodedotjs&logoColor=white)](package.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **Reusable Agent Skills for web evidence, cited research, browser work, and monitoring—backed by one secure local execution boundary when shared Provider access is required.**
 
-ArkSpace gives coding Agents focused operating instructions instead of one oversized prompt. The first release includes five canonical Skills and the `arks` CLI, which coordinates Provider credentials, multiple-key rotation, fallback, owned remote resources, and machine-readable results.
+ArkSpace gives coding Agents focused operating instructions instead of one oversized prompt. The first release includes eight canonical Skills and the `arks` CLI, which coordinates Provider credentials, multiple-key rotation, fallback, owned remote resources, and machine-readable results.
 
 ## Start in two minutes
 
@@ -69,6 +69,7 @@ These commands apply to Skills tracked by the installer, not just ArkSpace. Back
 | [`browser`](skills/browser/SKILL.md) | Inspect or change dynamic page state in an owned remote browser session. |
 | [`monitor`](skills/monitor/SKILL.md) | Manage recurring searches and site-change checks beyond the current session. |
 | [`weknora`](skills/weknora/SKILL.md) | Search, import, and answer questions over a WeKnora knowledge base through its REST API. |
+| [`usegpt`](skills/usegpt/SKILL.md) | Publish and consume ChatGPT outputs through the local Artifact Hub. |
 | [`gh-repo`](skills/gh-repo/SKILL.md) | Analyze GitHub project architecture, maturity, and borrowing tradeoffs with revision-pinned source evidence; inspect supporting issues/PRs. |
 
 `askme` is guidance-only: it needs conversational follow-up, with no CLI, network, credentials, or sibling Skills. It can be invoked explicitly or selected by the Agent when a consequential ambiguity or execution mismatch needs resolution. Clear tasks proceed directly; alignment does not add a universal approval step.
@@ -158,7 +159,7 @@ Build the checkout as described in [INSTALL.md](INSTALL.md#source-development), 
 
 Current limits:
 
-- Node.js 20 or newer and a local host with shell, network, and persistent user storage are required. The optional UseGPT Artifact Hub requires Node.js 22.13.0 or newer because it uses unflagged `node:sqlite`.
+- Node.js 22.19.0 or newer and a local host with shell, network, and persistent user storage are required. UseGPT Artifact Hub storage uses unflagged `node:sqlite`.
 - Exa, Tavily, and Firecrawl operations require the applicable account and may incur Provider charges; SearXNG search instead requires an explicitly configured instance.
 - Keyless Exa MCP access and Tavily/Firecrawl OAuth are research topics, not implemented authentication backends.
 - Hosted cross-platform and credentialed live-Provider qualification remains part of the [post-release backlog](docs/migration.md#post-release-01-qualification-backlog).

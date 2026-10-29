@@ -40,11 +40,11 @@
 | `src/protocol/usegpt-schema.ts`、`types.ts`、`schema.ts`、`invoke.ts` | 新请求、结果、错误与校验 |
 | `src/mcp/server.ts` | 本地 Agent MCP adapter，共用 dispatcher |
 | `src/config/paths.ts`、`schema.ts`、`usegpt.ts` | 全局配置中的 Hub 根目录、dataDir 与连接范围 |
-| `src/cli/setup-usegpt.ts` | 常驻服务/Tunnel 配置和明确健康状态，移除 Chrome 检查 |
-| `src/usegpt/contracts.ts`、`runtime.ts`、`server.ts` | 审查旧合同，逐步替换成 Hub 合同与 daemon |
+| `src/tui/`、`src/cli/main.ts` | 常驻服务/Tunnel 配置和明确健康状态，移除 Chrome 检查 |
+| `src/usegpt/contracts.ts`、`daemon.ts`、`tunnel-service.ts` | Hub 合同、daemon 生命周期与 Tunnel 服务 |
 | `src/usegpt/secure-mcp-probe.ts` | 实验参考，不能作为生产队列或常驻服务直接扩展 |
 | `scripts/usegpt-secure-mcp-probe.mjs` | 保留实验说明；生产 Setup 不依赖临时 npm 安装目录 |
-| `src/providers/usegpt-cdp.ts` | 不被新入口调用；最终移除或只保留迁移文档说明 |
+| `src/usegpt/worker.ts`、`src/usegpt/host-files.ts` | 本地 Agent 执行、Host 文件导入和结果校验 |
 | `skills/usegpt/SKILL.md` | 保持 canonical Skill 路径，更新成成果提交与取用流程 |
 | `schemas/protocol/v1/` | 由仓库生成器生成新 schema，不手工复制 |
 | `tests/usegpt-*.test.ts` | 拆分新合同测试和历史测试，明确撤销旧行为 |
@@ -242,15 +242,9 @@ Agent 接入：只支持 MCP 的 Agent 使用工具；只支持 shell 的 Agent 
 
 ## 11. CDP 退出与旧数据迁移
 
-新分支不继续修复 CDP。程序入口的替换按如下顺序实施：
+UseGPT Artifact Hub 已完成入口替换，生产代码不再包含 CDP 驱动、旧 HTTP server/runtime 或其测试，且已移除仅供 CDP 使用的 `ws` 依赖。Hub/Tunnel 配置仍保留旧配置字段的读取兼容性，但这些字段不会触发浏览器或旧服务。
 
-1. 新命令优先使用 Hub，不隐式启动 Chrome。
-2. Setup、doctor、Skill 和中英文 README 移除新的 CDP 安装引导。
-3. 旧 `task.start` 自动执行语义不可静默改成“排队等用户去 ChatGPT”；返回稳定 unsupported/deprecated 说明并指向新工作流。
-4. 旧 task/artifact-get 合同若可兼容只读，可提供显式 legacy read；不可伪装成新任务已成功执行。
-5. 用户手动选择 legacy import 后，复制旧任务文本/产物到新 Task，记录来源；不导入 Chrome profile、cookie、旧 bearer token 或任意私有端点。
-6. 原始旧目录和实验 worktree 默认保留；删除旧数据是单独明确动作。
-7. 新入口和真实 Host 验收后，移除未使用 CDP 模块、依赖及旧测试；不删除仍有其他功能使用的依赖。
+旧 CDP 任务、Chrome profile、cookie、bearer token 和任意私有端点不自动迁移。需要迁移时，应由用户显式复制任务文本或产物到新的 Project/Task，并记录来源。
 
 版本、兼容性说明和发布只在用户显式请求 release 时处理。
 

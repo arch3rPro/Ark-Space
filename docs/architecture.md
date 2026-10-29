@@ -128,9 +128,9 @@ Example response:
 
 Failures use the same envelope and include a stable error kind, retryability, and actionable correction. Raw credentials never appear in output.
 
-### UseGPT artifact hub proposal
+### UseGPT Artifact Hub
 
-The experimental Secure MCP direction is documented in the [UseGPT Artifact Hub design](usegpt-artifact-hub.md) and [implementation plan](usegpt-artifact-hub-implementation.md). Consult these before implementing ChatGPT artifact intake, Project/Task storage, history retention, deletion, Agent handoffs, or replacing the historical CDP entry path. These documents describe planned behavior, not installed capabilities; the new branch is based on `experiment/usegpt-secure-mcp`.
+The UseGPT Artifact Hub design and implementation notes are documented in [UseGPT Artifact Hub](usegpt-artifact-hub.md) and [the implementation plan](usegpt-artifact-hub-implementation.md). The current branch implements the Hub, daemon, Tunnel, Project/Task/Artifact/Handoff flows, and MCP/CLI entries. The design document retains historical rationale; current behavior and supported operations are defined by the implementation and the canonical `skills/usegpt/` Skill.
 
 ### Capability handlers
 

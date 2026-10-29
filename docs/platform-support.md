@@ -24,7 +24,7 @@ The `arks` distribution and state model must pass on:
 
 ## Node runtime
 
-ArkSpace requires a preinstalled Node.js runtime at version 20 or newer. The optional UseGPT Artifact Hub requires Node.js 22.13.0 or newer because it uses unflagged `node:sqlite`; the general CLI and other capabilities remain supported on Node.js 20. CI exercises Node.js 20, 22, and 24 on Linux, with Node.js 22 as the cross-operating-system baseline. npm and `npx` must expose identical machine-protocol behavior; no standalone executable is currently distributed.
+ArkSpace requires a preinstalled Node.js runtime at version 22.19.0 or newer. This matches the package engine requirement and the current `pi-tui` dependency. CI exercises Node.js 22 and 24 on Linux, with Node.js 22 as the cross-operating-system baseline. npm and `npx` must expose identical machine-protocol behavior; no standalone executable is currently distributed.
 
 ## Hosted and restricted environments
 

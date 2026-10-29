@@ -503,7 +503,7 @@ describe("P2 order draft", () => {
 
   it("SearXNG rides along by default; saving the implicit add asks consent once, then persists the full list", () => {
     const base = config();
-    const legacy = { ...base, snapshot: { ...base.snapshot!, providerOrder: ["exa", "tavily", "firecrawl"] } };
+    const legacy = { ...base, snapshot: { ...base.snapshot!, providerOrder: ["exa", "tavily", "firecrawl"] as ProviderId[] } };
     expect(orderRows(legacy).join()).toBe("exa,tavily,firecrawl,searxng");
     expect(dirtyOrder(legacy)).toBe(true);
     const save = reduce(legacy, { type: "orderSave" });

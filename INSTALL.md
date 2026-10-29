@@ -2,10 +2,10 @@
 
 ArkSpace has two installable surfaces:
 
-1. **Agent Skills** provide operation guidance for `web`, `research`, `browser`, `monitor`, and `weknora`.
+1. **Agent Skills** provide operation guidance for `askme`, `web`, `research`, `browser`, `monitor`, `weknora`, `usegpt`, and `gh-repo`.
 2. **`arks` CLI** provides shared Provider execution, credential handling, owned resources, and MCP stdio.
 
-Provider-backed Skills need both surfaces. `weknora` can run independently with `WEKNORA_BASE_URL` and `WEKNORA_API_KEY`, without the CLI. Version 0.1.4 additionally offers an optional managed connection for supported retrieval operations. Node.js 20 or newer is required for the CLI and the Skill's SSE script. The optional UseGPT Artifact Hub requires Node.js 22.13.0 or newer because it uses unflagged `node:sqlite`; other CLI capabilities remain available on Node.js 20.
+Provider-backed Skills need both surfaces. `weknora` can run independently with `WEKNORA_BASE_URL` and `WEKNORA_API_KEY`, without the CLI. Node.js 22.19.0 or newer is required by the current CLI package and its `pi-tui` dependency.
 
 ## Give this to your Agent
 
@@ -47,10 +47,10 @@ Use the Agent Skills installer for Codex, Claude Code, Cursor, and other compati
 npx skills@latest add arch3rPro/Ark-Space
 ```
 
-Choose the target Agent and the `web`, `research`, `browser`, `monitor`, and `weknora` Skills. For a non-interactive installation, name the host explicitly:
+Choose the target Agent and the canonical Skills you need, such as `askme`, `web`, `research`, `browser`, `monitor`, `weknora`, `usegpt`, and `gh-repo`. For a non-interactive installation, name the host explicitly:
 
 ```bash
-npx skills@latest add arch3rPro/Ark-Space --agent <agent> --skill web research browser monitor weknora -y
+npx skills@latest add arch3rPro/Ark-Space --agent <agent> --skill askme web research browser monitor weknora usegpt gh-repo -y
 ```
 
 Use `-g` only after the user approves a user-wide installation.

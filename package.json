@@ -22,7 +22,6 @@
   },
   "files": [
     "dist",
-    "scripts/usegpt-hub-tunnel.mjs",
     "skills",
     ".agents",
     ".claude-plugin",
@@ -36,7 +35,7 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node -e \"import('node:fs/promises').then(({ rm }) => rm('dist', { recursive: true, force: true }))\" && tsc -p tsconfig.build.json",
     "check": "npm run validate && npm run typecheck && npm test",
     "dev": "tsx src/cli/main.ts",
     "usegpt:tunnel": "npm run build && node dist/cli/main.js usegpt tunnel start",
@@ -59,12 +58,10 @@
     "@modelcontextprotocol/server": "^2.0.0",
     "ajv": "^8.20.0",
     "commander": "^14.0.2",
-    "ws": "^8.22.0",
     "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
-    "@types/ws": "^8.18.2",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "vitest": "^4.0.14"

@@ -10,12 +10,12 @@
 ![ArkSpace 是一个未来感方舟式工作空间，包含研究、知识库、工作流、工具箱、规划和工程能力。](./assets/readme/hero.png)
 
 [![npm](https://img.shields.io/npm/v/%40arkspace%2Fcli?label=%40arkspace%2Fcli)](https://www.npmjs.com/package/@arkspace/cli)
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-339933?logo=nodedotjs&logoColor=white)](package.json)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-339933?logo=nodedotjs&logoColor=white)](package.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **面向 Web 证据、引用研究、浏览器操作与监控的可复用 Agent Skills；只有在需要共享 Provider 执行时，才通过统一且安全的本地边界运行。**
 
-ArkSpace 为 Coding Agent 提供聚焦的操作说明，而不是一个巨型 Prompt。首个版本包含五个 canonical Skills 与 `arks` CLI；CLI 负责协调 Provider 凭证、多 Key 轮询、fallback、远程资源所有权和机器可读结果。
+ArkSpace 为 Coding Agent 提供聚焦的操作说明，而不是一个巨型 Prompt。首个版本包含八个 canonical Skills 与 `arks` CLI；CLI 负责协调 Provider 凭证、多 Key 轮询、fallback、远程资源所有权和机器可读结果。
 
 ## 两分钟开始使用
 
@@ -69,6 +69,7 @@ npx skills@latest update  # 手动更新已安装的技能
 | [`browser`](skills/browser/SKILL.md) | 在自有远程浏览器 Session 中读取或改变动态页面状态。 |
 | [`monitor`](skills/monitor/SKILL.md) | 管理跨越当前 Session 的周期搜索与站点变化检查。 |
 | [`weknora`](skills/weknora/SKILL.md) | 通过 REST API 检索、导入 WeKnora 知识库并基于其文档回答问题。 |
+| [`usegpt`](skills/usegpt/SKILL.md) | 通过本地 Artifact Hub 发布和使用 ChatGPT 输出。 |
 | [`gh-repo`](skills/gh-repo/SKILL.md) | 基于固定 revision 的源码证据分析 GitHub 项目架构、成熟度与借鉴取舍，并读取相关 issue/PR。 |
 
 `askme` 是纯指导型 Skill：要求能够与用户继续对话，不需要 CLI、网络、凭证或兄弟 Skills。既可显式调用，也可由 Agent 在关键歧义或执行偏差出现时选择。明确的任务直接执行；需求对齐不会增加统一的批准步骤。
@@ -158,7 +159,7 @@ Protocol Schema 发布在 [`schemas/protocol/v1/`](schemas/protocol/v1/) 下。
 
 当前限制：
 
-- Node.js 20 或更高版本，以及具备 Shell、网络和持久用户存储的本地 Host 是必需的。可选的 UseGPT Artifact Hub 使用无需标志的 `node:sqlite`，因此要求 Node.js 22.13.0 或更高版本。
+- Node.js 22.19.0 或更高版本，以及具备 Shell、网络和持久用户存储的本地 Host 是必需的。UseGPT Artifact Hub 存储使用无需标志的 `node:sqlite`。
 - Exa、Tavily、Firecrawl 操作需要对应账号，并可能产生 Provider 费用；SearXNG 搜索则需要显式配置实例。
 - 免 Key 的 Exa MCP 接入与 Tavily/Firecrawl OAuth 仅为研究主题，尚未实现为认证后端。
 - Hosted Cross-platform 与 Credentialed Live-provider Qualification 仍属于[发布后待办](docs/migration.md#post-release-01-qualification-backlog)。
