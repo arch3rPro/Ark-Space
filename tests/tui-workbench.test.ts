@@ -547,7 +547,7 @@ describe("P2 order draft", () => {
 
 describe("P3 test flow", () => {
   const content = (): State => ({ ...loaded(), region: "content" });
-  const diag = (ref: string, out = "success"): DiagEntry => ({ when: "01:02:03", ref, out, dur: 12 });
+  const diag = (ref: string, out = "success"): DiagEntry => ({ provider: "exa", when: "01:02:03", ref, out, dur: 12 });
   const withDiag = (s: State, n: number): State => ({ ...s, diagnostics: Array.from({ length: n }, (_, i) => diag(`env:OLD${i}`)) });
 
   it("keyed context opens a chooser with Cancel first and consent note", () => {

@@ -221,7 +221,7 @@ def run(entry):
             session.wait('[SearXNG]')
             first = session.screen().splitlines()[0]
             check('top strip carries the four engines plus the order tab', all('[' + n + ']' in first for n in ['Exa', 'Tavily', 'Firecrawl', 'SearXNG', 'Order']) and 'WeKnora' not in first and 'UseGPT' not in first)
-            check('menu lists the six pages', all(x in session.screen() for x in ['Search', 'Knowledge', 'Tools', 'Settings', 'Diagnostics', 'Exit']) and '│   Order' not in session.screen())  # the menu column has no order row; the strip does
+            check('menu lists the five pages', all(x in session.screen() for x in ['Search', 'Knowledge', 'Tools', 'Settings', 'Exit']) and '│   Order' not in session.screen() and '│   Diagnostics' not in session.screen())  # order rides the strip; diagnostics merged into engine pages
             session.send('\t\t')
             check('Tab focuses top then menu then content', 'env:EXA_API_KEY' in session.screen() and '[Space]' in session.screen())  # 80-col action row is keys-only
 
@@ -286,13 +286,9 @@ def run(entry):
             check('all-key test attempts A then B exactly once', trace.read_text().splitlines() == ['A', 'B'])
             check('all-key diagnostics preserve config/credentials/normal state', fingerprint(home) == before)
 
-            # diagnostics page keeps the failure rows (pool would clear them by design)
-            session.send('\t\t\x1b[B\x1b[B\x1b[B\x1b[B\r')  # live menu: one row per page, Diagnostics at index 4
-            session.wait('env:EXA_API_KEY_1')
-            check('diagnostics classify failure with a reason only', 'failure' in session.screen() and KEY + '-b' not in session.screen())
-
-            # back to Providers, then the pool e2e sample through the real registry
-            session.send('\t\t\x1b[A\x1b[A\x1b[A\x1b[A\r')
+            # P9: per-key results render under the keys on the engine page itself
+            session.wait('failure')
+            check('engine page keeps result rows with a reason only', 'failure' in session.screen() and 'env:EXA_API_KEY_1' in session.screen() and KEY + '-b' not in session.screen())
             session.wait('[Space]')
             session.send('t\x1b[B\r')
             session.wait('Connection success')
@@ -356,8 +352,7 @@ def run(entry):
             check('current diagnostic target is C while completed count remains two', 'Testing EXA_API_KEY_2' in session.screen())
             session.send('\x1b')
             session.wait('Keys: 1/4 passed/stopped')
-            session.send('\t\t\x1b[B\x1b[B\x1b[B\x1b[B\r')  # menu -> Diagnostics page
-            session.wait('env:EXA_API_KEY_3')
+            session.wait('env:EXA_API_KEY_3')  # results stay on the engine page (P9)
             screen = session.screen()
             for reference, status in [('env:EXA_API_KEY', 'success'), ('env:EXA_API_KEY_1', 'failure'),
                                       ('env:EXA_API_KEY_2', 'cancelled'), ('env:EXA_API_KEY_3', 'not tested')]:
@@ -498,7 +493,7 @@ def run(entry):
         try:
             session.wait('[Exa]')
             check('窄屏下搜索标签完整可见', '[Firecrawl]' in session.screen() and '[Order]' in session.screen() and '[UseGPT]' not in session.screen())
-            check('中文菜单渲染', all(x in session.screen() for x in ['搜索引擎', '知识库', '工具库', '诊断']))
+            check('中文菜单渲染', all(x in session.screen() for x in ['搜索引擎', '知识库', '工具库']) and '诊断' not in session.screen())
             session.send('\t\t')
             session.wait('env:EXA_API_KEY')
             session.send('a')

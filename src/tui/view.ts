@@ -62,7 +62,7 @@ function sourceText(state: State, source: string): string {
 const CHIP_W = 13;
 const MENU_STRIP_KEYS: Record<Page | "exit", string> = {
   providers: "stripProviders", config: "stripConfig", knowledge: "stripKnowledge",
-  tools: "stripTools", settings: "pageSettings", diagnostics: "pageDiagnostics", exit: "pageExit",
+  tools: "stripTools", settings: "pageSettings", exit: "pageExit",
 };
 
 /** The strip follows the page: tabs for grouped pages, a centered full name otherwise (and while the menu has focus). */
@@ -142,7 +142,6 @@ export function pageLines(state: State, width: number): string[] {
     case "tools": return usegptLines(state, width);
     case "config": return orderLines(state, width);
     case "settings": return languageLines(state, width);
-    case "diagnostics": return diagnosticLines(state, width);
   }
 }
 
@@ -228,7 +227,7 @@ function providerLines(state: State, width: number): string[] {
       out.push(i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width));
     });
     out.push("", DIM(" " + msg(state.lang, "searxngNote")));
-    return out;
+    return [...out, ...diagRows(state, "searxng")];
   }
   const out = [DIM(padV(` ${msg(state.lang, "colKey")}`, 22) + padV(msg(state.lang, "colStatus"), 12) + padV(msg(state.lang, "colSource"), 12) + msg(state.lang, "colOwner"))];
   if (!provider.keys.length) out.push(DIM(" " + msg(state.lang, "noKeys")));
@@ -237,7 +236,7 @@ function providerLines(state: State, width: number): string[] {
     const line = padV(" " + truncateToWidth(key.reference, 20), 22) + FG(color, padV(`${icon} ${statusText(state, key)}`, 12)) + padV(sourceText(state, key.source), 12) + msg(state.lang, "owned", { n: key.ownedResources });
     out.push(i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width));
   });
-  return out;
+  return [...out, ...diagRows(state, provider.id)];
 }
 
 function orderLines(state: State, width: number): string[] {
@@ -260,13 +259,12 @@ function languageLines(state: State, width: number): string[] {
   });
 }
 
-function diagnosticLines(state: State, width: number): string[] {
-  const out = [DIM(" " + msg(state.lang, "diagNote"))];
-  if (!state.diagnostics.length) out.push(DIM(" " + msg(state.lang, "diagEmpty")));
-  state.diagnostics.forEach((entry, i) => {
-    const line = padV(` ${entry.when}  ${entry.ref}`, width - 24) + padV(entry.out, 12) + `+${entry.dur}ms`;
-    out.push(i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width));
-  });
+/** Session test results for one engine, shown under its key/instance list. */
+function diagRows(state: State, providerId: string): string[] {
+  const results = state.diagnostics.filter(d => d.provider === providerId);
+  if (!results.length) return [];
+  const out = ["", DIM(" " + msg(state.lang, "diagNote"))];
+  for (const e of results.slice(-6)) out.push(padV(` ${e.when}  ${truncateToWidth(e.ref, 22)}`, 38) + padV(e.out, 16) + `+${e.dur}ms`);
   return out;
 }
 

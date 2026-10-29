@@ -97,7 +97,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
       const value = menuHitPage(state, e.y);
       if (value === null) return undefined;
       if (value === "exit") return dispatch({ type: "quitIntent" }), { handled: true };
-      dispatch({ type: "pageSet", page: value as "providers" | "knowledge" | "tools" | "settings" | "diagnostics" });
+      dispatch({ type: "pageSet", page: value as "providers" | "knowledge" | "tools" | "settings" });
       return { handled: true };
     },
   };
@@ -277,11 +277,11 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     }
   }
 
-  function toDiag(row: SetupKeyTestResult): DiagEntry {
+  function toDiag(row: SetupKeyTestResult, provider: string): DiagEntry {
     const status = row.status === "success" ? "stSuccess" : row.status === "failure" ? "stFailure"
       : row.status === "skipped" ? "stSkipped" : row.status === "cancelled" ? "stCancelled" : "stNotTested";
     const out = msg(state.lang, status) + (row.errorKind ? " / " + msg(state.lang, REASON_KEYS[row.errorKind]!) : "");
-    return { when: stamp(), ref: row.reference, out, dur: row.durationMs ?? 0 };
+    return { provider, when: stamp(), ref: row.reference, out, dur: row.durationMs ?? 0 };
   }
 
   async function runTest(effect: Extract<Effect, { type: "testRun" }>): Promise<void> {
@@ -304,11 +304,11 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
           environment, providers: registry, signal: ac.signal,
           onStart: (reference, index, total) => dispatch({ type: "testProgress", completed: index - 1, total, current: reference }),
           onResult: (row, completed, total) => {
-            dispatch({ type: "testResult", provider: effect.provider, entry: toDiag(row) });
+            dispatch({ type: "testResult", provider: effect.provider, entry: toDiag(row, effect.provider) });
             dispatch({ type: "testProgress", completed, total, current: null });
           },
         });
-        for (const row of report.results) dispatch({ type: "testResult", provider: effect.provider, entry: toDiag(row) }); // cache tail/not-tested rows too
+        for (const row of report.results) dispatch({ type: "testResult", provider: effect.provider, entry: toDiag(row, effect.provider) }); // cache tail/not-tested rows too
         const passed = report.results.filter(r => r.status === "success").length;
         dispatch({ type: "testEnd", cancelled: report.cancelled });
         dispatch({ type: "notice", text: msg(state.lang, "testPassed", {
@@ -322,7 +322,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
         });
         const kind = result.ok ? "stSuccess" : "stFailure";
         dispatch({ type: "testResult", provider: effect.provider, entry: {
-          when: stamp(), ref: effect.provider, dur: Date.now() - startedAt,
+          when: stamp(), provider: effect.provider, ref: effect.provider, dur: Date.now() - startedAt,
           out: msg(state.lang, kind) + (!result.ok && result.error ? " / " + msg(state.lang, REASON_KEYS[result.error.kind]!) : ""),
         } });
         dispatch({ type: "testEnd", cancelled: ac.signal.aborted });

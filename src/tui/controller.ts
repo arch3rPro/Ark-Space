@@ -10,11 +10,11 @@ import { msg } from "./messages.js";
 import type { TuiLang } from "./messages.js";
 
 export type Region = "top" | "menu" | "content";
-export type Page = "providers" | "config" | "knowledge" | "tools" | "settings" | "diagnostics";
+export type Page = "providers" | "config" | "knowledge" | "tools" | "settings";
 export type Mode = "browse" | "details" | "preview" | "form";
 export const CONTEXT_COUNT = 6;                       // 4 web providers + WeKnora + UseGPT (ADR 0024 item 3)
 export const ORDER_TAB = 6;                           // pseudo context: search order rides the strip, not the menu
-export const MENU_VALUES = ["providers", "knowledge", "tools", "settings", "diagnostics", "exit"] as const;
+export const MENU_VALUES = ["providers", "knowledge", "tools", "settings", "exit"] as const;
 
 /** Context tabs the top strip shows per page; [] means the strip renders the page's full name instead. */
 export function pageTabs(page: Page): number[] {
@@ -44,7 +44,7 @@ function tabTo(state: State, target: number): State {
 }
 
 export interface PreviewSource { label: string; value: string }
-export interface DiagEntry { when: string; ref: string; out: string; dur: number }
+export interface DiagEntry { provider: string; when: string; ref: string; out: string; dur: number }
 
 export interface TestRun {
   provider: string;
@@ -200,7 +200,6 @@ export function rowCount(state: State): number {
   if (!snapshot) return 0;
   if (state.page === "config") return orderRows(state).length;
   if (state.page === "settings") return 2;
-  if (state.page === "diagnostics") return state.diagnostics.length;
   if (state.context === 4) return 5; // endpoint / key / kb / verify / remove
   if (state.context === 5) return 9; // hub / tunnel / start / stop / diagnose / tunnelId / dir / key / unlink
   const provider = snapshot.providers[state.context];
