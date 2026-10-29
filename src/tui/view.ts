@@ -413,18 +413,22 @@ export function contentTitle(state: State): string {
   return msg(state.lang, "page" + state.page.charAt(0).toUpperCase() + state.page.slice(1));
 }
 
-const kb = (key: string, label: string) => c("1;35", `[${key}]`) + label; // magenta: globals must not look like the cyan page-action row
-
+/** Global keys share the content frame's inner geometry and keys-only fallback; magenta keeps them visibly separate. */
 export function keyBar(state: State, width: number, offset = 0): string {
-  // global keys only, centered; page actions live in the content frame's pinned bottom row
-  const parts = [kb("Tab", msg(state.lang, "keyFocus"))];
-  if (state.modal) parts.push(kb("up/dn", msg(state.lang, "keyMove")), kb("Enter", msg(state.lang, "keyPick")), kb("y/n", msg(state.lang, "keyQuickPick")), kb("Esc", msg(state.lang, "keyBack")));
-  else if (state.mode === "details") parts.push(kb("...", msg(state.lang, "keyAnyBack")));
-  else if (state.mode === "preview") parts.push(kb("r", msg(state.lang, "keyReveal")), kb("...", msg(state.lang, "keyAnyBack")));
-  else if (state.mode === "browse") parts.push(kb("Enter", msg(state.lang, "keyOpen")), kb("Esc", msg(state.lang, "keyBack")));
+  const defs: { key: string; label: string }[] = [{ key: "Tab", label: msg(state.lang, "keyFocus") }];
+  if (state.modal) defs.push({ key: "up/dn", label: msg(state.lang, "keyMove") }, { key: "Enter", label: msg(state.lang, "keyPick") }, { key: "y/n", label: msg(state.lang, "keyQuickPick") }, { key: "Esc", label: msg(state.lang, "keyBack") });
+  else if (state.mode === "details") defs.push({ key: "...", label: msg(state.lang, "keyAnyBack") });
+  else if (state.mode === "preview") defs.push({ key: "r", label: msg(state.lang, "keyReveal") }, { key: "...", label: msg(state.lang, "keyAnyBack") });
+  else if (state.mode === "browse") defs.push({ key: "Enter", label: msg(state.lang, "keyOpen") }, { key: "Esc", label: msg(state.lang, "keyBack") });
   // form mode: commit/save/cancel hints render inside the form itself
-  parts.push(kb("<-/->", msg(state.lang, "keyContext")), kb("q", msg(state.lang, "keyQuit")));
-  const line = parts.join("   "); // roomy gaps: this row must not read like the dense action strip above it
-  const x0 = offset + Math.max(1, Math.floor((width - offset - visibleWidth(line)) / 2)); // center over the content column, not the whole screen
-  return truncateToWidth(padV(" ".repeat(x0) + line, width), width);
+  defs.push({ key: "<-/->", label: msg(state.lang, "keyContext") }, { key: "q", label: msg(state.lang, "keyQuit") });
+  const inner = Math.max(10, width - offset - 4); // content frame inner region: borders + one pad column each side
+  const segs = (full: boolean) => defs.map(d => full ? `[${d.key}]${d.label}` : `[${d.key}]`);
+  const total = (ss: string[], gap: number) => ss.reduce((a, x) => a + x.length, 0) + gap * (ss.length - 1);
+  let plain = segs(true);
+  let gap = 3;
+  if (total(plain, gap) > inner) { plain = segs(false); gap = 1; } // same narrow-screen fallback as the action row
+  const colored = plain.map((pl, i) => c("1;35", `[${defs[i]!.key}]`) + pl.slice(defs[i]!.key.length + 2));
+  const x0 = offset + 2 + Math.max(0, Math.floor((inner - total(plain, gap)) / 2));
+  return truncateToWidth(padV(" ".repeat(x0) + colored.join(" ".repeat(gap)), width), width);
 }

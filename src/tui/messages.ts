@@ -64,7 +64,7 @@ const TABLE: Record<string, readonly [string, string]> = {
   noInstances: ["暂无实例", "no instances"],
   orderNote: ["只读展示 / 草稿/保存在 P2", "read-only / draft/save in P2"],
   connNote: ["连接操作不改变 Web 路由或密钥健康；外部来源只读", "connection actions never touch Web routing or key health; external sources are read-only"],
-  diagNote: ["本次会话诊断（内存态，不持久化）", "session diagnostics (memory only)"],
+  diagNote: ["测试结果", "test results"],
   searxngNote: ["SearXNG 免密钥；实例需逐条授权私有 CIDR 后才可达", "SearXNG is keyless; private endpoints need per-instance CIDR grants before any request"],
   refreshNote: ["详情/预览读取前均刷新快照，引用变更则拒绝", "details and preview refresh the snapshot before read"],
   pendingP2: ["管理动作（增删改/启停）在 P2 接线", "mutations (add/edit/remove/toggle) land in P2"],
