@@ -16,7 +16,7 @@ import { Line } from "./components/line.js";
 import { FG } from "./components/style.js";
 import { msg } from "./messages.js";
 import type { TuiLang } from "./messages.js";
-import { initialState, reduce, type Event, type Op } from "./controller.js";
+import { initialState, reduce, selectedConnectionKey, type Event, type Op, type State } from "./controller.js";
 import {
   actionHits, actionLine, contentTitle, currentProvider, currentRowItems, keyBar, menuHitPage,
   menuLines, modalLines, pageLines, stripHits, stripLine,
@@ -24,7 +24,7 @@ import {
 import { getSetupSnapshot, getConnections, loadPreview } from "./data.js";
 import { runOp } from "./commands.js";
 import { executeWeknoraVerify } from "../capabilities/weknora-verify.js";
-import { startUseGptServices, stopUseGptServices, diagnoseUseGpt } from "../usegpt/services.js";
+import { startUseGptService, stopUseGptService, diagnoseUseGpt } from "../usegpt/services.js";
 import { loadConfig } from "../config/store.js";
 import { loadCredentialEnvironment } from "../config/credentials.js";
 import { executeWebSearch } from "../capabilities/web-search.js";
@@ -69,7 +69,7 @@ const printableChar = (data: string): string => {
 const CONTEXT_BY_ID: Record<string, number> = { exa: 0, tavily: 1, firecrawl: 2, searxng: 3, weknora: 4, usegpt: 5 };
 
 export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
-  let state = initialState(options.language(), msg(options.language(), "loading"), options.provider ? CONTEXT_BY_ID[options.provider] ?? 0 : 0);
+  let state: State = { ...initialState(options.language(), msg(options.language(), "loading"), options.provider ? CONTEXT_BY_ID[options.provider] ?? 0 : 0), credentialFile: options.paths.credentials };
   const terminal = new ProcessTerminal();
   const tui = new TuiAltScreen(terminal, false, undefined, { mouse: true });
   let modal: OverlayHandle | undefined;
@@ -230,12 +230,14 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
         if (op.field === "key" || (op.field === "url" && op.secret === undefined)) dispatch({ type: "formDone" });
         dispatch({ type: "notice", text: msg(state.lang, "wekSaved") });
         break;
+      case "wekKeyRemove": dispatch({ type: "notice", text: msg(state.lang, "connectionKeyRemoved") }); break;
       case "wekRemove": dispatch({ type: "notice", text: msg(state.lang, "wekRemoved") }); break;
       case "usegptSave": dispatch({ type: "notice", text: msg(state.lang, "usegptConfigSaved") }); break;
       case "usegptKey":
         dispatch({ type: "formDone" });
         dispatch({ type: "notice", text: msg(state.lang, "usegptKeySaved") });
         break;
+      case "usegptKeyRemove": dispatch({ type: "notice", text: msg(state.lang, "usegptKeyRemoved") }); break;
       case "usegptUnlink": dispatch({ type: "notice", text: msg(state.lang, "usegptUnlinked") }); break;
       case "setLanguage":
         options.onLanguageChange?.(op.lang);
@@ -246,7 +248,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
   }
 
   /** Connection service actions run outside the op lane: busy fence + notice + refresh. */
-  async function runService(action: "wekVerify" | "usegptStart" | "usegptStop" | "usegptDiagnose"): Promise<void> {
+  async function runService(action: Extract<Effect, { type: "service" }>["action"]): Promise<void> {
     if (ioBusy) return;
     ioBusy = true;
     dispatch({ type: "serviceBusy", on: true });
@@ -265,17 +267,19 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
         };
         dispatch({ type: "usegptDiagnosis", issues: d.issues.length ? d.issues.map(issue => msg(state.lang, issueKeys[issue] ?? "svcDiag", { issues: issue })) : [msg(state.lang, "svcDiagClean")] });
       } else {
-        if (action === "usegptStart") await startUseGptServices(options.environment); else await stopUseGptServices(options.environment);
-        const d = await diagnoseUseGpt(options.environment);
-        const good = action === "usegptStart" ? d.daemonRunning && d.tunnelRunning : !d.daemonRunning && !d.tunnelRunning;
-        detail = `daemon:${d.daemonRunning ? "up" : "down"} tunnel:${d.tunnelRunning ? "up" : "down"}`;
-        dispatch({ type: "notice", text: msg(state.lang, action === "usegptStart" ? (good ? "svcStartOk" : "svcStartBad") : (good ? "svcStopOk" : "svcStopBad")) + ` (${detail})`, warn: !good });
+        const service = action === "usegptHubStart" || action === "usegptHubStop" ? "daemon" : "tunnel";
+        const starting = action.endsWith("Start");
+        const d = await (starting ? startUseGptService : stopUseGptService)(service, options.environment);
+        const running = service === "daemon" ? d.daemonRunning : d.tunnelRunning;
+        const good = running === starting;
+        detail = `${service === "daemon" ? "Artifact Hub" : "Tunnel"}: ${msg(state.lang, running ? "svcRunning" : "svcStopped")}`;
+        dispatch({ type: "notice", text: detail + (good ? "" : " / " + msg(state.lang, starting ? "svcStartBad" : "svcStopBad")), warn: !good });
         await refresh();
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "unexpected error";
       const reason = message.startsWith("Setup:") ? message.slice(6).trim() : "(details suppressed)";
-      dispatch({ type: "notice", text: msg(state.lang, action === "usegptStop" ? "stopBad" : "startBad", { reason }), warn: true });
+      dispatch({ type: "notice", text: msg(state.lang, action.endsWith("Stop") ? "stopBad" : "startBad", { reason }), warn: true });
     } finally {
       ioBusy = false;
       dispatch({ type: "serviceBusy", on: false });
@@ -346,21 +350,23 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
 
   async function openDetails(): Promise<void> {
     const item = currentRowItems(state)[state.row];
-    if (!item || !("reference" in item)) return;
-    const reference = item.reference;
+    const reference = selectedConnectionKey(state)?.reference ?? (item && "reference" in item ? item.reference : null);
+    if (!reference) return;
     await refresh(); // ADR 0017: snapshot refreshed before the detail view reads it
-    const fresh = currentProvider(state)?.keys.find(k => k.reference === reference);
-    if (!fresh) return dispatch({ type: "notice", text: msg(state.lang, "previewChanged"), warn: true });
+    const fresh = selectedConnectionKey(state)?.reference ?? currentProvider(state)?.keys[state.row]?.reference;
+    if (fresh !== reference) return dispatch({ type: "notice", text: msg(state.lang, "previewChanged"), warn: true });
     dispatch({ type: "detailsOpen", reference });
   }
 
   async function openPreview(): Promise<void> {
     const provider = currentProvider(state);
-    if (!provider) return;
-    if (provider.id === "searxng") return dispatch({ type: "notice", text: msg(state.lang, "previewKeyless"), warn: true });
+    const connection = selectedConnectionKey(state);
+    if (provider?.id === "searxng") return dispatch({ type: "notice", text: msg(state.lang, "previewKeyless"), warn: true });
     const item = currentRowItems(state)[state.row];
-    if (!item || !("reference" in item)) return;
-    const outcome = await loadPreview(options.paths, provider.id, item.reference, options.environment);
+    const reference = connection?.reference ?? (item && "reference" in item ? item.reference : null);
+    const owner = connection?.provider ?? provider?.id;
+    if (!reference || !owner) return;
+    const outcome = await loadPreview(options.paths, owner, reference, options.environment);
     if (outcome.kind === "ok") {
       const labels: Record<string, string> = {
         local: msg(state.lang, "srcLocalValue"), env: msg(state.lang, "srcEnvValue"), "env-over": msg(state.lang, "srcEnvOver"),
@@ -372,14 +378,20 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
   }
 
   function fireButton(event: string): void {
+    if (ioBusy || state.modal || state.testing || state.svcBusy) return;
     switch (event) {
+      case "enter": dispatch({ type: "enter" }); break;
       case "keyAdd": dispatch({ type: "keyAdd" }); break;
       case "keyEdit": dispatch({ type: "keyEdit" }); break;
       case "keyRemove": dispatch({ type: "keyRemoveStart" }); break;
       case "keyToggle": dispatch({ type: "keyToggle" }); break;
       case "testIntent": dispatch({ type: "testIntent" }); break;
-      case "details": void openDetails(); break;
-      case "preview": void openPreview(); break;
+      case "details": case "preview":
+        ioBusy = true;
+        void (event === "details" ? openDetails() : openPreview())
+          .catch(() => dispatch({ type: "notice", text: msg(state.lang, "dataError"), warn: true }))
+          .finally(() => { ioBusy = false; });
+        break;
       case "orderSave": dispatch({ type: "orderSave" }); break;
       case "orderToggle": dispatch({ type: "orderToggle" }); break;
       default: dispatch({ type: "notice", text: msg(state.lang, "pendingP3"), warn: true });
@@ -400,7 +412,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
       else if (matchesKey(data, Key.down)) dispatch({ type: "modalMove", delta: 1 });
       else if (matchesKey(data, Key.enter)) dispatch({ type: "modalPick" });
       else if (matchesKey(data, Key.escape)) dispatch({ type: "escape" });
-      else if (ch === "y") { state = { ...state, modal: state.modal ? { ...state.modal, cursor: 1 } : null }; dispatch({ type: "modalPick" }); }
+      else if (ch === "y" && state.modal.kind === "confirm" && state.modal.items[1]?.value === "yes") { state = { ...state, modal: { ...state.modal, cursor: 1 } }; dispatch({ type: "modalPick" }); }
       else if (ch === "n") dispatch({ type: "escape" });
       return { consume: true };
     }
@@ -425,6 +437,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     if (state.testing && matchesKey(data, Key.escape)) { testAbort?.abort(); return { consume: true }; } // Esc stops the run, keeps partial rows
     const onConfig = state.region === "content" && state.page === "config";
     const onProviderList = state.region === "content" && state.page === "providers";
+    const onKeyList = onProviderList || (state.region === "content" && selectedConnectionKey(state) !== null);
     // Browse keys are page-scoped: arrows move lists and switch context; every action
     // letter acts only on the list it is displayed above. No letter aliases.
     if (ch === "q") dispatch({ type: "quitIntent" });
@@ -440,11 +453,11 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     else if (onConfig && matchesKey(data, "ctrl+s")) dispatch({ type: "orderSave" });
     else if (matchesKey(data, Key.enter)) dispatch({ type: "enter" });
     else if (matchesKey(data, Key.escape)) dispatch({ type: "escape" });
-    else if (onProviderList && ch === "i") { ioBusy = true; void openDetails().finally(() => { ioBusy = false; }); }
-    else if (onProviderList && ch === "p") { ioBusy = true; void openPreview().finally(() => { ioBusy = false; }); }
-    else if (onProviderList && ch === "a") dispatch({ type: "keyAdd" });
-    else if (onProviderList && ch === "e") dispatch({ type: "keyEdit" });
-    else if (onProviderList && ch === "d") dispatch({ type: "keyRemoveStart" });
+    else if (onKeyList && ch === "i") fireButton("details");
+    else if (onKeyList && ch === "p") fireButton("preview");
+    else if (onKeyList && ch === "a") dispatch({ type: "keyAdd" });
+    else if (onKeyList && ch === "e") dispatch({ type: "keyEdit" });
+    else if (onKeyList && ch === "d") dispatch({ type: "keyRemoveStart" });
     else if (onProviderList && ch === " ") dispatch({ type: "keyToggle" });
     else if (onProviderList && ch === "v") dispatch({ type: "providerToggle" });
     else if (onProviderList && ch === "t") dispatch({ type: "testIntent" });

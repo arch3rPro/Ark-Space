@@ -6,7 +6,7 @@ import { searxngInstanceIdFor } from "../providers/searxng-pool.js";
 import type { ArkSpaceState } from "../state/schema.js";
 import { loadCredentialStore as readCredentialStore, validateCredentialValue } from "./credentials.js";
 import type { ArkSpacePaths } from "./paths.js";
-import { ArkSpaceConfigSchema, SearxngInstanceSchema, WeknoraConnectionSchema, WEKNORA_MANAGED_KEY_REF, defaultConfig, getSearxngConfig, type ArkSpaceConfig, type SetupLanguage, type WeknoraConnection } from "./schema.js";
+import { ArkSpaceConfigSchema, SearxngInstanceSchema, WeknoraConnectionSchema, WEKNORA_MANAGED_KEY_REF, USEGPT_API_KEY_VARIABLE, defaultConfig, getSearxngConfig, type ArkSpaceConfig, type SetupLanguage, type WeknoraConnection } from "./schema.js";
 import { resolveWeknoraConnection, weknoraTransportWarnings } from "./weknora.js";
 
 const managedProviders = ["exa", "tavily", "firecrawl", "searxng"] as const;
@@ -18,7 +18,7 @@ export interface SetupKeySnapshot {
   hasLocal: boolean; available: boolean; status: string; ownedResources: number;
   manualDisabled?: boolean; healthReason?: FailureKind | "operator-disabled"; cooldownRemainingMs?: number;
   sharedProviders?: ProviderId[];
-  sharedConnections?: "weknora"[];
+  sharedConnections?: ("weknora" | "usegpt")[];
   ownedResourceTypes?: { browserSessions: number; monitors: number; siteMonitors: number };
 }
 export interface SetupInstanceSnapshot {
@@ -68,7 +68,8 @@ function target(config: ArkSpaceConfig, provider: KeyedProvider, reference: stri
   return entry;
 }
 function references(config: ArkSpaceConfig, reference: string): number {
-  return (config.connections?.weknora?.apiKeyRef === reference ? 1 : 0) +
+  return (config.connections?.usegpt?.apiKeyRef === reference ? 1 : 0) +
+    (config.connections?.weknora?.apiKeyRef === reference ? 1 : 0) +
     Object.values(config.providers).reduce((count, entry) => count + (entry?.keyRefs.filter(ref => ref === reference).length ?? 0), 0);
 }
 function secretValue(secret: string): string {
@@ -106,7 +107,7 @@ export async function getSetupSnapshot(paths: ArkSpacePaths, environment: NodeJS
             ...(metadata?.lastFailure && !expired ? { healthReason: metadata.lastFailure === "operator-disabled" ? "operator-disabled" as const : FAILURE_KINDS.includes(metadata.lastFailure as FailureKind) ? metadata.lastFailure as FailureKind : "unknown" as const } : {}),
             ...(!expired && (metadata?.status === "cooldown" || metadata?.status === "exhausted") ? { cooldownRemainingMs: Math.max(0, (metadata.cooldownUntil ?? 0) - Date.now()) } : {}),
             sharedProviders: PROVIDER_IDS.filter(other => other !== id && config.providers[other]?.keyRefs.some(ref => ref === reference)),
-            ...(config.connections?.weknora?.apiKeyRef === reference ? { sharedConnections: ["weknora" as const] } : {}),
+            sharedConnections: (["weknora", "usegpt"] as const).filter(id => config.connections?.[id]?.apiKeyRef === reference),
             ownedResourceTypes: {
               browserSessions: Object.values(state.resources.browserSessions).filter(owner => owner.provider === id && owner.keyId === keyId).length,
               monitors: Object.values(state.resources.monitors).filter(owner => owner.provider === id && owner.keyId === keyId).length,
@@ -131,7 +132,7 @@ export async function addSetupKey(paths: ArkSpacePaths, provider: ProviderId, se
     const entry = config.providers[provider] ?? defaultConfig().providers[provider]!;
     const base = defaultVariables[provider]; let variable = base;
     const occupied = (name: string) => Object.hasOwn(store.values, name) || Object.hasOwn(environment, name) ||
-      config.connections?.weknora?.apiKeyRef === `env:${name}` ||
+      config.connections?.weknora?.apiKeyRef === `env:${name}` || config.connections?.usegpt?.apiKeyRef === `env:${name}` ||
       Object.entries(config.providers).some(([id, item]) => item?.keyRefs.some(ref => ref === `env:${name}`) && (id !== provider || name !== base));
     for (let index = 1; occupied(variable); index++) variable = `${base}_${index}`;
     const reference = `env:${variable}`;
@@ -301,6 +302,36 @@ export async function removeWeknoraConnection(paths: ArkSpacePaths): Promise<voi
       try { await writeJsonAtomic(paths.credentials, store); }
       catch { fail("WeKnora reference was unlinked, but its local credential remains stored; inspect the orphaned credential before retrying."); }
     }
+  });
+}
+
+/** Singleton credentials use the same lock order and sharing guards as Provider keys. */
+export async function saveUseGptKey(paths: ArkSpacePaths, secret: string, replaceSavedKey: boolean, environment: NodeJS.ProcessEnv): Promise<void> {
+  const value = secretValue(secret);
+  await locked(paths, async () => {
+    const config = await configFor(paths);
+    const reference = `env:${USEGPT_API_KEY_VARIABLE}`;
+    if (Object.hasOwn(environment, USEGPT_API_KEY_VARIABLE)) fail("The selected reference is environment-managed; change it externally.");
+    if (references(config, reference) > (config.connections?.usegpt ? 1 : 0)) fail("The selected reference is shared; unlink other uses before replacing its credential.");
+    const store = await loadCredentialStore(paths.credentials);
+    if (Object.hasOwn(store.values, USEGPT_API_KEY_VARIABLE) && !replaceSavedKey) fail("An existing credential requires explicit replacement consent; refresh setup.");
+    store.values[USEGPT_API_KEY_VARIABLE] = value;
+    await writeJsonAtomic(paths.credentials, store);
+  });
+}
+
+export async function removeConnectionKey(paths: ArkSpacePaths, connection: "weknora" | "usegpt", environment: NodeJS.ProcessEnv): Promise<void> {
+  await locked(paths, async () => {
+    const config = await configFor(paths);
+    const reference = connection === "weknora" ? WEKNORA_MANAGED_KEY_REF : `env:${USEGPT_API_KEY_VARIABLE}`;
+    const variable = reference.slice(4);
+    const external = connection === "weknora" ? [variable, "WEKNORA_BASE_URL", "WEKNORA_API_KEY"] : [variable];
+    if (external.some(name => Object.hasOwn(environment, name))) fail("The selected reference is environment-managed; change it externally.");
+    if (references(config, reference) > (config.connections?.[connection] ? 1 : 0)) fail("The selected reference is shared; unlink other uses before removing its credential.");
+    const store = await loadCredentialStore(paths.credentials);
+    if (!Object.hasOwn(store.values, variable)) fail("The selected key has no local credential to remove.");
+    delete store.values[variable];
+    await writeJsonAtomic(paths.credentials, store);
   });
 }
 

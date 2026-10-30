@@ -5,7 +5,7 @@ import { Framed } from "../src/tui/components/framed.js";
 import { MENU_VALUES, dirtyOrder, initialState, orderRows, reduce, rowCount, type DiagEntry, type Event, type State } from "../src/tui/controller.js";
 import { assertWidthSafe, visibleWidth } from "../src/tui/port.js";
 import { messageKeys, msg } from "../src/tui/messages.js";
-import { menuLines, stripLine } from "../src/tui/view.js";
+import { actionLine, menuLines, pageLines, stripLine } from "../src/tui/view.js";
 
 function key(reference: string, over: Partial<SetupKeySnapshot> = {}): SetupKeySnapshot {
   return {
@@ -44,6 +44,59 @@ describe("messages width safety (ADR 0024 item 2)", () => {
       expect(() => msg("zh", k, { n: 1, ref: "r", names: "x" })).not.toThrow();
       expect(() => msg("en", k, { n: 1, ref: "r", names: "x" })).not.toThrow();
     }
+  });
+});
+
+describe("Setup wording", () => {
+  it.each(["secret", "text", "url", "cidr"] as const)("%s form hints describe editing, saving and the actual Esc behavior", field => {
+    const opened = reduce(loaded(), { type: "keyAdd" }).state;
+    const typing: State = { ...opened, form: { ...opened.form!, field, draft: "sample" } };
+    const rendered = pageLines(typing, 160).join("\n");
+    expect(rendered).toContain("Enter 结束输入");
+    expect(rendered).toContain("Ctrl-S 保存");
+    expect(rendered).toContain("Esc 清空输入");
+    expect(rendered).not.toContain("提交");
+    const finished = reduce(typing, { type: "formEnter" });
+    expect(finished.effects).toEqual([]);
+    const idle = pageLines(finished.state, 160).join("\n");
+    expect(idle).toContain("Enter 编辑");
+    expect(idle).toContain("Esc 返回（有输入时确认放弃）");
+    expect(reduce(typing, { type: "escape" }).state.form?.draft).toBe("");
+    expect(reduce(finished.state, { type: "escape" }).state.modal?.cursor).toBe(0);
+    if (field === "secret") expect(rendered).toContain("明文");
+  });
+
+  it("details omit internal refresh notes while retaining the displayed key facts", () => {
+    const detail = reduce(loaded(), { type: "detailsOpen", reference: "env:EXA_API_KEY" }).state;
+    const text = pageLines(detail, 120).join("\n");
+    expect(text).toContain("本地存储");
+    expect(text).toContain("可用性");
+    expect(text).not.toMatch(/快照|刷新|snapshot|refresh/);
+  });
+
+  it.each(["zh", "en"] as const)("%s connection rows avoid duplicate Enter and separate invalid-key status from preview errors", lang => {
+    const tools: State = { ...loaded(lang), region: "content", page: "tools", context: 5,
+      usegpt: { configured: false, daemonRunning: false, tunnelRunning: false, issues: [], keySource: "invalid", savedKey: true } };
+    const text = pageLines(tools, 160).join("\n");
+    expect(text).not.toMatch(/Enter|预览|preview/);
+    expect(text).toContain(lang === "zh" ? "环境变量中的密钥无效" : "invalid environment credential");
+    expect(actionLine(tools, 160)).toContain("[Enter]");
+    expect(text).toContain(lang === "zh" ? "诊断连接" : "Diagnose connection");
+    expect(text).toContain(lang === "zh" ? "恢复配置" : "Restore configuration");
+    expect(msg(lang, "usegptIssueHub")).toContain("Artifact Hub");
+    expect(msg(lang, "usegptIssueHubUnavailable")).toContain("Artifact Hub");
+  });
+
+  it("uses the approved source labels and natural notices without inventing help", () => {
+    expect(["srcLocalValue", "srcEnvValue", "srcEnvOver"].map(k => msg("zh", k)))
+      .toEqual(["本地存储", "环境变量", "环境变量（覆盖本地）"]);
+    expect(msg("zh", "colKey")).toBe("密钥变量名");
+    expect(msg("zh", "dataError")).not.toContain("?");
+    expect(msg("zh", "emptySecret")).toBe("未输入密钥，未保存。");
+    expect(msg("zh", "orderNoop")).toBe("顺序无更改，无需保存。");
+    expect(msg("zh", "opRemoved", { ref: "EXA_API_KEY" })).toBe("已移除 EXA_API_KEY，相关测试结果已清除。");
+    expect(msg("zh", "testInfra")).toBe("测试异常，已停止。为保护密钥，不显示原始错误。");
+    expect(msg("zh", "usegptKeySaved")).toBe("UseGPT API 密钥已保存");
   });
 });
 
@@ -369,7 +422,7 @@ describe("P4 connection pages", () => {
     const saved = reduce({ ...s, mode: "form" as const, form: { provider: "weknora" as const, reference: null, draft: "sk-secret", typing: true, intent: "wekKey" as const, field: "secret" as const } }, { type: "formSave" });
     expect(saved.state.modal?.tag).toBe("wek-key-replace");
     const yes = reduce({ ...saved.state, modal: { ...saved.state.modal!, cursor: 1 } }, { type: "modalPick" });
-    expect(yes.effects[0]).toEqual({ type: "op", op: { kind: "wekSave", field: "key", value: "sk-secret", reuseSavedKey: false } });
+    expect(yes.effects[0]).toEqual({ type: "op", op: { kind: "wekSave", field: "key", value: "sk-secret", reuseSavedKey: false, replaceSavedKey: true } });
   });
 
   it("environment-sourced weknora is read-only and conflict is fenced", () => {
@@ -381,27 +434,27 @@ describe("P4 connection pages", () => {
 
   it("usegpt start/stop confirmations default to cancel; diagnose is a plain service call", () => {
     const s = { ...loaded(), region: "content" as const, page: "tools" as const, context: 5, usegpt: { configured: true, daemonRunning: false, tunnelRunning: false, issues: [], keySource: "missing" as const, savedKey: false } };
-    const start = reduce({ ...s, row: 2 }, { type: "enter" }); // row 2 = start
-    expect(start.state.modal?.tag).toBe("usegpt-start");
+    const start = reduce({ ...s, row: 0 }, { type: "enter" }); // Artifact Hub
+    expect(start.state.modal?.tag).toBe("usegpt-hub");
     expect(start.state.modal?.cursor).toBe(0); // cancel first (ADR 0016)
     expect(start.state.modal?.note).toBeTruthy();
     const yes = reduce({ ...start.state, modal: { ...start.state.modal!, cursor: 1 } }, { type: "modalPick" });
-    expect(yes.effects).toEqual([{ type: "service", action: "usegptStart" }]);
-    const stop = reduce({ ...s, usegpt: { ...s.usegpt!, daemonRunning: true, tunnelRunning: true }, row: 3 }, { type: "enter" });
-    expect(stop.state.modal?.tag).toBe("usegpt-stop");
-    const diag = reduce({ ...s, row: 4 }, { type: "enter" });
+    expect(yes.effects).toEqual([{ type: "service", action: "usegptHubStart" }]);
+    const stop = reduce({ ...s, usegpt: { ...s.usegpt!, daemonRunning: true, tunnelRunning: true }, row: 1 }, { type: "enter" });
+    expect(stop.state.modal?.tag).toBe("usegpt-tunnel");
+    const diag = reduce({ ...s, row: 2 }, { type: "enter" });
     expect(diag.effects).toEqual([{ type: "service", action: "usegptDiagnose" }]);
-    const info = reduce({ ...s, row: 0 }, { type: "enter" });
+    const info = reduce({ ...s, row: 2 }, { type: "enter" });
     expect(info.effects).toEqual([{ type: "service", action: "usegptDiagnose" }]);
-    const incomplete = reduce({ ...s, usegpt: { ...s.usegpt!, configured: false }, row: 2 }, { type: "enter" });
+    const incomplete = reduce({ ...s, usegpt: { ...s.usegpt!, configured: false }, row: 0 }, { type: "enter" });
     expect(incomplete.effects).toEqual([]);
     expect(incomplete.state.status).toContain("UseGPT");
-    const running = reduce({ ...s, usegpt: { ...s.usegpt!, daemonRunning: true, tunnelRunning: true }, row: 2 }, { type: "enter" });
-    expect(running.effects).toEqual([]);
-    expect(running.state.status).toContain("已在运行");
-    const stopped = reduce({ ...s, row: 3 }, { type: "enter" });
-    expect(stopped.effects).toEqual([]);
-    expect(stopped.state.status).toContain("已停止");
+    const running = reduce({ ...s, usegpt: { ...s.usegpt!, daemonRunning: true, tunnelRunning: true }, row: 0 }, { type: "enter" });
+    expect(running.state.modal?.tag).toBe("usegpt-hub");
+    expect(running.state.modal?.note).toContain("停止");
+    const stopped = reduce({ ...s, row: 0 }, { type: "enter" });
+    expect(stopped.state.modal?.tag).toBe("usegpt-hub");
+    expect(stopped.state.modal?.note).toContain("启动");
   });
 
   it("service busy fences mutations but navigation and refresh stay live", () => {
@@ -421,7 +474,7 @@ describe("P4 connection pages", () => {
     expect(s.state.weknora).toBeNull();
     expect(s.state.usegpt?.configured).toBe(false);
     expect(rowCount({ ...loaded(), page: "knowledge" as const, context: 4, weknora: null })).toBe(5);
-    expect(rowCount({ ...loaded(), page: "tools" as const, context: 5 })).toBe(9);
+    expect(rowCount({ ...loaded(), page: "tools" as const, context: 5 })).toBe(7);
   });
 });
 
@@ -442,7 +495,7 @@ describe("P6 connection parity writes", () => {
   });
 
   it("usegpt tunnel/dir forms validate before dispatching a save", () => {
-    const bad = reduce({ ...usegptState(), row: 5 }, { type: "enter" });
+    const bad = reduce({ ...usegptState(), row: 3 }, { type: "enter" });
     expect(bad.state.mode).toBe("form");
     const typed = { ...bad.state, form: { ...bad.state.form!, draft: "nope" } };
     expect(reduce(typed, { type: "formSave" }).effects).toEqual([]);
@@ -450,7 +503,7 @@ describe("P6 connection parity writes", () => {
     const saved = reduce(good, { type: "formSave" });
     expect(saved.effects).toEqual([{ type: "op", op: { kind: "usegptSave", field: "tunnelId", value: "tunnel_new_00000001" } }]);
     expect(saved.state.mode).toBe("browse");
-    const dForm = reduce({ ...usegptState(), row: 6 }, { type: "enter" });
+    const dForm = reduce({ ...usegptState(), row: 4 }, { type: "enter" });
     const rel = { ...dForm.state, form: { ...dForm.state.form!, draft: "relative/path" } };
     expect(reduce(rel, { type: "formSave" }).effects).toEqual([]);
     const traversal = { ...rel, form: { ...rel.form!, draft: "/home/u/../hub2" } };
@@ -460,7 +513,7 @@ describe("P6 connection parity writes", () => {
   });
 
   it("usegpt key entry masks, asks replace consent only over a saved key, hands the draft to the op only on yes", () => {
-    const fresh = reduce({ ...usegptState(), row: 7 }, { type: "enter" });
+    const fresh = reduce({ ...usegptState(), row: 5 }, { type: "enter" });
     expect(fresh.state.form?.field).toBe("secret");
     expect(fresh.state.form?.typing).toBe(true);
     const typed = { ...fresh.state, form: { ...fresh.state.form!, draft: "sk-secret-123", typing: false } };
@@ -472,11 +525,11 @@ describe("P6 connection parity writes", () => {
     expect(asked.state.modal?.tag).toBe("usegpt-key-replace");
     expect(reduce(asked.state, { type: "modalPick" }).effects).toEqual([]);
     const yes = yesPick(asked.state);
-    expect(yes.effects).toEqual([{ type: "op", op: { kind: "usegptKey", secret: "sk-secret-123" } }]);
+    expect(yes.effects).toEqual([{ type: "op", op: { kind: "usegptKey", secret: "sk-secret-123", replaceSavedKey: true } }]);
   });
 
   it("usegpt unlink is a consent modal; cancel writes nothing", () => {
-    const asked = reduce({ ...usegptState(), row: 8 }, { type: "enter" });
+    const asked = reduce({ ...usegptState(), row: 6 }, { type: "enter" });
     expect(asked.state.modal?.tag).toBe("usegpt-unlink");
     expect(reduce(asked.state, { type: "modalPick" }).effects).toEqual([]);
     expect(yesPick(asked.state).effects).toEqual([{ type: "op", op: { kind: "usegptUnlink" } }]);

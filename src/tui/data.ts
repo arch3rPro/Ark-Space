@@ -6,6 +6,7 @@ import { loadCredentialStore, loadCredentialEnvironment, validateCredentialValue
 import { getSetupSnapshot, getWeknoraConnectionSnapshot } from "../config/manage.js";
 import { loadConfig } from "../config/store.js";
 import { diagnoseUseGpt } from "../usegpt/services.js";
+import { PROVIDER_IDS } from "../protocol/types.js";
 import { USEGPT_API_KEY_VARIABLE } from "../config/schema.js";
 import type { ArkSpacePaths } from "../config/paths.js";
 import type { PreviewSource, UseGptStatus } from "./controller.js";
@@ -34,6 +35,7 @@ export async function getConnections(paths: ArkSpacePaths, environment: NodeJS.P
     usegpt: {
       configured: d.configured, daemonRunning: d.daemonRunning, tunnelRunning: d.tunnelRunning, issues: d.issues,
       tunnelId: ug?.tunnelId, dataDir: ug?.dataDir, keySource, savedKey,
+      sharedProviders: PROVIDER_IDS.filter(id => config.providers[id]?.keyRefs.some(ref => ref === `env:${USEGPT_API_KEY_VARIABLE}`)),
     },
   };
 }
@@ -50,9 +52,17 @@ export type PreviewOutcome =
 export async function loadPreview(
   paths: ArkSpacePaths, providerId: string, reference: string, environment: NodeJS.ProcessEnv,
 ): Promise<PreviewOutcome> {
-  const snapshot = await getSetupSnapshot(paths, environment);
-  const provider = snapshot.providers.find(p => p.id === providerId);
-  if (!provider || !provider.keys.some(key => key.reference === reference)) return { kind: "changed" };
+  if (providerId === "weknora") {
+    const wk = await getWeknoraConnectionSnapshot(paths, environment);
+    const expected = wk?.source === "environment" ? "env:WEKNORA_API_KEY" : wk?.apiKeyRef;
+    if (reference !== expected) return { kind: "changed" };
+  } else if (providerId === "usegpt") {
+    if (reference !== `env:${USEGPT_API_KEY_VARIABLE}`) return { kind: "changed" };
+  } else {
+    const snapshot = await getSetupSnapshot(paths, environment);
+    const provider = snapshot.providers.find(p => p.id === providerId);
+    if (!provider || !provider.keys.some(key => key.reference === reference)) return { kind: "changed" };
+  }
   const variable = reference.slice(4); // keyRefs are always "env:NAME"
   const store = await loadCredentialStore(paths.credentials);
   const local = store.values[variable];

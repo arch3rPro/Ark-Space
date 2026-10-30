@@ -3,7 +3,7 @@
  * padV (visibleWidth-aware); all glyphs obey the ADR 0024 ASCII rule.
  */
 import type { SetupInstanceSnapshot, SetupKeySnapshot, SetupProviderSnapshot } from "../config/manage.js";
-import { MENU_VALUES, dirtyOrder, orderRows, pageTabs, selectedTab, type ModalState, type Page, type State } from "./controller.js";
+import { MENU_VALUES, dirtyOrder, orderRows, pageTabs, selectedTab, selectedConnectionKey, type ModalState, type Page, type State } from "./controller.js";
 import { msg } from "./messages.js";
 import { DIM, FG, SEL, c, padV } from "./components/style.js";
 import { truncateToWidth, visibleWidth } from "./port.js";
@@ -170,7 +170,17 @@ export function providerButtons(state: State): ButtonDef[] {
 export function actionDefs(state: State): { key: string; label: string; event?: string }[] {
   if (state.mode !== "browse") return [];
   if (state.page === "providers") return providerButtons(state).map(b => ({ key: b.key, label: b.label, event: b.event }));
-  if (state.page === "knowledge" || state.page === "tools") return [{ key: "Enter", label: msg(state.lang, "keyRowOp") }];
+  if (state.page === "knowledge" || state.page === "tools") {
+    const key = selectedConnectionKey(state);
+    if (!key) return [{ key: "Enter", label: msg(state.lang, "keyRowOp"), event: "enter" }];
+    const editable = !key.external && !key.sharedProviders.length;
+    return [
+      ...(editable ? [{ key: key.hasLocal ? "e" : "a", label: msg(state.lang, key.hasLocal ? "keyEdit" : "keyAdd"), event: key.hasLocal ? "keyEdit" : "keyAdd" }] : []),
+      { key: "i", label: msg(state.lang, "keyDetails"), event: "details" },
+      { key: "p", label: msg(state.lang, "keyPreview"), event: "preview" },
+      ...(editable && key.hasLocal ? [{ key: "d", label: msg(state.lang, "keyRemove"), event: "keyRemove" }] : []),
+    ];
+  }
   if (state.page === "config") return [
     { key: "u/d", label: msg(state.lang, "keyMoveRow") },
     { key: "Space", label: msg(state.lang, "keyToggle"), event: "orderToggle" },
@@ -240,7 +250,7 @@ function providerLines(state: State, width: number): string[] {
   if (!provider.keys.length) out.push(DIM(" " + msg(state.lang, "noKeys")));
   provider.keys.forEach((key, i) => {
     const [icon, color] = keyIcon(key);
-    const line = padV(" " + truncateToWidth(key.reference, referenceWidth - 1), referenceWidth) + FG(color, padV(truncateToWidth(`${icon} ${statusText(state, key)}`, statusWidth), statusWidth)) + truncateToWidth(sourceText(state, key.source), sourceWidth);
+    const line = padV(" " + truncateToWidth(key.reference, referenceWidth - 1), referenceWidth) + FG(color, padV(truncateToWidth(`${icon} ${statusText(state, key)}`, statusWidth), statusWidth)) + truncateToWidth(sourceText(state, key.source) + (key.source === "environment" && key.hasLocal ? " / " + msg(state.lang, "wekOverride") : ""), sourceWidth);
     out.push(i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width));
   });
   return [...out, ...diagRows(state, provider.id)];
@@ -280,6 +290,16 @@ function detailField(label: string, value: string): string {
 }
 
 function detailsLines(state: State, width: number): string[] {
+  const connection = selectedConnectionKey(state);
+  if (connection) {
+    const source = connection.external ? msg(state.lang, "srcEnvironment") : connection.hasLocal ? msg(state.lang, "srcLocal") : msg(state.lang, "srcMissing");
+    return [
+      detailField(msg(state.lang, "fieldSource"), source),
+      detailField(msg(state.lang, "srcLocalValue"), connection.hasLocal ? "+" : "-"),
+      detailField(msg(state.lang, "fieldShared"), connection.sharedProviders.join("/") || "-"),
+      "", DIM(" " + msg(state.lang, "connNote")),
+    ].map(line => padV(line, width));
+  }
   const provider = currentProvider(state);
   const key = provider?.keys.find(k => k.reference === state.detailRef);
   if (!provider || !key) return [" " + msg(state.lang, "previewChanged")];
@@ -288,7 +308,7 @@ function detailsLines(state: State, width: number): string[] {
   const routing = provider.automaticPosition ? msg(state.lang, "autoPosition", { n: provider.automaticPosition }) : msg(state.lang, "explicitOnly");
   const owners = msg(state.lang, "owned", { n: key.ownedResources });
   const out = [
-    detailField(msg(state.lang, "fieldSource"), sourceText(state, key.source)),
+    detailField(msg(state.lang, "fieldSource"), sourceText(state, key.source) + (key.source === "environment" && key.hasLocal ? " / " + msg(state.lang, "wekOverride") : "")),
     detailField(msg(state.lang, "fieldStatus"), statusText(state, key)),
     detailField(msg(state.lang, "fieldReason"), reasonText(state, key)),
     detailField(msg(state.lang, "fieldCooldownLeft"), cooldown),
@@ -296,7 +316,6 @@ function detailsLines(state: State, width: number): string[] {
     detailField(msg(state.lang, "fieldShared"), shared),
     detailField(msg(state.lang, "fieldRouting"), routing),
     detailField(msg(state.lang, "fieldAvailable"), key.available ? "+" : "?"),
-    "", DIM(" " + msg(state.lang, "refreshNote")),
   ];
   return out.map(line => padV(line, width));
 }
@@ -335,7 +354,7 @@ function formLines(state: State, width: number): string[] {
   const titleKey = formTitleKey(form);
   const titleRef = form.intent === "key" || form.intent === "instEdit" ? form.reference : form.intent.startsWith("cidr") ? form.pending?.url : null;
   const title = " " + msg(state.lang, titleKey) + (titleRef ? " / " + titleRef : "");
-  const hintKey = secret ? (form.typing ? "fieldSecretTyping" : "fieldSecretHint") : "fieldPlainHint";
+  const hintKey = secret ? (form.typing ? "fieldSecretTyping" : "fieldSecretHint") : (form.typing ? "fieldPlainTyping" : "fieldPlainHint");
   const out = [
     title,
     "",
@@ -343,6 +362,7 @@ function formLines(state: State, width: number): string[] {
     " " + DIM(msg(state.lang, "chars", { n: [...form.draft].length })),
     "",
     DIM(" " + msg(state.lang, hintKey)),
+    ...(secret ? [DIM(" " + msg(state.lang, "keyStorageNote")), DIM(" " + (state.credentialFile ?? "credentials.json").replace(/[\u0000-\u001f\u007f-\u009f]/g, "?"))] : []),
   ];
   return out.map(line => padV(line, width));
 }
@@ -360,8 +380,9 @@ function connRows(state: State, width: number, rows: [string, string][], note: s
 function weknoraLines(state: State, width: number): string[] {
   const wk = state.weknora;
   const keyText = !wk ? msg(state.lang, "wekMissing")
-    : wk.source === "environment" || wk.source === "environment-override" ? msg(state.lang, "wekEnv")
-    : wk.hasLocal ? msg(state.lang, "wekManaged") : msg(state.lang, "wekMissing");
+    : wk.source === "environment-override" ? msg(state.lang, "srcEnvironment") + " / " + msg(state.lang, "wekOverride")
+    : wk.source === "environment" ? msg(state.lang, "srcEnvironment")
+    : wk.hasLocal ? msg(state.lang, "srcLocal") : msg(state.lang, "wekMissing");
   const note = wk?.status === "conflict" ? msg(state.lang, "wekConflictGuard")
     : wk && wk.source !== "managed" ? msg(state.lang, "wekExternalGuard")
     : wk?.status === "missing" ? msg(state.lang, "wekMissing") : msg(state.lang, "wekNote");
@@ -376,21 +397,18 @@ function weknoraLines(state: State, width: number): string[] {
 
 function usegptLines(state: State, width: number): string[] {
   const u = state.usegpt;
-  const run = (b: boolean | undefined) => b ? FG(32, msg(state.lang, "svcRunning")) : msg(state.lang, "svcStopped");
   const note = !u?.configured ? msg(state.lang, "usegptNotConfigured") : msg(state.lang, "usegptNote");
-  const keyText = u?.keySource === "environment" ? msg(state.lang, "wekEnv")
-    : u?.keySource === "file" ? msg(state.lang, "wekManaged")
-    : u?.keySource === "invalid" ? msg(state.lang, "previewInvalidEnv") : msg(state.lang, "wekMissing");
+  const keyText = u?.keySource === "environment" ? msg(state.lang, "srcEnvironment") + (u.savedKey ? " / " + msg(state.lang, "wekOverride") : "")
+    : u?.keySource === "file" ? msg(state.lang, "srcLocal")
+    : u?.keySource === "invalid" ? msg(state.lang, "invalidEnvKey") : msg(state.lang, "wekMissing");
   return connRows(state, width, [
-    [msg(state.lang, "rowHub"), run(u?.daemonRunning)],
-    [msg(state.lang, "rowTunnel"), run(u?.tunnelRunning)],
-    [msg(state.lang, "rowStart"), msg(state.lang, "startHint")],
-    [msg(state.lang, "rowStop"), msg(state.lang, "stopHint")],
+    [msg(state.lang, "rowHub"), msg(state.lang, u?.daemonRunning ? "svcRunning" : "svcStopped") + " / " + msg(state.lang, u?.daemonRunning ? "stopHubHint" : "startHubHint")],
+    [msg(state.lang, "rowTunnel"), msg(state.lang, u?.tunnelRunning ? "svcRunning" : "svcStopped") + " / " + msg(state.lang, u?.tunnelRunning ? "stopTunnelHint" : "startTunnelHint")],
     [msg(state.lang, "rowDiagnose"), msg(state.lang, "diagHint")],
     [msg(state.lang, "rowUseGptTunnel"), u?.tunnelId ? truncateToWidth(u.tunnelId, Math.max(8, width - 20)) : msg(state.lang, "wekMissing")],
     [msg(state.lang, "rowUseGptDir"), u?.dataDir ? truncateToWidth(u.dataDir, Math.max(8, width - 20)) : msg(state.lang, "wekMissing")],
     [msg(state.lang, "rowUseGptKey"), keyText],
-    [msg(state.lang, "rowUnlinkUseGpt"), msg(state.lang, "usegptUnlinkHint")],
+    [msg(state.lang, "rowRestoreUseGpt"), msg(state.lang, "usegptRestoreHint")],
   ], note);
 }
 
@@ -423,7 +441,11 @@ export function contentTitle(state: State): string {
 /** Global keys share the content frame's inner geometry and keys-only fallback; magenta keeps them visibly separate. */
 export function keyBar(state: State, width: number, offset = 0): string {
   const defs: { key: string; label: string }[] = [{ key: "Tab", label: msg(state.lang, "keyFocus") }];
-  if (state.modal) defs.push({ key: "up/dn", label: msg(state.lang, "keyMove") }, { key: "Enter", label: msg(state.lang, "keyPick") }, { key: "y/n", label: msg(state.lang, "keyQuickPick") }, { key: "Esc", label: msg(state.lang, "keyBack") });
+  if (state.modal) {
+    defs.push({ key: "up/dn", label: msg(state.lang, "keyMove") }, { key: "Enter", label: msg(state.lang, "keyPick") });
+    if (state.modal.kind === "confirm" && state.modal.items[1]?.value === "yes") defs.push({ key: "y/n", label: msg(state.lang, "keyQuickPick") });
+    defs.push({ key: "Esc", label: msg(state.lang, "keyBack") });
+  }
   else if (state.mode === "details") defs.push({ key: "...", label: msg(state.lang, "keyAnyBack") });
   else if (state.mode === "preview") defs.push({ key: "r", label: msg(state.lang, "keyReveal") }, { key: "...", label: msg(state.lang, "keyAnyBack") });
   else if (state.mode === "browse") defs.push({ key: "Enter", label: msg(state.lang, "keyOpen") }, { key: "Esc", label: msg(state.lang, "keyBack") });

@@ -7,11 +7,10 @@
 import {
   addSetupKey, removeSetupKey, replaceSetupKey, setSetupKeyEnabled,
   setSetupLanguage, setSetupProviderEnabled, setSetupProviderOrder,
-  updateSetupInstance, removeSetupInstance, saveWeknoraConnection, removeWeknoraConnection,
+  updateSetupInstance, removeSetupInstance, saveWeknoraConnection, removeWeknoraConnection, saveUseGptKey, removeConnectionKey,
 } from "../config/manage.js";
 import { addSearxngInstance, loadConfig } from "../config/store.js";
 import { saveUseGptConfig, removeUseGptConfig } from "../config/usegpt.js";
-import { storeCredential, validateCredentialValue } from "../config/credentials.js";
 import { UseGptConfigSchema, USEGPT_API_KEY_VARIABLE } from "../config/schema.js";
 import type { ArkSpacePaths } from "../config/paths.js";
 import type { Op } from "./controller.js";
@@ -43,12 +42,12 @@ export async function runOp(paths: ArkSpacePaths, environment: NodeJS.ProcessEnv
         const config = await loadConfig(paths.config);
         const conn = config.connections?.weknora as { baseUrl: string; defaultKnowledgeBaseId?: string } | undefined;
         if (op.field === "url") {
-          await saveWeknoraConnection(paths, { baseUrl: op.value }, op.secret, { reuseSavedKey: op.reuseSavedKey, replaceSavedKey: op.secret !== undefined }, environment);
+          await saveWeknoraConnection(paths, { baseUrl: op.value }, op.secret, { reuseSavedKey: op.reuseSavedKey, replaceSavedKey: op.replaceSavedKey === true }, environment);
           return { ok: true };
         }
         if (!conn) return { ok: false, reason: "WeKnora is not configured yet; set the API root first." };
         if (op.field === "key") {
-          await saveWeknoraConnection(paths, { baseUrl: conn.baseUrl, ...(conn.defaultKnowledgeBaseId ? { defaultKnowledgeBaseId: conn.defaultKnowledgeBaseId } : {}) }, op.value, { reuseSavedKey: true, replaceSavedKey: true }, environment);
+          await saveWeknoraConnection(paths, { baseUrl: conn.baseUrl, ...(conn.defaultKnowledgeBaseId ? { defaultKnowledgeBaseId: conn.defaultKnowledgeBaseId } : {}) }, op.value, { reuseSavedKey: true, replaceSavedKey: op.replaceSavedKey === true }, environment);
           return { ok: true };
         }
         await saveWeknoraConnection(paths, { baseUrl: conn.baseUrl, ...(op.value ? { defaultKnowledgeBaseId: op.value } : {}) }, undefined, { reuseSavedKey: true }, environment);
@@ -69,12 +68,9 @@ export async function runOp(paths: ArkSpacePaths, environment: NodeJS.ProcessEnv
         await saveUseGptConfig(paths, parsed.data);
         return { ok: true };
       }
-      case "usegptKey": {
-        const normalized = validateCredentialValue(op.secret);
-        if (!normalized) return { ok: false, reason: "Credential values must be non-empty and must not contain controls or placeholders." };
-        await storeCredential(paths.credentials, USEGPT_API_KEY_VARIABLE, normalized, { overwrite: true });
-        return { ok: true };
-      }
+      case "wekKeyRemove": await removeConnectionKey(paths, "weknora", environment); return { ok: true };
+      case "usegptKeyRemove": await removeConnectionKey(paths, "usegpt", environment); return { ok: true };
+      case "usegptKey": await saveUseGptKey(paths, op.secret, op.replaceSavedKey === true, environment); return { ok: true };
       case "usegptUnlink": await removeUseGptConfig(paths); return { ok: true };
     }
   } catch (error) {

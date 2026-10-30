@@ -41,6 +41,31 @@ export async function diagnoseUseGpt(environment: NodeJS.ProcessEnv = process.en
 }
 
 /** Starts only missing services using the installed entry; opening setup alone never starts network activity. */
+export async function startUseGptService(service: "daemon" | "tunnel", environment: NodeJS.ProcessEnv = process.env) {
+  const before = await diagnoseUseGpt(environment);
+  if (!before.configured) throw new Error("UseGPT configuration is incomplete. Run arks setup usegpt first.");
+  const entry = process.argv[1];
+  if (!entry) throw new Error("Cannot locate the arks entry point.");
+  await new Promise<void>((done, reject) => {
+    const child = spawn(process.execPath, [resolve(entry), "usegpt", service, "start", "--data-dir", before.dataDir], { stdio: ["ignore", "pipe", "pipe"], env: environment, shell: false });
+    child.stdout.resume(); child.stderr.resume(); child.once("error", () => reject(new Error(`UseGPT ${service} could not start.`)));
+    child.once("close", code => code === 0 ? done() : reject(new Error(`UseGPT ${service} could not start.`)));
+  });
+  return diagnoseUseGpt(environment);
+}
+
+export async function stopUseGptService(service: "daemon" | "tunnel", environment: NodeJS.ProcessEnv = process.env) {
+  const before = await diagnoseUseGpt(environment);
+  const entry = process.argv[1];
+  if (!entry) throw new Error("Cannot locate the arks entry point.");
+  await new Promise<void>((done, reject) => {
+    const child = spawn(process.execPath, [resolve(entry), "usegpt", service, "stop", "--data-dir", before.dataDir], { stdio: ["ignore", "pipe", "pipe"], env: environment, shell: false });
+    child.stdout.resume(); child.stderr.resume(); child.once("error", () => reject(new Error(`UseGPT ${service} could not stop.`)));
+    child.once("close", code => code === 0 ? done() : reject(new Error(`UseGPT ${service} could not stop.`)));
+  });
+  return diagnoseUseGpt(environment);
+}
+
 export async function startUseGptServices(environment: NodeJS.ProcessEnv = process.env) {
   const before = await diagnoseUseGpt(environment);
   if (!before.configured) throw new Error("UseGPT configuration is incomplete. Run arks setup usegpt first.");
