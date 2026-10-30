@@ -20,9 +20,6 @@ jobs:
         include:
           - name: Linux x64
             os: ubuntu-latest
-            node: 20
-          - name: Linux x64
-            os: ubuntu-latest
             node: 22
           - name: Linux x64
             os: ubuntu-latest
@@ -49,7 +46,7 @@ jobs:
         run: npm ci --ignore-scripts --include=dev
       - name: Validate, typecheck, build, and test
         run: npm run check
-      - name: Linux real-entry Setup PTY regression (synthetic, offline installed)
+      - name: Linux Setup PTY regression (synthetic, offline installed)
         if: runner.os == 'Linux'
         run: npm run test:setup
 

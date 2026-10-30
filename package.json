@@ -32,16 +32,20 @@
     "NOTICE.md"
   ],
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.19.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node -e \"import('node:fs/promises').then(({ rm }) => rm('dist', { recursive: true, force: true }))\" && tsc -p tsconfig.build.json",
     "check": "npm run validate && npm run typecheck && npm test",
     "dev": "tsx src/cli/main.ts",
+    "usegpt:tunnel": "npm run build && node dist/cli/main.js usegpt tunnel start",
+    "usegpt:tunnel:status": "npm run build && node dist/cli/main.js usegpt tunnel status",
+    "usegpt:tunnel:stop": "npm run build && node dist/cli/main.js usegpt tunnel stop",
     "generate:schemas": "tsx scripts/generate-protocol-schemas.ts",
     "test": "npm run build && vitest run",
     "test:e2e": "npm run build && node scripts/e2e-providers.mjs",
     "test:hosts": "node scripts/test-installed-hosts.mjs",
+    "test:usegpt-host-files": "npm run build && vitest run tests/usegpt-host-files.test.ts",
     "test:setup": "npm run build && node scripts/test-setup-pty.mjs",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -50,6 +54,7 @@
     "verify:release": "npm run validate && npm run typecheck && npm run verify:package && node scripts/verify-release.mjs"
   },
   "dependencies": {
+    "@earendil-works/pi-tui": "1.4.0",
     "@modelcontextprotocol/server": "^2.0.0",
     "ajv": "^8.20.0",
     "commander": "^14.0.2",

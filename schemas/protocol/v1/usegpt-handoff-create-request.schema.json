@@ -1,0 +1,91 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "protocolVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "capability": {
+      "type": "string",
+      "const": "usegpt.handoff.create"
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "to": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "from": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "instruction": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "artifactRefs": {
+          "default": [],
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "artifactId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              "revision": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "artifactId",
+              "revision"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "required": [
+        "projectId",
+        "taskId",
+        "to",
+        "instruction"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "protocolVersion",
+    "capability",
+    "input"
+  ],
+  "additionalProperties": false
+}

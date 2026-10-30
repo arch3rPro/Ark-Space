@@ -1,0 +1,102 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "protocolVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "capability": {
+      "type": "string",
+      "enum": [
+        "usegpt.project.create",
+        "usegpt.project.list",
+        "usegpt.project.get",
+        "usegpt.project.archive",
+        "usegpt.project.delete",
+        "usegpt.project.restore",
+        "usegpt.project.purge",
+        "usegpt.task.create",
+        "usegpt.task.list",
+        "usegpt.task.get",
+        "usegpt.task.complete",
+        "usegpt.task.wait",
+        "usegpt.task.cancel",
+        "usegpt.task.delete",
+        "usegpt.task.restore",
+        "usegpt.task.purge",
+        "usegpt.artifact.publish_inline",
+        "usegpt.artifact.publish_file",
+        "usegpt.artifact.list",
+        "usegpt.artifact.describe",
+        "usegpt.artifact.read",
+        "usegpt.artifact.delete",
+        "usegpt.handoff.create",
+        "usegpt.handoff.list",
+        "usegpt.handoff.get",
+        "usegpt.handoff.claim",
+        "usegpt.handoff.complete",
+        "usegpt.handoff.fail",
+        "usegpt.handoff.cancel",
+        "usegpt.storage.usage",
+        "usegpt.delete.preview",
+        "usegpt.connection.status",
+        "usegpt.task.start",
+        "usegpt.task.follow_up",
+        "usegpt.artifact.get"
+      ]
+    },
+    "connection": {
+      "type": "string",
+      "const": "usegpt"
+    },
+    "data": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "additionalProperties": false
+    },
+    "warnings": {
+      "maxItems": 30,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 1000
+      }
+    }
+  },
+  "required": [
+    "protocolVersion",
+    "ok",
+    "capability",
+    "connection",
+    "warnings"
+  ],
+  "additionalProperties": false
+}

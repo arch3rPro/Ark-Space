@@ -1,0 +1,11 @@
+interface:
+  display_name: "UseGPT"
+  short_description: "Publish and reuse ChatGPT outputs via the local Artifact Hub"
+  default_prompt: >-
+    Use $usegpt to configure the Secure MCP Tunnel, run the local Artifact Hub,
+    and retrieve ChatGPT's fixed-revision results for reuse.
+  icon_small: "./assets/icon.svg"
+  icon_large: "./assets/icon.svg"
+
+policy:
+  allow_implicit_invocation: true

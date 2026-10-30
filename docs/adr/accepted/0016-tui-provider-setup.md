@@ -1,6 +1,6 @@
 # Native terminal UI for Provider setup
 
-- **Status:** accepted; interaction superseded by [ADR 0017](0017-workbench-modal-setup.md)
+- **Status:** accepted; interaction superseded by [ADR 0017](0017-workbench-modal-setup.md); the no-new-dependency clause superseded by [ADR 0023](0023-pi-tui-setup-engine.md); remaining security clauses in force
 - **Class:** security
 - **Supersedes:** the interaction design in [ADR 0015](0015-menu-based-provider-setup.md); its security, language, storage, routing, and ownership protections remain in force
 

@@ -29,6 +29,7 @@ ArkSpace is a creative workspace for reusable Agent Skills and their supporting 
 3. For shared capabilities, define the request, result, error, cancellation, and side-effect contract before implementation.
 4. Implement the smallest real vertical slice through the installed `arks` entry path.
 5. Verify behavior through contract, real-entry, isolated-Skill, and applicable cross-platform tests.
+6. Select tests by the change's impact: run the smallest relevant test file or command first; expand only when shared boundaries, generated artifacts, installation, or release behavior are affected.
 
 Prefer a narrow concrete module over a speculative framework. Introduce an extension point only when multiple implementations or consumers need to vary independently.
 
@@ -57,6 +58,19 @@ Prefer a narrow concrete module over a speculative framework. Introduce an exten
 - Treat API documentation used to implement behavior separately from copied source code.
 - Preserve required copyright and license notices.
 - Do not copy old architecture, generated package trees, or registry structure merely to speed migration.
+
+## Test Scope
+
+- Before running checks, name the changed behavior, affected callers/boundaries, and the smallest test set that covers them. Reuse passing evidence while its relevant inputs are unchanged.
+- Documentation-only changes: check affected links, examples, and factual alignment; run `npm run validate` only when structure, metadata, or validation rules are affected. Do not run runtime tests for prose-only edits.
+- Small bug fixes and isolated module changes: run the directly related test file(s), plus `npm run typecheck` when TypeScript types or imports changed. Use `npm test -- tests/<related>.test.ts` to filter the existing test command; reuse a current build with `npm run test:watch -- --run tests/<related>.test.ts` when no build inputs changed.
+- Capability, protocol, provider, config, persistence, CLI entry, or security changes: run the directly related contract and real-entry tests; include `npm run validate` when project structure or manifests are touched.
+- Setup TUI changes: run the relevant TUI unit tests and `npm run test:setup` for PTY, installed-entry, or terminal behavior changes.
+- Packaging, dependency, build, manifest, or installation changes: run `npm run verify:package` (already includes a build) and the directly related tests; add `npm run test:hosts` only when installed host integration is affected. Skill prose changes need only relevant guidance/link checks; changed Skill scripts or dependency boundaries need isolated-Skill checks.
+- Cross-platform, release, or broad shared-boundary changes: run `npm run check` and the applicable platform/installed-entry checks.
+- Do not run the full suite after every small change. Run `npm test` or `npm run check` when the impact justifies it, before a release, or when the user explicitly requests full regression.
+- Do not delete tests merely to reduce the count. Remove or merge only tests that duplicate the same observable contract; retain security, redaction, persistence, cancellation, concurrency, real-entry, and cross-platform coverage.
+- Report the exact test scope and any deliberately skipped broader checks.
 
 ## Validation and Release
 

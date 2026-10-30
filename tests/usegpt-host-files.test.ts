@@ -1,0 +1,108 @@
+import { createHash } from "node:crypto";
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, expect, it, vi } from "vitest";
+import { defaultConfig } from "../src/config/schema.js";
+import { resolveArkSpacePaths } from "../src/config/paths.js";
+import { invokeCapability } from "../src/protocol/invoke.js";
+import { UseGptInputSchemas } from "../src/protocol/usegpt-schema.js";
+import type { UseGptHubStore as UseGptHubStoreType } from "../src/usegpt/hub-store.js";
+
+// These synthetic transport contracts are not real ChatGPT Host acceptance evidence.
+const hubSupported = (() => {
+  const [major = 0, minor = 0] = process.versions.node.split(".").map(Number);
+  return major > 22 || major === 22 && minor >= 13;
+})();
+const hubIt = it.skipIf(!hubSupported);
+const { UseGptHubStore } = hubSupported ? await import("../src/usegpt/hub-store.js") : { UseGptHubStore: undefined as unknown as typeof UseGptHubStoreType };
+const homes: string[] = [];
+afterEach(async () => { vi.unstubAllGlobals(); vi.useRealTimers(); await Promise.all(homes.splice(0).map(home => rm(home, { recursive: true, force: true }))); });
+async function fixture() {
+  const home = await mkdtemp(join(tmpdir(), "arks-host-files-")); homes.push(home);
+  const config = defaultConfig(); config.connections = { usegpt: { enabled: true, dataDir: join(home, "hub") } };
+  await writeFile(join(home, "config.json"), JSON.stringify(config));
+  const paths = resolveArkSpacePaths({ ARKSPACE_HOME: home });
+  const call = (capability: keyof typeof UseGptInputSchemas, input: Record<string, unknown>) => invokeCapability(capability, { protocolVersion: 1, capability, input }, { paths }) as Promise<{ ok: boolean; data?: Record<string, unknown>; error?: { kind: string } }>;
+  const project = await call("usegpt.project.create", { name: "Host files" });
+  const publish = (file: unknown, extra = {}) => call("usegpt.artifact.publish_file", { projectId: project.data!.id, name: "report.csv", file, ...extra });
+  return { home, paths, call, project, publish };
+}
+const reference = { file_id: "file_native", download_url: "https://files.oaiusercontent.com/report?sig=private-signature" };
+
+it("requires native object shapes and rejects URL strings, credentials, local paths and oversized declarations", () => {
+  const schema = UseGptInputSchemas["usegpt.artifact.publish_file"];
+  for (const file of [reference.download_url, { download_url: reference.download_url }, { ...reference, cookie: "secret" }, { ...reference, size: 67_108_865 }]) {
+    expect(schema.safeParse({ projectId: "project_test", name: "report.csv", file }).success).toBe(false);
+  }
+  expect(schema.safeParse({ projectId: "project_test", name: "report.csv", file: { type: "resource_link", uri: reference.download_url, name: "report.csv" } }).success).toBe(true);
+});
+
+hubIt("persists native and resource-link binary files and verifies export/read hashes", async () => {
+  const f = await fixture(), bytes = Buffer.from([0, 137, 80, 78, 71, 13, 10, 26, 10, 255, 1, 2]);
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  const transport = vi.fn(async () => new Response(bytes, { headers: { "content-length": String(bytes.length) } })); vi.stubGlobal("fetch", transport);
+  const native = await f.publish({ ...reference, size: bytes.length, mime_type: "image/png" }, { mediaType: "image/png", idempotencyKey: "native_binary_1" });
+  expect(native).toMatchObject({ ok: true, data: { revision: 1, sizeBytes: bytes.length, sha256, mediaType: "image/png" } });
+  const resource = await f.publish({ type: "resource_link", uri: reference.download_url, name: "plot.png", mimeType: "image/png", size: bytes.length }, { idempotencyKey: "resource_binary_1" });
+  expect(resource).toMatchObject({ ok: true, data: { revision: 1, sizeBytes: bytes.length, sha256, mediaType: "image/png" } });
+
+  const store = await UseGptHubStore.open(join(f.home, "hub"));
+  try {
+    for (const published of [native, resource]) {
+      const artifactId = String(published.data!.id);
+      expect(await f.call("usegpt.artifact.read", { artifactId })).toMatchObject({ ok: false, error: { kind: "binary_artifact" } });
+      const exported = await store.execute("artifact.export", { artifactId, offset: 0, limit: bytes.length });
+      expect(Buffer.from(String(exported.content), "base64")).toEqual(bytes);
+      expect(exported).toMatchObject({ artifact: { sha256 }, nextOffset: bytes.length, eof: true });
+      expect(createHash("sha256").update(await store.getBinary({ artifactId })).digest("hex")).toBe(sha256);
+    }
+  } finally { await store.close(); }
+  expect(JSON.stringify(native)).not.toContain("private-signature");
+});
+
+hubIt("rejects unsupported ids and unsafe hosts before network access, including redirected hosts", async () => {
+  const f = await fixture(), transport = vi.fn(); vi.stubGlobal("fetch", transport);
+  expect(await f.publish({ file_id: "file_native" })).toMatchObject({ ok: false, error: { kind: "unsupported" } });
+  for (const download_url of ["http://files.oaiusercontent.com/file", "https://127.0.0.1/file", "https://files.oaiusercontent.com.evil.test/file", "https://arbitrary.blob.core.windows.net/file", "https://user:secret@files.oaiusercontent.com/file", "file:///etc/passwd", "https://files.oaiusercontent.com:444/file"]) {
+    expect(await f.publish({ ...reference, download_url })).toMatchObject({ ok: false, error: { kind: "invalid-file-reference" } });
+  }
+  expect(transport).not.toHaveBeenCalled();
+  transport.mockResolvedValue(new Response(null, { status: 302, headers: { location: "https://127.0.0.1/private?key=secret" } }));
+  const result = await f.publish(reference);
+  expect(result).toMatchObject({ ok: false, error: { kind: "invalid-file-reference" } }); expect(transport).toHaveBeenCalledTimes(1);
+  expect(JSON.stringify(result)).not.toContain("secret");
+});
+
+hubIt("bounds redirects, rejects expired references and sanitizes transport errors", async () => {
+  const f = await fixture(), transport = vi.fn(); vi.stubGlobal("fetch", transport);
+  transport.mockResolvedValue(new Response(null, { status: 302, headers: { location: "/next" } }));
+  expect(await f.publish(reference)).toMatchObject({ ok: false, error: { kind: "file-redirect" } }); expect(transport).toHaveBeenCalledTimes(4);
+  for (const status of [401, 403, 404, 410]) {
+    transport.mockResolvedValue(new Response(null, { status }));
+    expect(await f.publish(reference)).toMatchObject({ ok: false, error: { kind: "file-reference-expired" } });
+  }
+  transport.mockRejectedValue(new Error("cookie=private-key https://private/"));
+  const result = await f.publish(reference); expect(result).toMatchObject({ ok: false, error: { kind: "file-download" } }); expect(JSON.stringify(result)).not.toContain("private");
+});
+
+hubIt("rejects oversized and mismatched streams without publishing a revision", async () => {
+  const f = await fixture(), transport = vi.fn(); vi.stubGlobal("fetch", transport);
+  transport.mockImplementation(async () => new Response("abc", { headers: { "content-length": "67108865" } }));
+  expect(await f.publish(reference)).toMatchObject({ ok: false, error: { kind: "file-size" } });
+  transport.mockImplementation(async () => new Response("abc", { headers: { "content-length": "3" } }));
+  expect(await f.publish({ ...reference, size: 4 })).toMatchObject({ ok: false, error: { kind: "file-size" } });
+  transport.mockImplementation(async () => new Response("abc"));
+  expect(await f.publish({ ...reference, size: 4 })).toMatchObject({ ok: false, error: { kind: "size_mismatch" } });
+  transport.mockImplementation(async () => new Response(new ReadableStream({ start(controller) { controller.enqueue(new Uint8Array(67_108_864)); controller.enqueue(new Uint8Array(1)); controller.close(); } })));
+  expect(await f.publish(reference)).toMatchObject({ ok: false, error: { kind: "file-size" } });
+  expect(await f.call("usegpt.artifact.list", { projectId: f.project.data!.id })).toMatchObject({ ok: true, data: { artifacts: [] } });
+  expect(await readdir(join(f.home, "hub", "staging"))).toEqual([]);
+});
+
+hubIt("honors cancellation with sanitized errors", async () => {
+  const f = await fixture();
+  const controller = new AbortController(); controller.abort(new Error("private-cookie"));
+  const cancelled = await invokeCapability("usegpt.artifact.publish_file", { protocolVersion: 1, capability: "usegpt.artifact.publish_file", input: { projectId: f.project.data!.id, name: "x", file: reference } }, { paths: f.paths, signal: controller.signal });
+  expect(cancelled).toMatchObject({ ok: false, error: { kind: "cancelled" } }); expect(JSON.stringify(cancelled)).not.toContain("private-cookie");
+});

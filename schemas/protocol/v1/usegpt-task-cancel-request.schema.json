@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "protocolVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "capability": {
+      "type": "string",
+      "const": "usegpt.task.cancel"
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true
+        }
+      },
+      "required": [
+        "taskId",
+        "confirmed"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "protocolVersion",
+    "capability",
+    "input"
+  ],
+  "additionalProperties": false
+}
