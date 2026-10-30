@@ -168,6 +168,16 @@ export function providerButtons(state: State): ButtonDef[] {
 
 /** Page-scoped actions, pinned as the centered bottom row of the content frame. */
 export function actionDefs(state: State): { key: string; label: string; event?: string }[] {
+  if (state.mode === "form") return [
+    { key: "Enter", label: msg(state.lang, state.form?.typing ? "keyCommit" : "keyEdit"), event: "formEnter" },
+    { key: "Ctrl-S", label: msg(state.lang, "keySave"), event: "formSave" },
+    { key: "Esc", label: msg(state.lang, "keyBack"), event: "escape" },
+  ];
+  if (state.mode === "details") return [{ key: "...", label: msg(state.lang, "keyAnyBack"), event: "escape" }];
+  if (state.mode === "preview") return [
+    { key: "r", label: msg(state.lang, "keyReveal"), event: "reveal" },
+    { key: "...", label: msg(state.lang, "keyAnyBack"), event: "escape" },
+  ];
   if (state.mode !== "browse") return [];
   if (state.page === "providers") return providerButtons(state).map(b => ({ key: b.key, label: b.label, event: b.event }));
   if (state.page === "knowledge" || state.page === "tools") {
@@ -234,8 +244,8 @@ function providerLines(state: State, width: number): string[] {
     const out = [DIM(padV(" " + truncateToWidth(msg(state.lang, "colUrl"), urlWidth), urlWidth) + padV(truncateToWidth(msg(state.lang, "colStatus"), statusWidth), statusWidth) + truncateToWidth(msg(state.lang, "colCidr"), detailWidth))];
     if (!provider.instances.length) out.push(DIM(" " + msg(state.lang, "noInstances")));
     provider.instances.forEach((instance, i) => {
-      const icon: readonly [string, number] = instance.status === "disabled" ? ["-", 2] : instance.status === "cooldown" ? ["~", 33] : ["?", 2];
-      const text = instance.status === "disabled" ? msg(state.lang, "stDisabled") : instance.status === "cooldown" ? msg(state.lang, "stCooldown") : msg(state.lang, "stNotProbed");
+      const icon: readonly [string, number] = instance.status === "disabled" ? ["-", 2] : instance.status === "cooldown" ? ["~", 33] : ["+", 2];
+      const text = instance.status === "disabled" ? msg(state.lang, "stDisabled") : instance.status === "cooldown" ? msg(state.lang, "stCooldown") : msg(state.lang, "stConfigured");
       const detail = instance.source === "environment" ? msg(state.lang, "externalEnv") : msg(state.lang, "srcLocal") + " / " + instance.allowRanges.length;
       const line = padV(" " + truncateToWidth(instance.baseUrl, urlWidth - 1), urlWidth) + FG(icon[1], padV(truncateToWidth(`${icon[0]} ${text}`, statusWidth), statusWidth)) + truncateToWidth(detail, detailWidth);
       out.push(i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width));
@@ -354,14 +364,12 @@ function formLines(state: State, width: number): string[] {
   const titleKey = formTitleKey(form);
   const titleRef = form.intent === "key" || form.intent === "instEdit" ? form.reference : form.intent.startsWith("cidr") ? form.pending?.url : null;
   const title = " " + msg(state.lang, titleKey) + (titleRef ? " / " + titleRef : "");
-  const hintKey = secret ? (form.typing ? "fieldSecretTyping" : "fieldSecretHint") : (form.typing ? "fieldPlainTyping" : "fieldPlainHint");
   const out = [
     title,
     "",
     form.draft || !form.typing ? field : ` ${msg(state.lang, labelKey)}: |`,
     " " + DIM(msg(state.lang, "chars", { n: [...form.draft].length })),
     "",
-    DIM(" " + msg(state.lang, hintKey)),
     ...(secret ? [DIM(" " + msg(state.lang, "keyStorageNote")), DIM(" " + (state.credentialFile ?? "credentials.json").replace(/[\u0000-\u001f\u007f-\u009f]/g, "?"))] : []),
   ];
   return out.map(line => padV(line, width));
@@ -448,8 +456,6 @@ export function keyBar(state: State, width: number, offset = 0): string {
   }
   else if (state.mode === "details") defs.push({ key: "...", label: msg(state.lang, "keyAnyBack") });
   else if (state.mode === "preview") defs.push({ key: "r", label: msg(state.lang, "keyReveal") }, { key: "...", label: msg(state.lang, "keyAnyBack") });
-  else if (state.mode === "browse") defs.push({ key: "Enter", label: msg(state.lang, "keyOpen") }, { key: "Esc", label: msg(state.lang, "keyBack") });
-  // form mode: commit/save/cancel hints render inside the form itself
   defs.push({ key: "<-/->", label: msg(state.lang, "keyContext") }, { key: "q", label: msg(state.lang, "keyQuit") });
   const inner = Math.max(10, width - offset - 4); // content frame inner region: borders + one pad column each side
   const segs = (full: boolean) => defs.map(d => full ? `[${d.key}]${d.label}` : `[${d.key}]`);

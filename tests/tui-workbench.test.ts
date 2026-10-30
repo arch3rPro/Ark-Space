@@ -52,18 +52,21 @@ describe("Setup wording", () => {
     const opened = reduce(loaded(), { type: "keyAdd" }).state;
     const typing: State = { ...opened, form: { ...opened.form!, field, draft: "sample" } };
     const rendered = pageLines(typing, 160).join("\n");
-    expect(rendered).toContain("Enter 结束输入");
-    expect(rendered).toContain("Ctrl-S 保存");
-    expect(rendered).toContain("Esc 清空输入");
+    const typingKeys = actionLine(typing, 160);
+    expect(typingKeys).toContain("Enter");
+    expect(typingKeys).toContain("Ctrl-S");
+    expect(typingKeys).toContain("Esc");
     expect(rendered).not.toContain("提交");
     const finished = reduce(typing, { type: "formEnter" });
     expect(finished.effects).toEqual([]);
     const idle = pageLines(finished.state, 160).join("\n");
-    expect(idle).toContain("Enter 编辑");
-    expect(idle).toContain("Esc 返回（有输入时确认放弃）");
+    const idleKeys = actionLine(finished.state, 160);
+    expect(idleKeys).toContain("Enter");
+    expect(idleKeys).toContain("编辑");
+    expect(idleKeys).toContain("Esc");
     expect(reduce(typing, { type: "escape" }).state.form?.draft).toBe("");
     expect(reduce(finished.state, { type: "escape" }).state.modal?.cursor).toBe(0);
-    if (field === "secret") expect(rendered).toContain("明文");
+    if (field === "secret") expect(rendered).toContain("妥善保护");
   });
 
   it("details omit internal refresh notes while retaining the displayed key facts", () => {
@@ -396,11 +399,11 @@ describe("P4 connection pages", () => {
 
   it("weknora rows map to endpoint/key/kb/verify actions", () => {
     let s = wekState();
-    s = reduce(s, { type: "enter" }).state; expect(s.mode).toBe("form"); expect(s.form?.intent).toBe("wekUrl");
+    s = reduce(s, { type: "keyEdit" }).state; expect(s.mode).toBe("form"); expect(s.form?.intent).toBe("wekUrl");
     s = { ...wekState(), row: 1 };
-    const k = reduce(s, { type: "enter" }).state; expect(k.form?.intent).toBe("wekKey"); expect(k.form?.field).toBe("secret");
+    const k = reduce(s, { type: "keyEdit" }).state; expect(k.form?.intent).toBe("wekKey"); expect(k.form?.field).toBe("secret");
     s = { ...wekState(), row: 2 };
-    expect(reduce(s, { type: "enter" }).state.form?.intent).toBe("wekKb");
+    expect(reduce(s, { type: "keyEdit" }).state.form?.intent).toBe("wekKb");
     s = { ...wekState(), row: 3 };
     expect(reduce(s, { type: "enter" }).state.modal?.tag).toBe("wek-verify");
   });
@@ -495,7 +498,7 @@ describe("P6 connection parity writes", () => {
   });
 
   it("usegpt tunnel/dir forms validate before dispatching a save", () => {
-    const bad = reduce({ ...usegptState(), row: 3 }, { type: "enter" });
+    const bad = reduce({ ...usegptState(), row: 3 }, { type: "keyEdit" });
     expect(bad.state.mode).toBe("form");
     const typed = { ...bad.state, form: { ...bad.state.form!, draft: "nope" } };
     expect(reduce(typed, { type: "formSave" }).effects).toEqual([]);
@@ -503,7 +506,7 @@ describe("P6 connection parity writes", () => {
     const saved = reduce(good, { type: "formSave" });
     expect(saved.effects).toEqual([{ type: "op", op: { kind: "usegptSave", field: "tunnelId", value: "tunnel_new_00000001" } }]);
     expect(saved.state.mode).toBe("browse");
-    const dForm = reduce({ ...usegptState(), row: 4 }, { type: "enter" });
+    const dForm = reduce({ ...usegptState(), row: 4 }, { type: "keyEdit" });
     const rel = { ...dForm.state, form: { ...dForm.state.form!, draft: "relative/path" } };
     expect(reduce(rel, { type: "formSave" }).effects).toEqual([]);
     const traversal = { ...rel, form: { ...rel.form!, draft: "/home/u/../hub2" } };
@@ -513,7 +516,7 @@ describe("P6 connection parity writes", () => {
   });
 
   it("usegpt key entry masks, asks replace consent only over a saved key, hands the draft to the op only on yes", () => {
-    const fresh = reduce({ ...usegptState(), row: 5 }, { type: "enter" });
+    const fresh = reduce({ ...usegptState(), row: 5 }, { type: "keyEdit" });
     expect(fresh.state.form?.field).toBe("secret");
     expect(fresh.state.form?.typing).toBe(true);
     const typed = { ...fresh.state, form: { ...fresh.state.form!, draft: "sk-secret-123", typing: false } };

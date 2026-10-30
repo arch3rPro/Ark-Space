@@ -381,6 +381,9 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     if (ioBusy || state.modal || state.testing || state.svcBusy) return;
     switch (event) {
       case "enter": dispatch({ type: "enter" }); break;
+      case "formEnter": dispatch({ type: "formEnter" }); break;
+      case "formSave": dispatch({ type: "formSave" }); break;
+      case "escape": dispatch({ type: "escape" }); break;
       case "keyAdd": dispatch({ type: "keyAdd" }); break;
       case "keyEdit": dispatch({ type: "keyEdit" }); break;
       case "keyRemove": dispatch({ type: "keyRemoveStart" }); break;

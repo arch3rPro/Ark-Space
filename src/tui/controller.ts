@@ -479,8 +479,11 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
         return { state: { ...state, region: "content" as Region }, effects: [] }; // the page already followed the cursor
       }
       if (state.page === "settings") return reduce(state, { type: "languageApply" });
-      if (state.page === "knowledge" || state.page === "tools") return connectionEnter(state);
-      return state.page === "providers" ? reduce(state, { type: "keyEdit" }) : { state, effects: [] };
+      if (state.page === "knowledge" || state.page === "tools") {
+        const editingRow = state.page === "knowledge" ? state.row <= 2 : state.row >= 3 && state.row <= 5;
+        return editingRow ? notice(state, msg(state.lang, "connPending"), true) : connectionEnter(state);
+      }
+      return { state, effects: [] };
     }
 
     case "escape": {

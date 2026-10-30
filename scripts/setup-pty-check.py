@@ -229,8 +229,8 @@ def run(entry):
             # add key: masked entry persists a new reference with 0600 credentials
             session.send('a')
             session.wait('Add key')
-            check('typing hint distinguishes finishing input from saving', all(x in session.screen() for x in ['Enter finishes input', 'Ctrl-S saves', 'Esc clears input']))
-            check('plaintext storage warning remains in the secret form', 'plaintext' in session.screen())
+            check('typing hint distinguishes finishing input from saving', all(x in session.screen() for x in ['[Enter]', '[Ctrl-S]', '[Esc]']))
+            check('plaintext storage warning remains in the secret form', 'credential file' in session.screen())
             session.send(KEY + '-z')
             session.send('\r\x13')
             session.wait('key added: env:EXA_API_KEY_2')
@@ -377,7 +377,8 @@ def run(entry):
             session.wait('API endpoint')
             check('weknora deep link opens content focus directly', 'verify connection' in session.screen() and '[a]' not in session.screen())
             empty = fingerprint(home)
-            session.send('\x1b[B\r')
+            session.send('\x1b[B')
+            session.send('a')
             session.wait('WeKnora API key')
             session.send(KEY)
             session.send('\r\x13')
@@ -385,7 +386,7 @@ def run(entry):
             check('key without endpoint fails safely, masked, unwritten', KEY not in session.screen() and fingerprint(home) == empty and trace.read_text() == '')
             # the failed form already closed itself; move up and start with the endpoint
             session.send('\x1b[A')
-            session.send('\r')
+            session.send('e')
             session.send('\r')          # start typing in the prefilled field
             session.send('https://kb.example/api/v1')
             session.send('\r\x13')       # save chains straight into the key field
@@ -396,8 +397,8 @@ def run(entry):
             connection = json.loads((home / 'config.json').read_text())['connections']['weknora']
             check('chained setup stores prefix endpoint', connection['baseUrl'] == 'https://kb.example/api/v1')
             check('credential stored separately from config', json.loads((home / 'credentials.json').read_text())['values']['ARKSPACE_WEKNORA_API_KEY'] == KEY and KEY not in (home / 'config.json').read_text())
-            session.send('\x1b[B\x1b[B\r')   # knowledge base row
-            session.send('\r')                # prefilled edit: Enter starts typing
+            session.send('\x1b[B\x1b[B')     # knowledge base row
+            session.send('e')                 # prefilled edit: e starts editing
             session.send('kb-pty')
             session.send('\r\x13')
             session.wait('WeKnora connection saved')
@@ -456,7 +457,10 @@ def run(entry):
             check('unconfigured individual starts have no network, file or process side effects', trace.read_text() == '' and fingerprint(home) == empty and not (home / '.arkspace').exists() and not any((home / p).exists() for p in ['tunnel.pid', 'hub.pid']))
             session.send('\x1b[B\r')
             session.wait('UseGPT diagnosis')
-            check('diagnosis consistently names Artifact Hub', 'Artifact Hub is not running.' in session.screen() and 'Hub is not running.' not in session.screen().replace('Artifact Hub is not running.', ''))
+            diagnosis_screen = session.screen()
+            has_artifact_hub_issue = bool(diagnosis_screen.count('Artifact Hub is not running.'))
+            has_old_hub_label = bool(diagnosis_screen.replace('Artifact Hub is not running.', '').count('Hub is not running.'))
+            check('diagnosis consistently names Artifact Hub', has_artifact_hub_issue and not has_old_hub_label)
             check('diagnosis uses Back instead of Cancel', 'back' in session.screen() and 'Cancel (default)' not in session.screen())
             session.send('y')
             check('diagnostic y cannot select a nonexistent confirm item', session.proc.poll() is None and 'UseGPT diagnosis' in session.screen())
@@ -468,13 +472,14 @@ def run(entry):
             session.send('nope')
             session.send('\r\x13')
             check('invalid tunnel id is refused without writing', 'must be tunnel_' in session.screen() and fingerprint(home) == empty)
-            session.send('\r')                 # resume typing on the retained draft
+            session.send('e')                 # resume editing the retained draft
             session.send('\x7f\x7f\x7f\x7f')     # backspace over 'nope'
             session.send('tunnel_pty_00000001')
             session.send('\r\x13')
             session.wait('UseGPT configuration saved')
             check('valid tunnel id persists offline', json.loads((home / 'config.json').read_text())['connections']['usegpt']['tunnelId'] == 'tunnel_pty_00000001' and trace.read_text() == '')
-            session.send('\x1b[B\x1b[B\r')   # API key row
+            session.send('\x1b[B\x1b[B')     # API key row
+            session.send('e')
             session.wait('UseGPT API key')
             session.send(KEY)                   # secret form opens mid-typing
             check('secret entry never echoes', KEY not in session.screen())
