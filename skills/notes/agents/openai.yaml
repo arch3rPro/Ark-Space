@@ -3,7 +3,7 @@ interface:
   short_description: "Write retrievable, readable notes from research results"
   default_prompt: >-
     Use $notes to turn these research results into a note with sourced facts,
-    marked inferences, a to-confirm section, and a lint check before delivery.
+    marked inferences, complete usage guidance, and a lint check before delivery.
   icon_small: "./assets/icon.svg"
   icon_large: "./assets/icon.svg"
 

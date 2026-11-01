@@ -4,9 +4,9 @@ A retrieval system returns chunks, usually one H2 section at a time. Write each 
 
 ## Structure
 
-- One H1, equal to `title`. Then `## TL;DR`. Then topic H2 sections, `待确认` when needed, and `## 来源` (`## Sources` for `lang: en`).
+- One H1, equal to `title`. Then `## 摘要` (`## Summary` for `lang: en`). Then topic H2 sections, and `## 来源` (`## Sources`).
 - Use H3 for subdivisions inside an H2. Do not skip levels.
-- Keep each H2 section short enough to read in one screen. Split a long section into two H2 sections that each name their subject.
+- Length follows completeness. When a section grows long, split it into H2 sections that each name their subject, so retrieval returns the right chunk.
 
 ## Self-contained sections
 
@@ -14,9 +14,9 @@ A retrieval system returns chunks, usually one H2 section at a time. Write each 
 - Name the tool, version, and date in the section that states a fact about them.
 - Write headings that carry the subject, for example `<tool> 的安装与使用` rather than `安装`.
 
-## TL;DR
+## Summary
 
-Two or three sentences with the conclusion, its scope, and the evidence date. A reader who stops here has what they need to decide whether to read on.
+One to three plain sentences: what the subject is, what problem it solves, and who it is for. A reader who stops here knows whether to read on.
 
 ## Aliases and tags
 

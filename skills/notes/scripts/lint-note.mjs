@@ -9,10 +9,10 @@ const LANGS = ["zh", "en"];
 const STATUSES = ["draft", "verified", "outdated"];
 const REQUIRED = ["title", "type", "lang", "sources", "status", "updated"];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const MAX_SECTION_CHARS = 2000;
+const MAX_SECTION_CHARS = 3000;
 const HEADINGS = {
-  zh: { sources: ["来源"], confirm: ["待确认"] },
-  en: { sources: ["Sources"], confirm: ["To confirm"] },
+  zh: { summary: "摘要", sources: "来源" },
+  en: { summary: "Summary", sources: "Sources" },
 };
 const OPENINGS = {
   zh: ["此外", "上述", "如上", "另外", "同上", "其次", "它", "这个"],
@@ -195,17 +195,18 @@ export function lintNote(text, { lang, lexicon, root }) {
   });
 
   const h2s = headings.filter((h) => h.level === 2);
-  if (!h2s.some((h) => h.text === "TL;DR")) add("error", "tldr-missing", 1, 'missing "## TL;DR" section');
-  if (!h2s.some((h) => names.sources.includes(h.text)))
-    add("error", "sources-missing", 1, `missing "## ${names.sources[0]}" section`);
+  if (!h2s.some((h) => h.text === names.summary))
+    add("error", "summary-missing", 1, `missing "## ${names.summary}" section`);
+  if (!h2s.some((h) => h.text === names.sources))
+    add("error", "sources-missing", 1, `missing "## ${names.sources}" section`);
 
-  const special = new Set(["TL;DR", ...names.sources, ...names.confirm]);
+  const special = new Set([names.summary, names.sources]);
   h2s.forEach((h) => {
     const next = headings.find((other) => other.index > h.index && other.level <= 2);
     const body = lines.slice(h.index + 1, next?.index ?? lines.length);
     const length = body.join("").replace(/\s/g, "").length;
     if (length > MAX_SECTION_CHARS)
-      add("warning", "section-length", h.line, `section "${h.text}" has ${length} characters; split it`);
+      add("warning", "section-length", h.line, `section "${h.text}" has ${length} characters; consider splitting by subtopic`);
     if (special.has(h.text)) return;
     const first = body.find((line) => line.trim())?.trim() ?? "";
     const opening = OPENINGS[effectiveLang].find((word) => first.startsWith(word));

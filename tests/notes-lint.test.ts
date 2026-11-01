@@ -17,7 +17,7 @@ const front = (extra: Record<string, string> = {}) => {
   };
   return `---\n${Object.entries(f).filter(([, v]) => v !== "").map(([k, v]) => `${k}: ${v}`).join("\n")}\n---\n`;
 };
-const body = (mid = "A 的说明。\n") => `\n# T\n\n## TL;DR\n\n结论。\n\n## A 说明\n\n${mid}\n## 来源\n\n- x\n`;
+const body = (mid = "A 的说明。\n") => `\n# T\n\n## 摘要\n\n结论。\n\n## A 说明\n\n${mid}\n## 来源\n\n- x\n`;
 
 async function lint(text: string, args: string[] = [], files: Record<string, string> = {}) {
   const dir = await mkdtemp(join(tmpdir(), "notes-lint-"));
@@ -40,7 +40,7 @@ describe("lint-note", () => {
   });
 
   it("passes a clean en note with English headings", async () => {
-    const r = await lint(front({ lang: "en" }) + "\n# T\n\n## TL;DR\n\nx\n\n## Tool setup\n\nTool installs.\n\n## Sources\n\n- x\n");
+    const r = await lint(front({ lang: "en" }) + "\n# T\n\n## Summary\n\nx\n\n## Tool setup\n\nTool installs.\n\n## Sources\n\n- x\n");
     expect(r.rules).toEqual([]);
   });
 
@@ -50,8 +50,8 @@ describe("lint-note", () => {
     ["bad enum", front({ type: "blog" }) + body(), "frontmatter-value"],
     ["bad date", front({ updated: "yesterday" }) + body(), "frontmatter-date"],
     ["verified without retrieved", front({ retrieved: "" }) + body(), "verified-without-retrieved"],
-    ["missing TL;DR", front() + "\n# T\n\n## 来源\n\n- x\n", "tldr-missing"],
-    ["missing sources", front() + "\n# T\n\n## TL;DR\n\nx\n", "sources-missing"],
+    ["missing summary", front() + "\n# T\n\n## 来源\n\n- x\n", "summary-missing"],
+    ["missing sources", front() + "\n# T\n\n## 摘要\n\nx\n", "sources-missing"],
     ["heading jump", front() + body("### a\n\n##### b\n\nx\n"), "heading-level"],
   ])("errors on %s", async (_n, text, rule) => {
     const r = await lint(text);
@@ -60,7 +60,7 @@ describe("lint-note", () => {
   });
 
   it("warns on long section and context-dependent opening without failing", async () => {
-    const r = await lint(front() + body("此外，" + "字".repeat(2100) + "\n"));
+    const r = await lint(front() + body("此外，" + "字".repeat(3100) + "\n"));
     expect(r.rules).toEqual(expect.arrayContaining(["section-length", "section-opening"]));
     expect(r.status).toBe(0);
   });
@@ -68,7 +68,7 @@ describe("lint-note", () => {
   it("flags hedges in prose, zh and en, but not in code, inline code, or quotes", async () => {
     const zh = await lint(front() + body("这可能有效。\n"));
     expect(zh.rules).toContain("hedge");
-    const en = await lint(front({ lang: "en" }) + "\n# T\n\n## TL;DR\n\nx\n\n## Tool\n\nTool is probably fine.\n\n## Sources\n\n- x\n");
+    const en = await lint(front({ lang: "en" }) + "\n# T\n\n## Summary\n\nx\n\n## Tool\n\nTool is probably fine.\n\n## Sources\n\n- x\n");
     expect(en.rules).toContain("hedge");
     const exempt = await lint(front() + body("```\n可能\n```\n\n> 可能\n\n`可能`\n"));
     expect(exempt.rules).not.toContain("hedge");

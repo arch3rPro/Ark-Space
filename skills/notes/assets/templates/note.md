@@ -14,17 +14,13 @@ updated: <YYYY-MM-DD>
 
 # <note title>
 
-## TL;DR
+## 摘要
 
-<Two or three sentences: the conclusion and the condition it holds under.>
+<一两句人话：这是什么、解决什么问题、读完能做什么。>
 
 ## <Topic section>
 
-<Name the subject in the first sentence. State verified facts directly with source and date. Mark an inference once, inline, with its basis.>
-
-## 待确认
-
-- <Unknown>: 缺少 <evidence>; 获取方式: <how to obtain it>.
+<第一句点明主题。按读者要做的事组织：先讲清楚，再给例子，再说明限制。内容写全，读者不必回头翻原始资料。>
 
 ## 来源
 

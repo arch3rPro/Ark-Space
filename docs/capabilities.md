@@ -7,7 +7,7 @@ This reference maps each canonical Skill to its public `arks` capabilities and P
 | Skill | User-facing abilities |
 | --- | --- |
 | [`askme`](../skills/askme/SKILL.md) | Clarify consequential requirements, preserve agreed constraints, and recover alignment after execution drift using host conversation and context tools. |
-| [`notes`](../skills/notes/SKILL.md) | Write a finished, retrievable note from research results using a template, three evidence states, and a Skill-local lint check. |
+| [`notes`](../skills/notes/SKILL.md) | Write a finished, retrievable note from research results using a complete template, verified and inferred statements, and a Skill-local lint check. |
 | [`web`](../skills/web/SKILL.md) | Find public sources, retrieve exact pages, discover or crawl sites, extract schema-bound data, and collect implementation examples. |
 | [`research`](../skills/research/SKILL.md) | Synthesize public evidence into a bounded, cited comparison, landscape, or decision-ready report. |
 | [`browser`](../skills/browser/SKILL.md) | Open an owned remote browser session, inspect page state, perform confirmed structured interactions, verify results, and close the session. |

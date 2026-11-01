@@ -16,7 +16,7 @@ State, in the user's language:
 
 - the note path and `status`;
 - the sources used and their retrieval dates;
-- the count of inferred statements and to-confirm items;
+- the inferred statements, and any topic the note needs but the evidence did not cover;
 - the lint result: errors and warnings, which warnings were kept and why, or that lint was skipped and the reason;
 - links and index entries added, or that the target does not support them.
 

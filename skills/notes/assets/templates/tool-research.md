@@ -1,5 +1,5 @@
 ---
-title: <tool name> 调研
+title: <tool name>
 type: tool-research
 lang: zh
 aliases: []
@@ -7,40 +7,48 @@ tags: [tool]
 sources:
   - <url or document reference>
 retrieved: <YYYY-MM-DD>
-version: 1
+version: <tool version>
 status: draft
 updated: <YYYY-MM-DD>
 ---
 
-# <tool name> 调研
+# <tool name>
 
-## TL;DR
+## 摘要
 
-<tool name> 是 <what it is>, 适用于 <use case>; 不适用于 <non-use case>. 结论基于 <version> 于 <YYYY-MM-DD> 的资料.
+<tool name> 是 <一句话：它是什么>，解决 <什么问题>，适合 <谁>。<一句话：怎么用起来、和同类相比的主要差别。>
 
-## <tool name> 是什么
+## <tool name> 解决什么问题
 
-<Category, maintainer, license, current version, and project status, each with source and date.>
+<没有它时的痛点，它的思路，适用和不适用的场景。>
 
-## <tool name> 的核心能力
+## <tool name> 的工作原理
 
-<Capabilities as a short list. Each item names the tool and cites its source.>
+<架构、核心概念、数据怎么流动。必要时用图或表。>
 
-## <tool name> 的安装与使用
+## <tool name> 的安装
 
-<Install command, minimal usage, platform and runtime requirements. Commands go in code blocks.>
+<各平台、各客户端的完整安装步骤、前置条件、验证安装成功的方法。命令放代码块。>
 
-## <tool name> 与同类工具的比较
+## <tool name> 的使用教程
 
-<Compare on the axes that decide the choice. Name each tool in every row.>
+<从零到跑通：最小例子、完整命令、预期输出。再给 2~3 个常见场景。>
 
-## <tool name> 的适用判断
+## <tool name> 的配置与命令
 
-<When to choose it, when not to. Mark inferences once with their basis.>
+<配置项、环境变量、常用命令和参数。>
 
-## 待确认
+## <tool name> 的功能
 
-- <Unknown>: 缺少 <evidence>; 获取方式: <how to obtain it>.
+<完整功能列表，每项说明做什么、怎么用。>
+
+## <tool name> 与同类工具的对比
+
+<至少对比 2~3 个同类工具。按决定选择的维度列表；说明各自的优势、代价和适用场景。>
+
+## <tool name> 的限制与注意事项
+
+<许可证、成本、数据与凭证去向、自动更新、已知坑。只写会影响使用决策的内容。>
 
 ## 来源
 
