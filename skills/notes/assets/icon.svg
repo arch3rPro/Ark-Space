@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Notes</title>
+  <desc id="desc">A note page with text lines and a check mark, representing a finished, sourced note.</desc>
+  <rect width="256" height="256" rx="56" fill="#102A43"/>
+  <path d="M78 44h72l44 44v100a24 24 0 0 1-24 24H78a24 24 0 0 1-24-24V68a24 24 0 0 1 24-24Z" fill="#F8FAFC"/>
+  <path d="M150 44v32a12 12 0 0 0 12 12h32Z" fill="#CBD5E1"/>
+  <path d="M82 112h72M82 140h48" fill="none" stroke="#102A43" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="172" cy="172" r="30" fill="#2DD4BF"/>
+  <path d="m158 172 10 10 18-21" fill="none" stroke="#102A43" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

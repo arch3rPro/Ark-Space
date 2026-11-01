@@ -64,6 +64,7 @@ npx skills@latest update  # 手动更新已安装的技能
 | Skill | 用途 |
 | --- | --- |
 | [`askme`](skills/askme/SKILL.md) | 澄清影响结果的需求歧义，保持已确认约束，并纠正执行偏差。 |
+| [`notes`](skills/notes/SKILL.md) | 把调研结果写成可检索、可阅读的成品笔记，事实带来源，并做格式检查。 |
 | [`web`](skills/web/SKILL.md) | 查找、读取、发现、抓取或提取公共 Web 与实现证据。 |
 | [`research`](skills/research/SKILL.md) | 综合多个公共来源，产出有边界、带引用的报告。 |
 | [`browser`](skills/browser/SKILL.md) | 在自有远程浏览器 Session 中读取或改变动态页面状态。 |
@@ -71,6 +72,8 @@ npx skills@latest update  # 手动更新已安装的技能
 | [`weknora`](skills/weknora/SKILL.md) | 通过 REST API 检索、导入 WeKnora 知识库并基于其文档回答问题。 |
 | [`usegpt`](skills/usegpt/SKILL.md) | 通过本地 Artifact Hub 发布和使用 ChatGPT 输出。 |
 | [`gh-repo`](skills/gh-repo/SKILL.md) | 基于固定 revision 的源码证据分析 GitHub 项目架构、成熟度与借鉴取舍，并读取相关 issue/PR。 |
+
+`notes` 是指导加一个 Skill 本地 lint 脚本：起草不需要工具，仅 lint 步骤需要 Node.js 20+；不需要 `arks` CLI、网络、凭证或兄弟 Skills，可交付到任意目标（本地目录、Obsidian、WeKnora），目标不支持链接或索引时跳过。
 
 `askme` 是纯指导型 Skill：要求能够与用户继续对话，不需要 CLI、网络、凭证或兄弟 Skills。既可显式调用，也可由 Agent 在关键歧义或执行偏差出现时选择。明确的任务直接执行；需求对齐不会增加统一的批准步骤。
 

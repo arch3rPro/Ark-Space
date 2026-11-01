@@ -64,6 +64,7 @@ These commands apply to Skills tracked by the installer, not just ArkSpace. Back
 | Skill | Use it to… |
 | --- | --- |
 | [`askme`](skills/askme/SKILL.md) | Clarify consequential requirements, preserve agreed constraints, and correct execution drift. |
+| [`notes`](skills/notes/SKILL.md) | Write a finished, retrievable note from research results, with sourced facts and a lint check. |
 | [`web`](skills/web/SKILL.md) | Find, retrieve, map, crawl, or extract public Web and implementation evidence. |
 | [`research`](skills/research/SKILL.md) | Produce a bounded, cited synthesis across public sources. |
 | [`browser`](skills/browser/SKILL.md) | Inspect or change dynamic page state in an owned remote browser session. |
@@ -71,6 +72,8 @@ These commands apply to Skills tracked by the installer, not just ArkSpace. Back
 | [`weknora`](skills/weknora/SKILL.md) | Search, import, and answer questions over a WeKnora knowledge base through its REST API. |
 | [`usegpt`](skills/usegpt/SKILL.md) | Publish and consume ChatGPT outputs through the local Artifact Hub. |
 | [`gh-repo`](skills/gh-repo/SKILL.md) | Analyze GitHub project architecture, maturity, and borrowing tradeoffs with revision-pinned source evidence; inspect supporting issues/PRs. |
+
+`notes` is guidance plus one Skill-local lint script: drafting needs no tools, and only the lint step needs Node.js 20+. It needs no `arks` CLI, network, credentials, or sibling Skills, and works with any delivery target (local directory, Obsidian, WeKnora); it skips linking and indexing when the target lacks them.
 
 `askme` is guidance-only: it needs conversational follow-up, with no CLI, network, credentials, or sibling Skills. It can be invoked explicitly or selected by the Agent when a consequential ambiguity or execution mismatch needs resolution. Clear tasks proceed directly; alignment does not add a universal approval step.
 

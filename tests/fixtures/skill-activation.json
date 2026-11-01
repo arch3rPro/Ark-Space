@@ -101,5 +101,17 @@
       "Click the load-more button and verify the page state changed.",
       "Create a recurring weekly search that posts new results to my webhook."
     ]
+  },
+  "notes": {
+    "positive": [
+      "Turn these research results into a note I can add to my knowledge base.",
+      "Write a tool survey note from the evidence we gathered, with sources and dates.",
+      "Update my existing Obsidian note on this library using the new findings."
+    ],
+    "negative": [
+      "Search the public web for the latest release notes and return source URLs.",
+      "Produce a decision-ready research report comparing these vendors with citations.",
+      "Import this Markdown file into WeKnora and confirm it becomes searchable."
+    ]
   }
 }
