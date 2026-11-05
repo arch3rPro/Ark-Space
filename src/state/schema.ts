@@ -6,6 +6,8 @@ const KeyStateSchema = z
     cooldownUntil: z.number().int().nonnegative().optional(),
     lastFailure: z.string().optional(),
     consecutiveFailures: z.number().int().nonnegative(),
+    // Last time a real call or Setup test produced a result for this key; absent = never checked.
+    lastCheckedAt: z.number().int().nonnegative().optional(),
   })
   .strict();
 

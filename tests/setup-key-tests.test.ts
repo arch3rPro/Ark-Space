@@ -236,3 +236,18 @@ async function latestTemporaryDirectory(): Promise<string> {
 async function expectTemporaryCleanup() {
   await expect(access(await latestTemporaryDirectory())).rejects.toMatchObject({ code: "ENOENT" });
 }
+
+describe("setup key diagnostics and real state", () => {
+  it("records each tested key into the real state only when a state path is supplied", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "arkspace-record-"));
+    try {
+      const statePath = join(dir, "state.json");
+      const ok = registry(async request => ({ query: request.input.query, results: [] }));
+      await testSetupKeys({ config: twoKeyConfig(), provider: "exa", environment, providers: ok });
+      await expect(access(statePath)).rejects.toThrow();
+      await testSetupKeys({ config: twoKeyConfig(), provider: "exa", environment, providers: ok, recordStatePath: statePath });
+      const keys = JSON.parse(await readFile(statePath, "utf8")).providers.exa.keys as Record<string, { lastCheckedAt?: number }>;
+      expect(Object.values(keys).map(key => typeof key.lastCheckedAt)).toEqual(["number", "number"]);
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  });
+});

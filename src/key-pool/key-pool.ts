@@ -87,13 +87,18 @@ export async function recordKeyResult(
     const state = await loadState(statePath);
     const providerState = (state.providers[provider] ??= { cursor: 0, keys: {} });
     const keyState = (providerState.keys[keyId] ??= enabledKeyState());
-    // Operator disable survives late results, including failures from in-flight leases.
-    if (keyState.status === "disabled" && keyState.lastFailure === "operator-disabled") return;
+    // Operator disable survives late results, including failures from in-flight leases; only the checked time is recorded.
+    if (keyState.status === "disabled" && keyState.lastFailure === "operator-disabled") {
+      keyState.lastCheckedAt = now;
+      await writeJsonAtomic(statePath, state);
+      return;
+    }
     if (result.ok) {
       providerState.keys[keyId] = enabledKeyState();
     } else if (result.kind) {
       applyFailure(keyState, result.kind, providerConfig, result.retryAfterMs, now);
     }
+    (providerState.keys[keyId] ?? keyState).lastCheckedAt = now;
     await writeJsonAtomic(statePath, state);
   });
 }

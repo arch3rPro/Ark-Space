@@ -6,6 +6,7 @@ import { executeWebSearch } from "../capabilities/web-search.js";
 import { validateCredentialValue } from "../config/credentials.js";
 import type { ArkSpaceConfig } from "../config/schema.js";
 import { ProviderError } from "../errors/provider-error.js";
+import { keyIdFor, recordKeyResult } from "../key-pool/key-pool.js";
 import { resolveWebSearchInput } from "../protocol/schema.js";
 import type { FailureKind } from "../protocol/types.js";
 import { createSearchProviderRegistry, type SearchProviderRegistry } from "../providers/registry.js";
@@ -27,6 +28,8 @@ export async function testSetupKeys(options: {
   environment: NodeJS.ProcessEnv;
   providers?: SearchProviderRegistry;
   signal?: AbortSignal;
+  /** When set, each success/failure is also recorded in this real state file (cooldown and checked time), like a real call. */
+  recordStatePath?: string;
   /** 1-based reference position, before dispatch; unavailable or disabled targets do not start. */
   onStart?: (reference: string, index: number, total: number) => void;
   onResult?: (row: SetupKeyTestResult, completed: number, total: number) => void;
@@ -63,6 +66,11 @@ export async function testSetupKeys(options: {
           row = { reference, status: signal?.aborted ? "cancelled" : result.ok ? "success" : "failure", attemptCount: result.attempts.length,
             ...(result.ok ? {} : { errorKind: result.error.kind }),
           };
+          if (options.recordStatePath && row.status !== "cancelled") {
+            // A state-write failure must not abort the remaining tests.
+            await recordKeyResult(options.recordStatePath, provider, keyIdFor(provider, reference), entry,
+              result.ok ? { ok: true } : { ok: false, kind: result.error.kind }).catch(() => undefined);
+          }
         }
         row.completedAt = safeTime(Date.now());
         row.durationMs = safeTime(row.completedAt - startedAt);

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -14,6 +14,33 @@ afterEach(async () => {
 });
 
 describe("key pool", () => {
+  it("records when a key was last checked, on success and failure, and tolerates states without it", async () => {
+    const statePath = await temporaryStatePath();
+    const config = defaultConfig().providers.exa!;
+    config.keyRefs = ["env:EXA_API_KEY"];
+    const lease = await selectCredential(statePath, "exa", config, { EXA_API_KEY: "secret-one" });
+    expect((await readPublicState(statePath)).providers.exa?.keys[lease.keyId]?.lastCheckedAt).toBeUndefined();
+    await recordKeyResult(statePath, "exa", lease.keyId, config, { ok: true }, 1_000);
+    expect((await readPublicState(statePath)).providers.exa?.keys[lease.keyId]?.lastCheckedAt).toBe(1_000);
+    await recordKeyResult(statePath, "exa", lease.keyId, config, { ok: false, kind: "rate-limit" }, 2_000);
+    const failed = (await readPublicState(statePath)).providers.exa?.keys[lease.keyId];
+    expect([failed?.status, failed?.lastCheckedAt]).toEqual(["cooldown", 2_000]);
+  });
+
+  it("keeps a manually disabled key disabled but still records that it was checked", async () => {
+    const statePath = await temporaryStatePath();
+    const config = defaultConfig().providers.exa!;
+    config.keyRefs = ["env:EXA_API_KEY"];
+    const lease = await selectCredential(statePath, "exa", config, { EXA_API_KEY: "secret-one" });
+    const state = await readPublicState(statePath);
+    state.providers.exa!.keys[lease.keyId] = { status: "disabled", consecutiveFailures: 0, lastFailure: "operator-disabled" };
+    await writeFile(statePath, JSON.stringify(state));
+    await recordKeyResult(statePath, "exa", lease.keyId, config, { ok: true }, 5_000);
+    await recordKeyResult(statePath, "exa", lease.keyId, config, { ok: false, kind: "auth" }, 6_000);
+    const key = (await readPublicState(statePath)).providers.exa?.keys[lease.keyId];
+    expect([key?.status, key?.lastFailure, key?.lastCheckedAt]).toEqual(["disabled", "operator-disabled", 6_000]);
+  });
+
   it("selects concurrent callers through one round-robin transaction", async () => {
     const statePath = await temporaryStatePath();
     const config = defaultConfig().providers.exa!;
