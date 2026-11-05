@@ -84,10 +84,10 @@ node dist/cli/main.js setup exa
 # Choose a language for this session only:
 node dist/cli/main.js setup --lang zh
 node dist/cli/main.js setup exa --lang en
-# Any of the six contexts also accepts weknora or usegpt.
+# Any context also accepts weknora, nitter or usegpt.
 ```
 
-The Setup workbench (rebuilt in 0.1.3, running on a differential-rendering engine since 0.1.5) keeps three focus regions — Top, Menu, Content — cycled with Tab/Shift-Tab, and its Top strip spans six contexts (Exa, Tavily, Firecrawl, SearXNG, WeKnora, UseGPT); `arks setup <context>` deep-links into any page. Keys: `a` add, `e`/Enter edit, `i` details, `p` secure preview (`r` reveals; cleared on leave), `d` remove, Space toggles the selected key, `v` toggles the provider, `t` opens the Cancel-default test chooser (one pool round-robin test, or isolated per-key tests with Esc to stop), `u`/`d` reorder, Delete removes, `I` includes with confirmation, Ctrl-S saves drafts; connection pages act on rows with Enter as labeled. Secret entry is always masked, destructive or billable actions require a Cancel-default confirmation, SearXNG private-CIDR authorization is per-instance and never migrates between endpoints, environment-managed values stay read-only, opening setup issues no network request, non-TTY runs print one plain line without entering the alternate screen, and the terminal is always restored on exit. Automated Linux PTY qualification (`npm run test:setup`) covers all six contexts on the source build and an offline-installed entry; it uses standard-library Python 3 as a development-only prerequisite, not an end-user CLI dependency. Human usability, real services, and hosted Windows/macOS terminals remain unqualified. See [ADR 0016](docs/adr/accepted/0016-tui-provider-setup.md), [ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md), [ADR 0023](docs/adr/accepted/0023-pi-tui-setup-engine.md), [ADR 0024](docs/adr/accepted/0024-workbench-presentation-contract.md), and reference provenance in [NOTICE.md](NOTICE.md).
+The Setup workbench (rebuilt in 0.1.3, running on a differential-rendering engine since 0.1.5) keeps three focus regions — Top, Menu, Content — cycled with Tab/Shift-Tab, and its Top strip spans six contexts (Exa, Tavily, Firecrawl, SearXNG, WeKnora, UseGPT); `arks setup <context>` deep-links into any page. Keys: `a` add, `e`/Enter edit (the form shows the stored value masked; `Ctrl-R` reveals it, cleared when the form closes; a key that cannot be replaced, such as an environment key, opens the same view read-only), `d` remove, Space toggles the selected key (a provider is enabled or disabled on the Order page, not on its own page), `t` opens the Cancel-default test chooser (one pool round-robin test, or isolated per-key tests with Esc to stop), `u`/`d` reorder, Delete removes, `I` includes with confirmation, Ctrl-S saves drafts; connection pages act on rows with Enter as labeled. Secret entry is always masked, destructive or billable actions require a Cancel-default confirmation, SearXNG private-CIDR authorization is per-instance and never migrates between endpoints, environment-managed values stay read-only, opening setup issues no network request, non-TTY runs print one plain line without entering the alternate screen, and the terminal is always restored on exit. Automated Linux PTY qualification (`npm run test:setup`) covers all six contexts on the source build and an offline-installed entry; it uses standard-library Python 3 as a development-only prerequisite, not an end-user CLI dependency. Human usability, real services, and hosted Windows/macOS terminals remain unqualified. See [ADR 0016](docs/adr/accepted/0016-tui-provider-setup.md), [ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md), [ADR 0023](docs/adr/accepted/0023-pi-tui-setup-engine.md), [ADR 0024](docs/adr/accepted/0024-workbench-presentation-contract.md), and reference provenance in [NOTICE.md](NOTICE.md).
 
 Existing contracts remain: session-only `--lang en|zh` overrides saved `setupLanguage`; environment keys cannot be replaced, and unlinking references never changes external values; ownership/shared-reference guards, independent SearXNG enablement/order, narrow per-instance CIDR consent, explicit live-test consent, cancellation, and terminal restoration are preserved. Preview remains read-only and ephemeral, distinguishing stored from effective environment values without network or file writes. No-color rendering is supported.
 
@@ -108,6 +108,16 @@ arks provider list
 ```
 
 `arks key add` stores references only. In the workbench, open a new right-pane **Add** form for each additional key to append without deleting or replacing existing entries. If reference registration fails after a key is saved, the credential remains stored and the diagnostic identifies its reference without displaying the key. Do not paste keys into an Agent chat.
+
+## Nitter optional managed connection (unreleased)
+
+`x-search` reads X through a Nitter instance you operate. In a trusted terminal run:
+
+```bash
+arks setup nitter
+```
+
+Enter the instance address (`http(s)://host[:port]`) and a masked API token. Each is saved on its own, in either order. Saving stays offline. The consented verify sends one `GET /api/v1/health` and one `GET /api/v1/tools`; it checks the token and runs no search. Plain HTTP is allowed with a warning. Every later read spends your X session quota, and heavy use can get those accounts limited. A complete `NITTER_BASE_URL` + `NITTER_API_TOKEN` pair in your environment takes precedence; supplying only one is an error.
 
 ## WeKnora optional managed connection (0.1.4)
 

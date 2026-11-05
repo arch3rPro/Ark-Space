@@ -6,8 +6,9 @@ import { searxngInstanceIdFor } from "../providers/searxng-pool.js";
 import type { ArkSpaceState } from "../state/schema.js";
 import { loadCredentialStore as readCredentialStore, validateCredentialValue } from "./credentials.js";
 import type { ArkSpacePaths } from "./paths.js";
-import { ArkSpaceConfigSchema, SearxngInstanceSchema, WeknoraConnectionSchema, WEKNORA_MANAGED_KEY_REF, USEGPT_API_KEY_VARIABLE, defaultConfig, getSearxngConfig, type ArkSpaceConfig, type SetupLanguage, type WeknoraConnection } from "./schema.js";
+import { ArkSpaceConfigSchema, SearxngInstanceSchema, WeknoraConnectionSchema, WEKNORA_MANAGED_KEY_REF, NitterConnectionSchema, NITTER_MANAGED_KEY_REF, USEGPT_API_KEY_VARIABLE, defaultConfig, getSearxngConfig, type ArkSpaceConfig, type SetupLanguage, type WeknoraConnection } from "./schema.js";
 import { resolveWeknoraConnection, weknoraTransportWarnings } from "./weknora.js";
+import { nitterTransportWarnings, resolveNitterConnection } from "./nitter.js";
 
 const managedProviders = ["exa", "tavily", "firecrawl", "searxng"] as const;
 export type SetupProviderId = typeof managedProviders[number];
@@ -16,13 +17,14 @@ const defaultVariables = { exa: "EXA_API_KEY", tavily: "TAVILY_API_KEY", firecra
 export interface SetupKeySnapshot {
   reference: string; keyId: string; source: "local" | "environment" | "missing";
   hasLocal: boolean; available: boolean; status: string; ownedResources: number;
-  manualDisabled?: boolean; healthReason?: FailureKind | "operator-disabled"; cooldownRemainingMs?: number;
+  lastCheckedAt?: number; manualDisabled?: boolean; healthReason?: FailureKind | "operator-disabled"; cooldownRemainingMs?: number;
   sharedProviders?: ProviderId[];
-  sharedConnections?: ("weknora" | "usegpt")[];
+  sharedConnections?: ("weknora" | "nitter" | "usegpt")[];
   ownedResourceTypes?: { browserSessions: number; monitors: number; siteMonitors: number };
 }
 export interface SetupInstanceSnapshot {
   baseUrl: string; allowRanges: string[]; status: string; source?: "local" | "environment";
+  cooldownRemainingMs?: number; healthReason?: "rate-limit" | "network" | "transient";
 }
 export interface SetupProviderSnapshot {
   id: SetupProviderId; enabled: boolean; automaticPosition?: number; external?: boolean;
@@ -70,6 +72,7 @@ function target(config: ArkSpaceConfig, provider: KeyedProvider, reference: stri
 function references(config: ArkSpaceConfig, reference: string): number {
   return (config.connections?.usegpt?.apiKeyRef === reference ? 1 : 0) +
     (config.connections?.weknora?.apiKeyRef === reference ? 1 : 0) +
+    (config.connections?.nitter?.apiKeyRef === reference ? 1 : 0) +
     Object.values(config.providers).reduce((count, entry) => count + (entry?.keyRefs.filter(ref => ref === reference).length ?? 0), 0);
 }
 function secretValue(secret: string): string {
@@ -103,22 +106,27 @@ export async function getSetupSnapshot(paths: ArkSpacePaths, environment: NodeJS
           return { reference, keyId, hasLocal, available: value !== undefined && validateCredentialValue(value) !== undefined,
             source: environment[variable] !== undefined ? "environment" as const : hasLocal ? "local" as const : "missing" as const,
             status: expired ? "enabled" : metadata?.status ?? "enabled", ownedResources: owners(state, id, keyId),
+            ...(metadata?.lastCheckedAt ? { lastCheckedAt: metadata.lastCheckedAt } : {}),
             manualDisabled: metadata?.status === "disabled" && metadata.lastFailure === "operator-disabled",
             ...(metadata?.lastFailure && !expired ? { healthReason: metadata.lastFailure === "operator-disabled" ? "operator-disabled" as const : FAILURE_KINDS.includes(metadata.lastFailure as FailureKind) ? metadata.lastFailure as FailureKind : "unknown" as const } : {}),
             ...(!expired && (metadata?.status === "cooldown" || metadata?.status === "exhausted") ? { cooldownRemainingMs: Math.max(0, (metadata.cooldownUntil ?? 0) - Date.now()) } : {}),
             sharedProviders: PROVIDER_IDS.filter(other => other !== id && config.providers[other]?.keyRefs.some(ref => ref === reference)),
-            sharedConnections: (["weknora", "usegpt"] as const).filter(id => config.connections?.[id]?.apiKeyRef === reference),
+            sharedConnections: (["weknora", "nitter", "usegpt"] as const).filter(id => config.connections?.[id]?.apiKeyRef === reference),
             ownedResourceTypes: {
               browserSessions: Object.values(state.resources.browserSessions).filter(owner => owner.provider === id && owner.keyId === keyId).length,
               monitors: Object.values(state.resources.monitors).filter(owner => owner.provider === id && owner.keyId === keyId).length,
               siteMonitors: Object.values(state.resources.siteMonitors).filter(owner => owner.provider === id && owner.keyId === keyId).length,
             } };
         }),
-        instances: id === "searxng" ? (searxng?.instances ?? []).map(instance => ({
-          ...instance, allowRanges: [...instance.allowRanges], status: !entry?.enabled ? "disabled" :
-            (searxng?.instances.length ?? 0) > 1 && (state.searxng?.instances[searxngInstanceIdFor(instance.baseUrl)]?.cooldownUntil ?? 0) > Date.now() ? "cooldown" : "configured (not probed)",
-          source: config.providers.searxng ? "local" as const : "environment" as const,
-        })) : [],
+        instances: id === "searxng" ? (searxng?.instances ?? []).map(instance => {
+          const record = (searxng?.instances.length ?? 0) > 1 ? state.searxng?.instances[searxngInstanceIdFor(instance.baseUrl)] : undefined;
+          const cooling = (record?.cooldownUntil ?? 0) > Date.now();
+          return {
+            ...instance, allowRanges: [...instance.allowRanges], status: !entry?.enabled ? "disabled" : cooling ? "cooldown" : "configured (not probed)",
+            source: config.providers.searxng ? "local" as const : "environment" as const,
+            ...(cooling ? { cooldownRemainingMs: (record?.cooldownUntil ?? 0) - Date.now(), ...(record?.lastFailure ? { healthReason: record.lastFailure } : {}) } : {}),
+          };
+        }) : [],
       };
     }) };
   });
@@ -132,7 +140,7 @@ export async function addSetupKey(paths: ArkSpacePaths, provider: ProviderId, se
     const entry = config.providers[provider] ?? defaultConfig().providers[provider]!;
     const base = defaultVariables[provider]; let variable = base;
     const occupied = (name: string) => Object.hasOwn(store.values, name) || Object.hasOwn(environment, name) ||
-      config.connections?.weknora?.apiKeyRef === `env:${name}` || config.connections?.usegpt?.apiKeyRef === `env:${name}` ||
+      config.connections?.weknora?.apiKeyRef === `env:${name}` || config.connections?.nitter?.apiKeyRef === `env:${name}` || config.connections?.usegpt?.apiKeyRef === `env:${name}` ||
       Object.entries(config.providers).some(([id, item]) => item?.keyRefs.some(ref => ref === `env:${name}`) && (id !== provider || name !== base));
     for (let index = 1; occupied(variable); index++) variable = `${base}_${index}`;
     const reference = `env:${variable}`;
@@ -236,28 +244,31 @@ export async function getWeknoraConnectionSnapshot(paths: ArkSpacePaths, origina
         status: "configured (not tested)", sharedProviders: [], warnings: external.warnings };
     }
     const connection = config.connections?.weknora;
-    if (!connection) return undefined;
-    const store = await loadCredentialStore(paths.credentials); const variable = connection.apiKeyRef.slice(4);
+    const store = await loadCredentialStore(paths.credentials); const variable = WEKNORA_MANAGED_KEY_REF.slice(4);
     const conflict = Object.hasOwn(originalEnvironment, variable);
     const hasLocal = Object.hasOwn(store.values, variable);
-    return { ...connection, allowRanges: [...connection.allowRanges], source: conflict ? "environment-override" : "managed",
-      hasLocal, available: !conflict && hasLocal, status: conflict ? "conflict" : hasLocal ? "configured (not tested)" : "missing",
-      sharedProviders: PROVIDER_IDS.filter(id => config.providers[id]?.keyRefs.some(ref => ref === connection.apiKeyRef)),
-      warnings: weknoraTransportWarnings(connection.baseUrl) };
+    if (!connection && !hasLocal) return undefined;
+    // Address and key are saved independently, so either may exist alone.
+    return { ...(connection ?? { baseUrl: "", allowRanges: [] }), allowRanges: [...(connection?.allowRanges ?? [])], source: conflict ? "environment-override" : "managed",
+      hasLocal, available: !conflict && hasLocal && Boolean(connection), status: conflict ? "conflict" : hasLocal && connection ? "configured (not tested)" : "missing",
+      sharedProviders: PROVIDER_IDS.filter(id => config.providers[id]?.keyRefs.some(ref => ref === WEKNORA_MANAGED_KEY_REF)),
+      warnings: connection ? weknoraTransportWarnings(connection.baseUrl) : [] };
   });
 }
 
 /** No network or prompts. Legacy ranges are validated for compatibility, then reset on save. */
 export async function saveWeknoraConnection(
   paths: ArkSpacePaths,
-  settings: { baseUrl: string; allowRanges?: string[]; defaultKnowledgeBaseId?: string },
+  settings: { baseUrl?: string; allowRanges?: string[]; defaultKnowledgeBaseId?: string },
   secret: string | undefined,
   consent: { reuseSavedKey?: boolean; replaceSavedKey?: boolean; authorizePrivateRanges?: boolean },
   originalEnvironment: NodeJS.ProcessEnv,
 ): Promise<void> {
-  const parsed = WeknoraConnectionSchema.safeParse({ ...settings, apiKeyRef: WEKNORA_MANAGED_KEY_REF });
-  if (!parsed.success) fail("Invalid WeKnora API root or connection settings.");
-  parsed.data.allowRanges = [];
+  // Address and key are independent saves: baseUrl omitted = write only the key.
+  const parsed = settings.baseUrl === undefined ? undefined : WeknoraConnectionSchema.safeParse({ ...settings, apiKeyRef: WEKNORA_MANAGED_KEY_REF });
+  if (parsed && !parsed.success) fail("Invalid WeKnora API root or connection settings.");
+  if (!parsed && secret === undefined) fail("Nothing to save: supply an API root or a key.");
+  if (parsed?.success) parsed.data.allowRanges = [];
   const value = secret === undefined ? undefined : secretValue(secret);
   const variable = WEKNORA_MANAGED_KEY_REF.slice(4);
   if ([variable, "WEKNORA_BASE_URL", "WEKNORA_API_KEY"].some(name => Object.hasOwn(originalEnvironment, name))) {
@@ -266,12 +277,11 @@ export async function saveWeknoraConnection(
   await locked(paths, async () => {
     const config = await configFor(paths); const previous = config.connections?.weknora;
     const store = await loadCredentialStore(paths.credentials);
-    if (previous && previous.baseUrl !== parsed.data.baseUrl && (value === undefined || value === store.values[variable]) && consent.reuseSavedKey !== true) {
+    if (parsed?.success && previous && previous.baseUrl !== parsed.data.baseUrl && Object.hasOwn(store.values, variable) &&
+      (value === undefined || value === store.values[variable]) && consent.reuseSavedKey !== true) {
       fail("Changing the WeKnora API root requires explicit consent to reuse its saved key.");
     }
-    if (value === undefined) {
-      if (!previous || !store.values[variable]) fail("WeKnora has no saved key to reuse; supply a new credential explicitly.");
-    } else {
+    if (value !== undefined) {
       if (references(config, WEKNORA_MANAGED_KEY_REF) > (previous ? 1 : 0)) fail("The WeKnora reference is shared; unlink other uses before replacing its credential.");
       if (Object.hasOwn(store.values, variable) && store.values[variable] !== value && consent.replaceSavedKey !== true) {
         fail("An existing WeKnora credential requires explicit replacement consent; refresh setup before replacing it.");
@@ -279,6 +289,7 @@ export async function saveWeknoraConnection(
       store.values[variable] = value;
       await writeJsonAtomic(paths.credentials, store);
     }
+    if (!parsed?.success) return; // key-only save: no connection config is written
     (config.connections ??= {}).weknora = parsed.data;
     try { await writeJsonAtomic(paths.config, ArkSpaceConfigSchema.parse(config)); }
     catch {
@@ -291,16 +302,102 @@ export async function saveWeknoraConnection(
 export async function removeWeknoraConnection(paths: ArkSpacePaths): Promise<void> {
   await locked(paths, async () => {
     const config = await configFor(paths); const connection = config.connections?.weknora;
-    if (!connection) fail("WeKnora connection is no longer configured; refresh configuration.");
     const store = await loadCredentialStore(paths.credentials);
-    delete config.connections!.weknora;
-    if (!Object.keys(config.connections!).length) delete config.connections;
-    await writeJsonAtomic(paths.config, config);
-    const variable = connection.apiKeyRef.slice(4);
-    if (references(config, connection.apiKeyRef) === 0 && Object.hasOwn(store.values, variable)) {
+    const variable = WEKNORA_MANAGED_KEY_REF.slice(4);
+    if (!connection && !Object.hasOwn(store.values, variable)) fail("WeKnora connection is no longer configured; refresh configuration.");
+    if (connection) {
+      delete config.connections!.weknora;
+      if (!Object.keys(config.connections!).length) delete config.connections;
+      await writeJsonAtomic(paths.config, config);
+    }
+    if (references(config, WEKNORA_MANAGED_KEY_REF) === 0 && Object.hasOwn(store.values, variable)) {
       delete store.values[variable];
       try { await writeJsonAtomic(paths.credentials, store); }
       catch { fail("WeKnora reference was unlinked, but its local credential remains stored; inspect the orphaned credential before retrying."); }
+    }
+  });
+}
+
+export interface NitterConnectionSnapshot {
+  baseUrl: string; source: "managed" | "environment" | "environment-override";
+  available: boolean; hasLocal: boolean; status: "configured (not tested)" | "missing" | "conflict";
+  sharedProviders: ProviderId[]; warnings: string[];
+}
+
+/** Nonsecret metadata only. originalEnvironment must precede credential hydration. */
+export async function getNitterConnectionSnapshot(paths: ArkSpacePaths, originalEnvironment: NodeJS.ProcessEnv): Promise<NitterConnectionSnapshot | undefined> {
+  return locked(paths, async () => {
+    const config = await configFor(paths);
+    if (Object.hasOwn(originalEnvironment, "NITTER_BASE_URL") || Object.hasOwn(originalEnvironment, "NITTER_API_TOKEN")) {
+      try {
+        const external = (await resolveNitterConnection(config, paths.credentials, originalEnvironment))!;
+        return { source: "environment", baseUrl: external.baseUrl, available: true, hasLocal: false, status: "configured (not tested)", sharedProviders: [], warnings: external.warnings };
+      } catch { return { source: "environment", baseUrl: "", available: false, hasLocal: false, status: "conflict", sharedProviders: [], warnings: [] }; }
+    }
+    const connection = config.connections?.nitter;
+    const store = await loadCredentialStore(paths.credentials); const variable = NITTER_MANAGED_KEY_REF.slice(4);
+    const conflict = Object.hasOwn(originalEnvironment, variable);
+    const hasLocal = Object.hasOwn(store.values, variable);
+    if (!connection && !hasLocal) return undefined;
+    // Address and token are saved independently, so either may exist alone.
+    return { baseUrl: connection?.baseUrl ?? "", source: conflict ? "environment-override" : "managed", hasLocal, available: !conflict && hasLocal && Boolean(connection),
+      status: conflict ? "conflict" : hasLocal && connection ? "configured (not tested)" : "missing",
+      sharedProviders: PROVIDER_IDS.filter(id => config.providers[id]?.keyRefs.some(ref => ref === NITTER_MANAGED_KEY_REF)),
+      warnings: connection ? nitterTransportWarnings(connection.baseUrl) : [] };
+  });
+}
+
+/** No network or prompts. Any destination is allowed (ADR 0026); only the URL shape is validated. */
+export async function saveNitterConnection(
+  paths: ArkSpacePaths, baseUrl: string | undefined, secret: string | undefined,
+  consent: { reuseSavedKey?: boolean; replaceSavedKey?: boolean }, originalEnvironment: NodeJS.ProcessEnv,
+): Promise<void> {
+  // Address and token are independent saves: baseUrl omitted = write only the token.
+  const parsed = baseUrl === undefined ? undefined : NitterConnectionSchema.safeParse({ baseUrl, apiKeyRef: NITTER_MANAGED_KEY_REF });
+  if (parsed && !parsed.success) fail("Invalid Nitter base URL.");
+  if (!parsed && secret === undefined) fail("Nothing to save: supply an address or a token.");
+  const value = secret === undefined ? undefined : secretValue(secret);
+  const variable = NITTER_MANAGED_KEY_REF.slice(4);
+  if ([variable, "NITTER_BASE_URL", "NITTER_API_TOKEN"].some(name => Object.hasOwn(originalEnvironment, name))) {
+    fail("Nitter environment-managed configuration is read-only; change it externally.");
+  }
+  await locked(paths, async () => {
+    const config = await configFor(paths); const previous = config.connections?.nitter;
+    const store = await loadCredentialStore(paths.credentials);
+    if (parsed?.success && previous && previous.baseUrl !== parsed.data.baseUrl && Object.hasOwn(store.values, variable) &&
+      (value === undefined || value === store.values[variable]) && consent.reuseSavedKey !== true) {
+      fail("Changing the Nitter address requires explicit consent to reuse its saved token.");
+    }
+    if (value !== undefined) {
+      if (references(config, NITTER_MANAGED_KEY_REF) > (previous ? 1 : 0)) fail("The Nitter reference is shared; unlink other uses before replacing its credential.");
+      if (Object.hasOwn(store.values, variable) && store.values[variable] !== value && consent.replaceSavedKey !== true) {
+        fail("An existing Nitter token requires explicit replacement consent; refresh setup before replacing it.");
+      }
+      store.values[variable] = value;
+      await writeJsonAtomic(paths.credentials, store);
+    }
+    if (!parsed?.success) return; // token-only save: no connection config is written
+    (config.connections ??= {}).nitter = parsed.data;
+    try { await writeJsonAtomic(paths.config, ArkSpaceConfigSchema.parse(config)); }
+    catch { fail("Nitter connection save failed; inspect local configuration before retrying."); }
+  });
+}
+
+export async function removeNitterConnection(paths: ArkSpacePaths): Promise<void> {
+  await locked(paths, async () => {
+    const config = await configFor(paths); const connection = config.connections?.nitter;
+    const store = await loadCredentialStore(paths.credentials);
+    const variable = NITTER_MANAGED_KEY_REF.slice(4);
+    if (!connection && !Object.hasOwn(store.values, variable)) fail("Nitter connection is no longer configured; refresh configuration.");
+    if (connection) {
+      delete config.connections!.nitter;
+      if (!Object.keys(config.connections!).length) delete config.connections;
+      await writeJsonAtomic(paths.config, config);
+    }
+    if (references(config, NITTER_MANAGED_KEY_REF) === 0 && Object.hasOwn(store.values, variable)) {
+      delete store.values[variable];
+      try { await writeJsonAtomic(paths.credentials, store); }
+      catch { fail("Nitter reference was unlinked, but its local token remains stored; inspect it before retrying."); }
     }
   });
 }
@@ -320,12 +417,13 @@ export async function saveUseGptKey(paths: ArkSpacePaths, secret: string, replac
   });
 }
 
-export async function removeConnectionKey(paths: ArkSpacePaths, connection: "weknora" | "usegpt", environment: NodeJS.ProcessEnv): Promise<void> {
+export async function removeConnectionKey(paths: ArkSpacePaths, connection: "weknora" | "nitter" | "usegpt", environment: NodeJS.ProcessEnv): Promise<void> {
   await locked(paths, async () => {
     const config = await configFor(paths);
-    const reference = connection === "weknora" ? WEKNORA_MANAGED_KEY_REF : `env:${USEGPT_API_KEY_VARIABLE}`;
+    const reference = connection === "weknora" ? WEKNORA_MANAGED_KEY_REF : connection === "nitter" ? NITTER_MANAGED_KEY_REF : `env:${USEGPT_API_KEY_VARIABLE}`;
     const variable = reference.slice(4);
-    const external = connection === "weknora" ? [variable, "WEKNORA_BASE_URL", "WEKNORA_API_KEY"] : [variable];
+    const external = connection === "weknora" ? [variable, "WEKNORA_BASE_URL", "WEKNORA_API_KEY"]
+      : connection === "nitter" ? [variable, "NITTER_BASE_URL", "NITTER_API_TOKEN"] : [variable];
     if (external.some(name => Object.hasOwn(environment, name))) fail("The selected reference is environment-managed; change it externally.");
     if (references(config, reference) > (config.connections?.[connection] ? 1 : 0)) fail("The selected reference is shared; unlink other uses before removing its credential.");
     const store = await loadCredentialStore(paths.credentials);

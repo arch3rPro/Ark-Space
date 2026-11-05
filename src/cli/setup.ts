@@ -19,7 +19,7 @@ export async function runSetup(paths: ArkSpacePaths, options: SetupOptions = {})
   }
   const environment = options.environment ?? { ...process.env };
   let language = initialSetupLanguage(options.language, undefined, environment);
-  if (options.provider !== undefined && options.provider !== "weknora" && options.provider !== "usegpt" && !PROVIDERS.includes(options.provider as typeof PROVIDERS[number])) {
+  if (options.provider !== undefined && options.provider !== "weknora" && options.provider !== "nitter" && options.provider !== "usegpt" && !PROVIDERS.includes(options.provider as typeof PROVIDERS[number])) {
     throw new ProviderError(setupMessage(language, "unsupportedProvider"), { kind: "invalid-request" });
   }
   try {

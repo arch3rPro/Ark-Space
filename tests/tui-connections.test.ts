@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { resolveArkSpacePaths } from "../src/config/paths.js";
 import { addEnvironmentKey, initializeConfig, loadConfig } from "../src/config/store.js";
 import { loadCredentialStore, storeCredential } from "../src/config/credentials.js";
@@ -58,11 +58,11 @@ it("provider removal preserves credentials still referenced by UseGPT", async ()
   expect((await loadCredentialStore(paths.credentials)).values.CONTROL_PLANE_API_KEY).toBe("fixture-local-secret");
 });
 
-it.each([4, 5])("connection %s key rows expose real edit/details/preview/remove actions without pool/toggle fiction", async context => {
+it.each([4, 5])("connection %s key rows expose real edit/remove actions without pool/toggle fiction", async context => {
   const s = await state(context);
   if (context === 4) s.weknora = { baseUrl: "https://kb.example/api/v1", apiKeyRef: "env:ARKSPACE_WEKNORA_API_KEY", allowRanges: [], source: "managed", available: true, hasLocal: true, status: "configured (not tested)", sharedProviders: [], warnings: [] };
   const defs = actionDefs(s);
-  expect(defs.map(d => d.key)).toEqual(["e", "i", "p", "d"]);
+  expect(defs.map(d => d.key)).toEqual(["e", "d"]);
   expect(reduce(s, { type: "keyRemoveStart" }).state.modal?.cursor).toBe(0);
   expect(reduce(s, { type: "keyEdit" }).state.form?.field).toBe("secret");
   const adding = reduce(s, { type: "keyAdd" });
@@ -70,13 +70,17 @@ it.each([4, 5])("connection %s key rows expose real edit/details/preview/remove 
   expect(adding.effects).toEqual([]);
 });
 
-it("UseGPT environment and invalid overrides cannot open key editing or removal", async () => {
+it("UseGPT environment and invalid overrides open the key read-only and cannot be removed", async () => {
   const s = await state();
   for (const keySource of ["environment", "invalid"] as const) {
     const external = { ...s, usegpt: { ...s.usegpt!, keySource } };
-    expect(reduce(external, { type: "keyEdit" }).state.mode).toBe("browse");
+    const opened = reduce(external, { type: "keyEdit" });
+    expect(opened.state.form?.readonly).toBeTruthy();
+    expect(opened.effects).toEqual([{ type: "formCurrent", provider: "usegpt", reference: "env:CONTROL_PLANE_API_KEY" }]);
+    expect(reduce(opened.state, { type: "formSave" }).effects).toEqual([]);
+    expect(reduce(opened.state, { type: "formType", text: "x" }).state.form?.draft).toBe("");
     expect(reduce(external, { type: "keyRemoveStart" }).state.modal).toBeNull();
-    expect(actionDefs(external).map(d => d.key)).toEqual(["i", "p"]);
+    expect(actionDefs(external).map(d => d.key)).toEqual(["e"]);
   }
 });
 
@@ -129,4 +133,108 @@ it("UseGPT restore clears settings but preserves credentials and existing data",
   expect((await loadConfig(paths.config)).connections?.usegpt).toBeUndefined();
   expect(await readFile(paths.credentials, "utf8")).toBe(before);
   expect(await readFile(file, "utf8")).toBe("keep artifact");
+});
+
+it("connection field rows follow the a/e contract: a adds an empty field, e edits a set one, action rows keep Enter", async () => {
+  const { initialState, reduce, connectionRow } = await import("../src/tui/controller.js");
+  const base = { ...initialState("en", "", 7), snapshot: { providers: [], providerOrder: [] }, loading: false };
+  const nitter = (baseUrl: string, hasLocal: boolean) => ({ baseUrl, source: "managed", available: hasLocal, hasLocal, status: "configured (not tested)", sharedProviders: [], warnings: [] }) as never;
+  const empty = { ...base, region: "content" as const };
+  expect(connectionRow(empty)).toEqual({ kind: "edit", filled: false });
+  expect(reduce(empty, { type: "keyAdd" }).state.form?.intent).toBe("nitterUrl");
+  const set = { ...empty, nitter: nitter("http://n.example", true) };
+  expect(connectionRow(set)).toEqual({ kind: "edit", filled: true });
+  expect(reduce(set, { type: "keyAdd" }).state.form).toBeNull();
+  expect(reduce(set, { type: "keyEdit" }).state.form?.intent).toBe("nitterUrl");
+  const verify = { ...set, row: 2 };
+  expect(connectionRow(verify)).toEqual({ kind: "action" });
+  expect(reduce(verify, { type: "keyAdd" }).state.form).toBeNull();
+});
+
+it("saving an address or a key alone never chains into the other field and writes immediately", async () => {
+  const { initialState, reduce } = await import("../src/tui/controller.js");
+  const form = (intent: "nitterUrl" | "nitterKey" | "wekUrl" | "wekKey", draft: string, provider: "nitter" | "weknora") =>
+    ({ ...initialState("en", "", provider === "nitter" ? 7 : 4), snapshot: { providers: [], providerOrder: [] }, loading: false, mode: "form" as const,
+      form: { provider, reference: null, draft, typing: false, intent, field: intent.endsWith("Key") ? "secret" as const : "url" as const } });
+  for (const [urlIntent, keyIntent, provider, kind, url] of [
+    ["nitterUrl", "nitterKey", "nitter", "nitterSave", "http://n.example"],
+    ["wekUrl", "wekKey", "weknora", "wekSave", "https://kb.example/api/v1"],
+  ] as const) {
+    const saveUrl = reduce(form(urlIntent, url, provider), { type: "formSave" });
+    expect(saveUrl.state.form).toBeNull();
+    expect(saveUrl.effects).toEqual([{ type: "op", op: { kind, field: "url", value: url, reuseSavedKey: false } }]);
+    const saveKey = reduce(form(keyIntent, "secret-value", provider), { type: "formSave" });
+    expect(saveKey.state.form).toBeNull();
+    expect(saveKey.effects).toEqual([{ type: "op", op: { kind, field: "key", value: "secret-value", reuseSavedKey: false } }]);
+  }
+});
+
+it("Esc closes an unchanged edit form at once and only asks before discarding real changes", async () => {
+  const { initialState, reduce } = await import("../src/tui/controller.js");
+  const nitter = { baseUrl: "http://n.example", hasLocal: true, available: true, sharedProviders: [], warnings: [], source: "managed", status: "ok" };
+  const open = { ...initialState("en", "", 7), snapshot: { providers: [], providerOrder: [] }, loading: false, region: "content" as const, nitter } as never;
+  const edit = reduce(open, { type: "keyEdit" }).state;
+  expect(edit.mode).toBe("form");
+  // the address form opens empty and already typing; the old address is context, not a prefilled draft
+  expect(edit.form).toMatchObject({ draft: "", typing: true, previous: "http://n.example" });
+  expect(reduce(edit, { type: "escape" }).state.mode).toBe("browse");
+  const typed = reduce(edit, { type: "formType", text: "x" }).state;
+  expect(reduce(typed, { type: "escape" }).state.modal?.tag).toBe("form-discard");
+  // typing then deleting back to empty is untouched again
+  expect(reduce(reduce(typed, { type: "formBackspace" }).state, { type: "escape" }).state.mode).toBe("browse");
+});
+
+describe("connection address and text forms", () => {
+  const strip = (text: string) => text.replace(/\x1b\[[0-9;]*m/g, "");
+  const wek = { baseUrl: "https://kb.example/api/v1", apiKeyRef: "env:ARKSPACE_WEKNORA_API_KEY", allowRanges: [], source: "managed", available: true, hasLocal: true, status: "ok", sharedProviders: [], warnings: [], defaultKnowledgeBaseId: "kb1" };
+  const usegpt = { configured: true, daemonRunning: false, tunnelRunning: false, tunnelId: "tunnel_abcdefgh", dataDir: "/data", savedKey: true, keySource: "file", sharedProviders: [] };
+  const base = async (context: number, row: number, extra: object) => {
+    const { initialState } = await import("../src/tui/controller.js");
+    return { ...initialState("en", "", context), snapshot: { providers: [], providerOrder: [] }, loading: false, region: "content" as const, row, ...extra } as never;
+  };
+
+  it("opens typing with an empty draft and shows the old value above the new one, aligned", async () => {
+    const { reduce } = await import("../src/tui/controller.js");
+    const { pageLines } = await import("../src/tui/view.js");
+    const cases: [number, number, object, string, string][] = [
+      [4, 0, { weknora: wek }, "https://kb.example/api/v1", "new endpoint"], [4, 2, { weknora: wek }, "kb1", "new value"],
+      [5, 3, { usegpt }, "tunnel_abcdefgh", "new value"], [5, 4, { usegpt }, "/data", "new value"],
+    ];
+    for (const [context, row, extra, old, label] of cases) {
+      const form = reduce(await base(context, row, extra), { type: "keyEdit" }).state;
+      expect(form.form).toMatchObject({ draft: "", typing: true, previous: old });
+      const lines = pageLines(form, 100).map(strip);
+      const cur = lines.find(l => l.includes(old))!, next = lines.find(l => l.includes(label))!;
+      expect(cur.indexOf(old)).toBe(next.indexOf("|"));
+      expect(lines.join("\n")).not.toMatch(/\d+ characters/); // no length line for plain values
+    }
+  });
+
+  it("an empty save is refused for addresses and tunnel/dir; the default knowledge base keeps its documented 'empty clears'", async () => {
+    const { reduce } = await import("../src/tui/controller.js");
+    const wekUrl = reduce(await base(4, 0, { weknora: wek }), { type: "keyEdit" }).state;
+    expect(reduce(wekUrl, { type: "formSave" }).effects).toEqual([]);
+    const kb = reduce(await base(4, 2, { weknora: wek }), { type: "keyEdit" }).state;
+    expect(reduce(kb, { type: "formSave" }).effects[0]).toMatchObject({ op: { kind: "wekSave", field: "kb", value: "" } });
+  });
+
+  it("uses one name per concept: endpoint and token labels match their rows", async () => {
+    const { reduce } = await import("../src/tui/controller.js");
+    const { pageLines } = await import("../src/tui/view.js");
+    const nitter = { ...wek, defaultKnowledgeBaseId: undefined };
+    const token = reduce(await base(7, 1, { nitter }), { type: "keyEdit" }).state;
+    expect(pageLines(token, 100).map(strip).join("\n")).toContain("new token");
+    const empty = reduce(await base(7, 1, { nitter: { ...nitter, hasLocal: false } }), { type: "keyEdit" }).state;
+    expect(pageLines(empty, 100).map(strip).join("\n")).toContain("API token");
+    const add = reduce(await base(7, 0, { nitter: null }), { type: "keyEdit" }).state;
+    expect(pageLines(add, 100).map(strip).join("\n")).toContain("API endpoint");
+  });
+
+  it("an environment-managed connection advertises no dead e/Enter on its non-key rows", async () => {
+    const { actionDefs } = await import("../src/tui/view.js");
+    const external = { ...wek, source: "environment", hasLocal: false };
+    for (const row of [0, 2, 3, 4]) expect(actionDefs(await base(4, row, { weknora: external }))).toEqual([]);
+    expect(actionDefs(await base(4, 1, { weknora: external })).map(d => d.key)).toEqual(["e"]); // the key row still opens read-only
+    expect(actionDefs(await base(4, 0, { weknora: wek })).map(d => d.key)).toEqual(["e"]);
+  });
 });

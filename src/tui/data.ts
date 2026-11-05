@@ -3,23 +3,24 @@
  * never writes, probes, or logs secret material (ADR 0016 boundary).
  */
 import { loadCredentialStore, loadCredentialEnvironment, validateCredentialValue } from "../config/credentials.js";
-import { getSetupSnapshot, getWeknoraConnectionSnapshot } from "../config/manage.js";
+import { getSetupSnapshot, getWeknoraConnectionSnapshot, getNitterConnectionSnapshot } from "../config/manage.js";
 import { loadConfig } from "../config/store.js";
 import { diagnoseUseGpt } from "../usegpt/services.js";
 import { PROVIDER_IDS } from "../protocol/types.js";
 import { USEGPT_API_KEY_VARIABLE } from "../config/schema.js";
 import type { ArkSpacePaths } from "../config/paths.js";
 import type { PreviewSource, UseGptStatus } from "./controller.js";
-import type { WeknoraConnectionSnapshot } from "../config/manage.js";
+import type { WeknoraConnectionSnapshot, NitterConnectionSnapshot } from "../config/manage.js";
 
 export { getSetupSnapshot };
 
-export interface ConnectionSnapshot { weknora: WeknoraConnectionSnapshot | null; usegpt: UseGptStatus }
+export interface ConnectionSnapshot { weknora: WeknoraConnectionSnapshot | null; nitter: NitterConnectionSnapshot | null; usegpt: UseGptStatus }
 
 /** Connection state for contexts 4/5. Reads disk + liveness signals only; never writes or probes the network. */
 export async function getConnections(paths: ArkSpacePaths, environment: NodeJS.ProcessEnv): Promise<ConnectionSnapshot> {
-  const [weknora, config, store, d] = await Promise.all([
+  const [weknora, nitter, config, store, d] = await Promise.all([
     getWeknoraConnectionSnapshot(paths, environment),
+    getNitterConnectionSnapshot(paths, environment),
     loadConfig(paths.config),
     loadCredentialStore(paths.credentials),
     diagnoseUseGpt(environment),
@@ -32,6 +33,7 @@ export async function getConnections(paths: ArkSpacePaths, environment: NodeJS.P
     : savedKey ? "file" : "missing";
   return {
     weknora: weknora ?? null,
+    nitter: nitter ?? null,
     usegpt: {
       configured: d.configured, daemonRunning: d.daemonRunning, tunnelRunning: d.tunnelRunning, issues: d.issues,
       tunnelId: ug?.tunnelId, dataDir: ug?.dataDir, keySource, savedKey,
@@ -56,6 +58,9 @@ export async function loadPreview(
     const wk = await getWeknoraConnectionSnapshot(paths, environment);
     const expected = wk?.source === "environment" ? "env:WEKNORA_API_KEY" : wk?.apiKeyRef;
     if (reference !== expected) return { kind: "changed" };
+  } else if (providerId === "nitter") {
+    const n = await getNitterConnectionSnapshot(paths, environment);
+    if (reference !== (n?.source === "environment" ? "env:NITTER_API_TOKEN" : "env:ARKSPACE_NITTER_API_TOKEN")) return { kind: "changed" };
   } else if (providerId === "usegpt") {
     if (reference !== `env:${USEGPT_API_KEY_VARIABLE}`) return { kind: "changed" };
   } else {

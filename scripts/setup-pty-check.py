@@ -222,9 +222,9 @@ def run(entry):
             session.wait('[SearXNG]')
             first = session.screen().splitlines()[0]
             check('top strip carries the four engines plus the order tab', all('[' + n + ']' in first for n in ['Exa', 'Tavily', 'Firecrawl', 'SearXNG', 'Order']) and 'WeKnora' not in first and 'UseGPT' not in first)
-            check('menu lists the five pages', all(x in session.screen() for x in ['Search', 'Knowledge', 'Tools', 'Settings', 'Exit']) and '│   Order' not in session.screen() and '│   Diagnostics' not in session.screen())  # order rides the strip; diagnostics merged into engine pages
-            session.send('\t\t')
-            check('Tab focuses top then menu then content', 'env:EXA_API_KEY' in session.screen() and '[Space]' in session.screen())  # 80-col action row is keys-only
+            check('menu lists the six pages', all(x in session.screen() for x in ['Search', 'Social media', 'Knowledge', 'Tools', 'Settings', 'Exit']) and '│   Order' not in session.screen() and '│   Diagnostics' not in session.screen())  # order rides the strip; diagnostics merged into engine pages
+            session.send('\t')
+            check('Tab from the strip enters content (menu -> top -> content -> menu)', 'env:EXA_API_KEY' in session.screen() and '[Space]' in session.screen())  # 80-col action row is keys-only
 
             # add key: masked entry persists a new reference with 0600 credentials
             session.send('a')
@@ -257,16 +257,15 @@ def run(entry):
             session.send(' ')
             session.wait('env:EXA_API_KEY enabled')
 
-            # preview: masked by default, r reveals, leaving clears
-            session.send('p')
-            session.wait('Key preview')
-            check('preview source uses local storage wording', 'local storage' in session.screen())
-            check('preview starts masked', KEY not in session.screen())
-            session.send('r')
+            # edit shows the stored value: masked by default, Ctrl-R reveals, leaving clears
+            session.send('e')
+            session.wait('local storage')
+            check('edit form shows the stored value masked', 'local storage' in session.screen() and KEY not in session.screen())
+            session.send('\x12')
             session.wait(KEY)
             session.send('\x1b')
             session.wait('env:EXA_API_KEY')
-            check('preview value cleared on leave', KEY not in session.screen())
+            check('stored value cleared when the edit form closes', KEY not in session.screen())
 
             # remove the synthetic third key again (its secret is unknown to the fixture)
             session.send('\x1b[B\x1b[B')
@@ -288,7 +287,10 @@ def run(entry):
             session.send('t\x1b[B\x1b[B\r')
             session.wait('Keys: 1/2 passed')
             check('all-key test attempts A then B exactly once', trace.read_text().splitlines() == ['A', 'B'])
-            check('all-key diagnostics preserve config/credentials/normal state', fingerprint(home) == before)
+            after = fingerprint(home)
+            check('all-key diagnostics preserve config and credentials', all(after.get(n) == before.get(n) for n in ('config.json', 'credentials.json')))
+            tested = json.loads((home / 'state.json').read_text())['providers']['exa']['keys']
+            check('all-key diagnostics record a checked time per tested key', len(tested) == 2 and all(isinstance(k.get('lastCheckedAt'), int) for k in tested.values()))
 
             # P9: per-key results render under the keys on the engine page itself
             session.wait('failure')
@@ -300,7 +302,8 @@ def run(entry):
             check('pool run issues exactly one request', trace.read_text().splitlines()[-1] == 'A')
 
             # order draft: swap shows unsaved, Ctrl-S persists
-            session.send('\t\x1b[C\x1b[C\x1b[C\x1b[C\r')   # strip: Exa -> ... -> [Order]
+            session.send('\x1b')   # content -> top strip
+            session.send('\x1b[C\x1b[C\x1b[C\x1b[C\r')   # strip: Exa -> ... -> [Order], Enter enters content
             session.wait('1.')
             session.send('\x1b[A')                 # cursor onto the first row
             before_order = json.loads((home / 'config.json').read_text())['providerOrder']
@@ -314,7 +317,7 @@ def run(entry):
             check('order save changed the persisted sequence', after_order != before_order)
 
             # searxng private endpoint requires an explicit per-instance grant
-            session.send('\t')             # content -> top strip (page is Order via the pseudo tab)
+            session.send('\x1b')           # content -> top strip (page is Order via the pseudo tab)
             session.send('\x1b[D')         # left neighbour of [Order] is [SearXNG]
             session.send('\r')             # enter content so the page-scoped letters apply
             session.wait('no instances')
@@ -348,7 +351,7 @@ def run(entry):
         session = Session(entry, home, trace)
         try:
             session.wait('[SearXNG]')
-            session.send('\t\t')
+            session.send('\t')
             before = fingerprint(home)
             session.send('t\x1b[B\x1b[B\r')
             session.until(lambda: trace.read_text().splitlines() == ['A', 'B', 'C'] and '2/4' in session.screen(),
@@ -363,58 +366,50 @@ def run(entry):
                 check('partial result ' + reference + ' ' + status,
                       any(reference in line and status in line for line in screen.splitlines()))
             check('Esc never submits pending D', trace.read_text().splitlines() == ['A', 'B', 'C'])
-            check('partial diagnostics preserve normal state', fingerprint(home) == before)
+            after = fingerprint(home)
+            check('partial diagnostics preserve config and credentials', all(after.get(n) == before.get(n) for n in ('config.json', 'credentials.json')))
             session.send('q\x1b[B\r')
             session.until(lambda: session.proc.poll() is not None, 'exit after cancellation')
         finally:
             session.finish([KEY + '-z', KEY + '-y'])
 
-        # ---- WeKnora deep link: masked chain save, guards, consented verify cancel ----
+        # ---- WeKnora deep link: independent masked key and endpoint saves, guards, consented verify cancel ----
         home = base / 'weknora'
         prepare(entry, home, trace, 1)
         session = Session(entry, home, trace, columns=100, service='weknora')
         try:
             session.wait('API endpoint')
-            check('weknora deep link opens content focus directly', 'verify connection' in session.screen() and '[a]' not in session.screen())
-            empty = fingerprint(home)
+            check('weknora deep link opens content focus on the endpoint field row', 'verify connection' in session.screen() and '[a] add' in session.screen() and '[Space]' not in session.screen())
             session.send('\x1b[B')
             session.send('a')
             session.wait('WeKnora API key')
             session.send(KEY)
             session.send('\r\x13')
-            session.wait('WeKnora is not configured yet')
-            check('key without endpoint fails safely, masked, unwritten', KEY not in session.screen() and fingerprint(home) == empty and trace.read_text() == '')
-            # the failed form already closed itself; move up and start with the endpoint
+            session.wait('WeKnora connection saved')
+            check('key alone saves immediately, masked, without an endpoint', KEY not in session.screen() and 'connections' not in json.loads((home / 'config.json').read_text()) and trace.read_text() == '')
             session.send('\x1b[A')
-            session.send('e')
-            session.send('\r')          # start typing in the prefilled field
+            session.send('a')
             session.send('https://kb.example/api/v1')
-            session.send('\r\x13')       # save chains straight into the key field
-            session.wait('WeKnora API key')  # chained second field, one write
-            session.send(KEY)
-            session.send('\r\x13')
+            session.send('\r\x13')       # endpoint saves on its own, no key prompt
             session.wait('WeKnora connection saved')
             connection = json.loads((home / 'config.json').read_text())['connections']['weknora']
-            check('chained setup stores prefix endpoint', connection['baseUrl'] == 'https://kb.example/api/v1')
+            check('endpoint saves independently and stores the prefix endpoint', connection['baseUrl'] == 'https://kb.example/api/v1' and 'WeKnora API key' not in session.screen())
             check('credential stored separately from config', json.loads((home / 'credentials.json').read_text())['values']['ARKSPACE_WEKNORA_API_KEY'] == KEY and KEY not in (home / 'config.json').read_text())
             session.send('\x1b[B\x1b[B')     # knowledge base row
-            session.send('e')                 # prefilled edit: e starts editing
+            session.send('a')                 # empty field: a adds it, already typing
             session.send('kb-pty')
             session.send('\r\x13')
             session.wait('WeKnora connection saved')
             check('knowledge base row updates only the default', json.loads((home / 'config.json').read_text())['connections']['weknora']['defaultKnowledgeBaseId'] == 'kb-pty')
             # the singleton key row uses the same visible i/p/d/e/a vocabulary
             session.send('\x1b[A')          # default knowledge base -> API key
-            check('WeKnora key actions are visible without pool/toggle fiction', all(x in session.screen() for x in ['[e]', '[i]', '[p]', '[d]']) and '[Space]' not in session.screen() and '[t]' not in session.screen())
+            check('WeKnora key actions are visible without pool/toggle fiction', all(x in session.screen() for x in ['[e]', '[d]']) and '[p]' not in session.screen() and '[Space]' not in session.screen() and '[t]' not in session.screen())
             before = fingerprint(home)
-            session.send('p')
-            session.wait('Key preview')
-            check('WeKnora preview stays masked and offline', KEY not in session.screen() and fingerprint(home) == before and trace.read_text() == '')
+            session.send('e')
+            session.wait('local storage')
+            check('WeKnora edit shows the stored key masked and stays offline', KEY not in session.screen() and fingerprint(home) == before and trace.read_text() == '')
             session.send('\x1b')
-            session.send('i')
-            session.wait('Details')
-            check('WeKnora details name local storage', 'local storage' in session.screen() and KEY not in session.screen())
-            session.send('\x1b')
+            check('WeKnora key row has no separate details view', '[i]' not in session.screen() and 'local storage' in session.screen() and KEY not in session.screen())
             session.send('d')
             session.wait('Delete only the local key')
             session.send('\r')
@@ -440,6 +435,35 @@ def run(entry):
             session.until(lambda: session.proc.poll() is not None, 'weknora exit')
         finally:
             session.finish([])
+
+        # ---- Nitter deep link: address and token save independently; verify defaults Cancel ----
+        home = base / 'nitter'
+        prepare(entry, home, trace, 1)
+        session = Session(entry, home, trace, columns=100, service='nitter')
+        try:
+            session.wait('API endpoint')
+            check('nitter deep link opens the Nitter page', '[Nitter]' in session.screen() and 'API token' in session.screen() and 'verify connection' in session.screen())
+            session.send('a')
+            session.send('http://127.0.0.1:9')
+            session.send('\r\x13')
+            session.wait('Nitter connection saved')
+            check('nitter address saves on its own without a token prompt', json.loads((home / 'config.json').read_text())['connections']['nitter']['baseUrl'] == 'http://127.0.0.1:9' and 'Nitter API token' not in session.screen() and trace.read_text() == '')
+            session.send('\x1b[B')
+            session.send('a')
+            session.wait('Nitter API token')
+            session.send(KEY)
+            session.send('\r\x13')
+            session.wait('Nitter connection saved')
+            check('nitter token is stored separately and masked', json.loads((home / 'credentials.json').read_text())['values']['ARKSPACE_NITTER_API_TOKEN'] == KEY and KEY not in (home / 'config.json').read_text() and KEY not in session.screen())
+            before = fingerprint(home)
+            session.send('\x1b[B\r')
+            session.wait('GET /api/v1/health')
+            session.send('\r')
+            check('nitter verify defaults Cancel, sends nothing and writes nothing', fingerprint(home) == before and trace.read_text() == '')
+            session.send('q\x1b[B\r')
+            session.until(lambda: session.proc.poll() is not None, 'nitter exit')
+        finally:
+            session.finish([KEY])
 
         # ---- UseGPT deep link: status, diagnosis, start consent defaults Cancel ----
         home = base / 'usegpt'
@@ -468,11 +492,10 @@ def run(entry):
             session.send('\x1b[B\r')        # down from Diagnose to Tunnel ID
             session.wait('UseGPT Tunnel ID')
             empty = fingerprint(home)
-            session.send('\r')                 # start typing
-            session.send('nope')
+            session.send('nope')               # the field form opens already typing
             session.send('\r\x13')
             check('invalid tunnel id is refused without writing', 'must be tunnel_' in session.screen() and fingerprint(home) == empty)
-            session.send('e')                 # resume editing the retained draft
+            session.send('\r')               # Enter resumes editing the retained draft
             session.send('\x7f\x7f\x7f\x7f')     # backspace over 'nope'
             session.send('tunnel_pty_00000001')
             session.send('\r\x13')
@@ -485,16 +508,13 @@ def run(entry):
             check('secret entry never echoes', KEY not in session.screen())
             session.send('\r\x13')
             session.wait('UseGPT API key saved')
-            check('UseGPT key row advertises consistent actions', all(x in session.screen() for x in ['[e]', '[i]', '[p]', '[d]']) and '[Space]' not in session.screen())
+            check('UseGPT key row advertises consistent actions', all(x in session.screen() for x in ['[e]', '[d]']) and '[p]' not in session.screen() and '[Space]' not in session.screen())
             before = fingerprint(home)
-            session.send('p')
-            session.wait('Key preview')
-            check('UseGPT preview is masked and read-only', KEY not in session.screen() and fingerprint(home) == before)
+            session.send('e')
+            session.wait('local storage')
+            check('UseGPT edit shows the stored key masked and writes nothing', KEY not in session.screen() and fingerprint(home) == before)
             session.send('\x1b')
-            session.send('i')
-            session.wait('Details')
-            check('UseGPT details identify local storage', 'local storage' in session.screen())
-            session.send('\x1b')
+            check('UseGPT key row has no separate details view', '[i]' not in session.screen() and 'local storage' in session.screen())
             session.send('e')
             session.wait('UseGPT API key')
             session.send(KEY + '-changed')
@@ -536,13 +556,15 @@ def run(entry):
         try:
             session.wait('[SearXNG]')
             check('kitty negotiation was answered and activated', session.kitty_answered)
-            session.key('\t', '\x1b[9;1:3~')       # top -> menu
+            session.key('\t', '\x1b[9;1:3~')       # top -> content
+            session.key('\t', '\x1b[9;1:3~')       # content -> menu
             session.key('\x1b[B', '\x1b[1;1:3B')   # one down step; the release must not move again
             time.sleep(0.2)
             check('kitty release events do not double-step the menu',
-                  '> Knowledge' in session.screen() and '> Tools' not in session.screen() and '> Settings' not in session.screen())
+                  '> Social media' in session.screen() and '> Knowledge' not in session.screen() and '> Settings' not in session.screen())
             session.key('\x1b[A', '\x1b[1;1:3A')   # back to Search so the key letters belong to the page
-            session.key('\t', '\x1b[9;1:3~')       # menu -> content
+            session.key('\t', '\x1b[9;1:3~')       # menu -> top
+            session.key('\t', '\x1b[9;1:3~')       # top -> content
             session.key('\x1b[97u', '\x1b[97;1:3u')  # 'a' as kitty sends it with flag 1
             session.wait('Add key')
             check('CSI-u printable letters drive the form', True)
@@ -574,7 +596,7 @@ def run(entry):
             session.wait('[Exa]')
             check('窄屏下搜索标签完整可见', '[Firecrawl]' in session.screen() and '[Order]' in session.screen() and '[UseGPT]' not in session.screen())
             check('中文菜单渲染', all(x in session.screen() for x in ['搜索引擎', '知识库', '工具库']) and '诊断' not in session.screen())
-            session.send('\t\t')
+            session.send('\t')
             session.wait('env:EXA_API_KEY')
             session.send('a')
             session.wait('添加密钥')

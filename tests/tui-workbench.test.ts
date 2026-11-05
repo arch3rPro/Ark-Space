@@ -5,7 +5,7 @@ import { Framed } from "../src/tui/components/framed.js";
 import { MENU_VALUES, dirtyOrder, initialState, orderRows, reduce, rowCount, type DiagEntry, type Event, type State } from "../src/tui/controller.js";
 import { assertWidthSafe, visibleWidth } from "../src/tui/port.js";
 import { messageKeys, msg } from "../src/tui/messages.js";
-import { actionLine, menuLines, pageLines, stripLine } from "../src/tui/view.js";
+import { actionDefs, actionLine, keyBar, menuLines, pageLines, stripLine } from "../src/tui/view.js";
 
 function key(reference: string, over: Partial<SetupKeySnapshot> = {}): SetupKeySnapshot {
   return {
@@ -59,22 +59,60 @@ describe("Setup wording", () => {
     expect(rendered).not.toContain("提交");
     const finished = reduce(typing, { type: "formEnter" });
     expect(finished.effects).toEqual([]);
-    const idle = pageLines(finished.state, 160).join("\n");
     const idleKeys = actionLine(finished.state, 160);
     expect(idleKeys).toContain("Enter");
     expect(idleKeys).toContain("编辑");
     expect(idleKeys).toContain("Esc");
-    expect(reduce(typing, { type: "escape" }).state.form?.draft).toBe("");
+    // a changed draft asks before it is discarded, while typing or not, and the prompt defaults to Cancel
+    expect(reduce(typing, { type: "escape" }).state.modal?.cursor).toBe(0);
     expect(reduce(finished.state, { type: "escape" }).state.modal?.cursor).toBe(0);
     if (field === "secret") expect(rendered).toContain("妥善保护");
   });
 
-  it("details omit internal refresh notes while retaining the displayed key facts", () => {
-    const detail = reduce(loaded(), { type: "detailsOpen", reference: "env:EXA_API_KEY" }).state;
-    const text = pageLines(detail, 120).join("\n");
-    expect(text).toContain("本地存储");
-    expect(text).toContain("可用性");
-    expect(text).not.toMatch(/快照|刷新|snapshot|refresh/);
+  const exaKey = (state: State) => state.snapshot!.providers.find(p => p.id === "exa")!.keys.find(k => k.reference === "env:EXA_API_KEY")!;
+  const exaPage = (state: State) => pageLines(state, 120).join("\n");
+
+  it("healthy key: list shows status and checked time; the note zone carries priority; no anomaly zone", () => {
+    const text = exaPage(loaded());
+    for (const part of ["启用", "检测时间", "未检测", "搜索优先级", "第 1 位"]) expect(text).toContain(part);
+    expect(text).not.toMatch(/冷却剩余|待清理资源|原因/);
+  });
+
+  it("a checked key shows its time, and status stays the enabled/disabled switch", () => {
+    const base = loaded();
+    Object.assign(exaKey(base), { lastCheckedAt: new Date(2020, 0, 2, 3, 4).getTime(), status: "cooldown", cooldownRemainingMs: 90_000, healthReason: "rate-limit" });
+    const text = exaPage(base);
+    const firstRow = text.split("\n").find(line => line.includes("env:EXA_API_KEY "))!;
+    expect(firstRow).toContain("01-02 03:04");
+    expect(firstRow).not.toContain("未检测");
+    expect(text).not.toMatch(/冷却\s/); // cooldown is an icon colour plus the anomaly zone, not a status word
+  });
+
+  it("anomaly zone lists reason, cooldown and open resources by type, and follows the selected row", () => {
+    const base = loaded();
+    Object.assign(exaKey(base), { healthReason: "rate-limit", cooldownRemainingMs: 90_000, ownedResources: 3,
+      ownedResourceTypes: { browserSessions: 2, monitors: 0, siteMonitors: 1 } });
+    const text = exaPage(base);
+    for (const part of ["限流", "冷却剩余", "待清理资源", "2 个浏览器会话", "1 个站点监控"]) expect(text).toContain(part);
+    expect(text).not.toContain("0 个监控");
+    const second = base.snapshot!.providers.find(p => p.id === "exa")!.keys.length > 1 ? exaPage({ ...base, row: 1 }) : "";
+    if (second) expect(second).not.toContain("冷却剩余");
+  });
+
+  it("a manually disabled key shows no anomaly row: the status column already says disabled", () => {
+    const base = loaded();
+    Object.assign(exaKey(base), { status: "disabled", manualDisabled: true, healthReason: "operator-disabled" });
+    const text = exaPage(base);
+    expect(text).toContain("停用");
+    expect(text).not.toMatch(/原因|手动停用/);
+  });
+
+  it("environment override and sharing appear in the note zone only when present", () => {
+    const base = loaded();
+    expect(exaPage(base)).not.toMatch(/共享|环境变量覆盖/);
+    Object.assign(exaKey(base), { source: "environment", hasLocal: true, sharedConnections: ["nitter"] });
+    const text = exaPage(base);
+    for (const part of ["环境变量覆盖", "共享", "nitter"]) expect(text).toContain(part);
   });
 
   it.each(["zh", "en"] as const)("%s connection rows avoid duplicate Enter and separate invalid-key status from preview errors", lang => {
@@ -164,11 +202,32 @@ describe("strip and menu geometry", () => {
 
 describe("navigation", () => {
   it("cycles regions both directions via tab", () => {
-    let { state } = { state: loaded() };
-    for (const [expected, delta] of [["menu", 1], ["content", 1], ["top", 1], ["content", -1]] as const) {
+    let state: State = { ...loaded(), region: "menu" };
+    // Search has a strip: menu -> top -> content -> menu, and the reverse
+    for (const [expected, delta] of [["top", 1], ["content", 1], ["menu", 1], ["content", -1], ["top", -1], ["menu", -1]] as const) {
       state = reduce(state, { type: "tab", delta }).state;
       expect(state.region).toBe(expected);
     }
+    // a single-tab page has no top stop
+    let single: State = { ...loaded(), page: "social", context: 7, region: "menu" };
+    for (const [expected, delta] of [["content", 1], ["menu", 1], ["content", -1], ["menu", -1]] as const) {
+      single = reduce(single, { type: "tab", delta }).state;
+      expect(single.region).toBe(expected);
+    }
+  });
+  it("Enter walks menu -> top -> content on Search and menu -> content on single pages; Esc reverses", () => {
+    const menu: State = { ...loaded(), region: "menu" };
+    const top = reduce(menu, { type: "enter" }).state;
+    expect(top.region).toBe("top");
+    const content = reduce(top, { type: "enter" }).state;
+    expect(content.region).toBe("content");
+    const backTop = reduce(content, { type: "escape" }).state;
+    expect(backTop.region).toBe("top");
+    expect(reduce(backTop, { type: "escape" }).state.region).toBe("menu");
+    const social: State = { ...loaded(), page: "social", context: 7, region: "menu", menuCursor: 1 };
+    const inContent = reduce(social, { type: "enter" }).state;
+    expect(inContent.region).toBe("content");
+    expect(reduce(inContent, { type: "escape" }).state.region).toBe("menu");
   });
   it("vertical arrows in the strip region move nothing; Enter enters content instead", () => {
     const top = loaded(); // fresh state boots with the strip focused
@@ -188,13 +247,15 @@ describe("navigation", () => {
   it("menu arrows switch pages live; Enter only moves focus; Esc from Order lands on Search", () => {
     const menu = { ...loaded(), region: "menu" as const };
     const down = reduce(menu, { type: "move", delta: 1 }).state;
-    expect([down.menuCursor, down.page, down.context, down.region] as const).toEqual([1, "knowledge", 4, "menu"]);
+    expect([down.menuCursor, down.page, down.context, down.region] as const).toEqual([1, "social", 7, "menu"]);
     const enter = reduce(down, { type: "enter" }).state;
     expect(enter.region).toBe("content"); // no page teleport on Enter
     const atExit = reduce({ ...down, menuCursor: MENU_VALUES.length - 1 }, { type: "move", delta: 1 }).state;
-    expect(atExit.page).toBe("knowledge"); // the exit row never switches the page
+    expect(atExit.page).toBe("social"); // the exit row never switches the page
     expect(reduce(atExit, { type: "enter" }).state.modal?.tag).toBe("exit");
-    const back = reduce({ ...loaded(), region: "content" as const, page: "config" as const }, { type: "escape" }).state;
+    const strip = reduce({ ...loaded(), region: "content" as const, page: "config" as const }, { type: "escape" }).state;
+    expect([strip.region, strip.page] as const).toEqual(["top", "config"]);
+    const back = reduce(strip, { type: "escape" }).state;
     expect([back.region, back.page, back.menuCursor] as const).toEqual(["menu", "providers", 0]);
   });
   it("entering knowledge/tools pages pins the context to the single member", () => {
@@ -227,20 +288,62 @@ describe("exit modal", () => {
   });
 });
 
-describe("preview and details hygiene", () => {
-  it("escape from preview clears secret values", () => {
-    const previewing = reduce(loaded(), {
-      type: "previewOpen", variable: "EXA_API_KEY", sources: [{ label: "本地存储", value: "sk-secret-value" }],
-    }).state;
-    expect(previewing.mode).toBe("preview");
-    const rested = reduce(previewing, { type: "escape" }).state;
-    expect(rested.mode).toBe("browse");
-    expect(rested.preview).toBeNull();
+describe("editing a key shows its stored value", () => {
+  const current = { variable: "EXA_API_KEY", sources: [{ label: "本地存储", value: "sk-secret-value" }] };
+  const edit = () => reduce({ ...loaded(), region: "content" as const }, { type: "keyEdit" });
+
+  it("keyEdit opens the form and asks the host for the stored value", () => {
+    const opened = edit();
+    expect(opened.state.mode).toBe("form");
+    expect(opened.effects).toEqual([{ type: "formCurrent", provider: "exa", reference: "env:EXA_API_KEY" }]);
   });
-  it("any key closes details; reveal only works in preview", () => {
-    const details = reduce(loaded(), { type: "detailsOpen", reference: "env:EXA_API_KEY" }).state;
-    expect(reduce(details, { type: "move", delta: 1 }).state.mode).toBe("browse");
-    expect(reduce(loaded(), { type: "reveal" }).state.revealed).toBe(false);
+
+  it("the stored value is masked until Ctrl-R, and gone when the form closes", () => {
+    let s = reduce(edit().state, { type: "formCurrent", reference: "env:EXA_API_KEY", current }).state;
+    let text = pageLines(s, 120).join("\n");
+    expect(text).toContain("sk-s*********ue");
+    expect(text).not.toContain("sk-secret-value");
+    s = reduce(s, { type: "formReveal" }).state;
+    expect(pageLines(s, 120).join("\n")).toContain("sk-secret-value");
+    const closed = reduce(reduce(s, { type: "formEnter" }).state, { type: "escape" }).state;
+    expect(closed.form).toBeNull();
+    expect(JSON.stringify(closed)).not.toContain("sk-secret-value");
+    text = pageLines(closed, 120).join("\n");
+    expect(text).not.toContain("sk-secret-value");
+  });
+
+  it.each(["zh", "en"] as const)("%s: current and new value start in the same column, short secrets show no characters", lang => {
+    const form = reduce({ ...loaded(), lang, region: "content" as const }, { type: "keyEdit" }).state;
+    const lines = pageLines(reduce(form, { type: "formCurrent", reference: "env:EXA_API_KEY", current }).state, 120).map(l => l.replace(/\x1b\[[0-9;]*m/g, ""));
+    const cur = lines.find(l => l.includes("sk-s*"))!;
+    const next = lines.find(l => l.endsWith("|") || l.includes("|  "))!;
+    const col = (line: string, marker: string) => visibleWidth(line.slice(0, line.indexOf(marker)));
+    expect(col(cur, "sk-s")).toBe(col(next, "|"));
+    const short = reduce(form, { type: "formCurrent", reference: "env:EXA_API_KEY", current: { variable: "X", sources: [{ label: "l", value: "abcdefgh" }] } }).state;
+    expect(pageLines(short, 120).join("\n")).not.toMatch(/abcd|gh\b/);
+  });
+
+  it("a value that arrives for another key is ignored", () => {
+    const s = reduce(edit().state, { type: "formCurrent", reference: "env:OTHER", current }).state;
+    expect(s.form?.current).toBeUndefined();
+  });
+
+  it("an environment key opens a read-only view: no input, no save, Enter or Esc leave", () => {
+    const base = loaded();
+    Object.assign(base.snapshot!.providers.find(p => p.id === "exa")!.keys[0]!, { source: "environment" });
+    const opened = reduce({ ...base, region: "content" as const }, { type: "keyEdit" });
+    expect(opened.state.form?.readonly).toBeTruthy();
+    expect(opened.state.form?.typing).toBe(false);
+    expect(reduce(opened.state, { type: "formType", text: "x" }).state.form?.draft).toBe("");
+    expect(reduce(opened.state, { type: "formSave" }).effects).toEqual([]);
+    expect(reduce(opened.state, { type: "formEnter" }).state.form).toBeNull();
+    expect(reduce(opened.state, { type: "escape" }).state.form).toBeNull();
+    expect(actionLine(opened.state, 160)).toContain("Ctrl-R");
+    expect(actionLine(opened.state, 160)).not.toContain("Ctrl-S");
+  });
+
+  it("the key list no longer offers a separate preview", () => {
+    expect(actionLine({ ...loaded(), region: "content" as const }, 160)).not.toMatch(/\[p\]|预览|preview/i);
   });
 });
 
@@ -265,11 +368,12 @@ describe("P2 key management", () => {
     expect(r.state.statusWarn).toBe(true);
   });
 
-  it("edit of an environment key is refused and opens nothing", () => {
+  it("edit of an environment key opens a read-only view and never a writable form", () => {
     const tavily = { ...loaded(), region: "content" as const, context: 1 };
     const r = reduce(tavily, { type: "keyEdit" });
-    expect(r.state.mode).toBe("browse");
-    expect(r.state.statusWarn).toBe(true);
+    expect(r.state.form?.readonly).toBeTruthy();
+    expect(r.state.form?.typing).toBe(false);
+    expect(reduce(r.state, { type: "formSave" }).effects).toEqual([]);
   });
 
   it("edit of a local key asks for explicit overwrite before replaceKey", () => {
@@ -285,11 +389,12 @@ describe("P2 key management", () => {
     expect(yes.effects).toEqual([{ type: "op", op: { kind: "replaceKey", provider: "exa", reference: "env:EXA_API_KEY", secret: "new-secret-value" } }]);
   });
 
-  it("form escape: typing reverts the field, committed draft asks discard (cancel keeps form)", () => {
+  it("form escape: an untouched form closes at once, a changed draft asks discard (cancel keeps form)", () => {
+    const untouched = go(content(), { type: "keyAdd" }).state;
+    expect(untouched.form?.typing).toBe(true);
+    expect(reduce(untouched, { type: "escape" }).state.mode).toBe("browse");
     const typing = go(content(), { type: "keyAdd" }, { type: "formType", text: "abc" }).state;
-    const reverted = reduce(typing, { type: "escape" }).state;
-    expect(reverted.form?.typing).toBe(false);
-    expect(reverted.form?.draft).toBe("");
+    expect(reduce(typing, { type: "escape" }).state.modal?.tag).toBe("form-discard");
     const committed = go(content(), { type: "keyAdd" }, { type: "formType", text: "abc" }, { type: "formEnter" }).state;
     const asked = reduce(committed, { type: "escape" }).state;
     expect(asked.modal?.tag).toBe("form-discard");
@@ -316,9 +421,26 @@ describe("P2 key management", () => {
     expect(go(disabledKey, { type: "keyToggle" }).effects[0]).toEqual(
       { type: "op", op: { kind: "toggleKey", provider: "exa", reference: "env:EXA_API_KEY", enabled: true } },
     );
-    expect(go(content(), { type: "providerToggle" }).effects).toEqual([
-      { type: "op", op: { kind: "toggleProvider", provider: "exa", enabled: false } },
-    ]);
+  });
+
+  it("provider enable/disable lives on the Order page only; the key list has no v action", () => {
+    const keyList = content();
+    expect(actionLine(keyList, 160)).not.toMatch(/\[v\]/);
+    expect(actionDefs(keyList).some(d => d.key === "v")).toBe(false);
+    const order = { ...content(), page: "config" as const, context: 6, row: 0 };
+    expect(go(order, { type: "orderToggle" }).effects[0]).toMatchObject({ type: "op", op: { kind: "toggleProvider" } });
+  });
+
+  it("searxng page explains grants, priority and cooldown for the selected instance", () => {
+    const base = { ...loaded(), region: "content" as const, context: 3, row: 0 };
+    const sx = base.snapshot!.providers.find(p => p.id === "searxng")!;
+    Object.assign(sx.instances[0]!, { allowRanges: ["127.0.0.1/32"], status: "cooldown", cooldownRemainingMs: 42_000, healthReason: "rate-limit" });
+    const text = pageLines(base, 120).join("\n");
+    expect(text).toContain("127.0.0.1/32");
+    expect(text).toContain("42");
+    expect(text).toMatch(/rate|限流|速率/i);
+    sx.enabled = false;
+    expect(pageLines(base, 120).join("\n")).toMatch(/搜索顺序页|Order page/);
   });
 
   it("searxng rows open instance add/edit forms (P4)", () => {
@@ -328,7 +450,19 @@ describe("P2 key management", () => {
     expect(added.state.form?.intent).toBe("instAdd");
     const edited = reduce({ ...searxng, row: 0 }, { type: "keyEdit" });
     expect(edited.state.form?.intent).toBe("instEdit");
-    expect(edited.state.form?.draft).toBe("http://127.0.0.1:8888");
+    expect(edited.state.form?.reference).toBe("http://127.0.0.1:8888");
+    expect(edited.state.form?.draft).toBe(""); // opens empty and already typing: the old URL is shown as context, not prefilled
+    expect(edited.state.form?.typing).toBe(true);
+    const text = pageLines(edited.state, 100).join("\n");
+    expect(text).toContain("http://127.0.0.1:8888");
+    expect(text).not.toMatch(/\d+ 字符|characters/);
+  });
+
+  it("the discard prompt names what is being discarded", () => {
+    const typed = (field: "secret" | "url", intent: "key" | "instAdd") =>
+      reduce({ ...loaded(), mode: "form" as const, form: { provider: "exa" as const, reference: null, draft: "x", typing: true, intent, field } }, { type: "escape" }).state.modal?.title;
+    expect(typed("secret", "key")).toBe(msg("zh", "discardFormConfirm"));
+    expect(typed("url", "instAdd")).toBe(msg("zh", "discardFormInput"));
   });
 
   it("instance edit to the same URL writes without re-asking for grants", () => {
@@ -466,14 +600,14 @@ describe("P4 connection pages", () => {
     expect(reduce(busy.state, { type: "keyAdd" }).effects).toEqual([]);
     expect(reduce(busy.state, { type: "testIntent" }).effects).toEqual([]);
     const moved = reduce(busy.state, { type: "tab", delta: 1 });
-    expect(moved.state.region).toBe("top"); // single-tab pages ignore context arrows
+    expect(moved.state.region).toBe("menu"); // single-tab page: content -> menu, no top stop
     expect(reduce(busy.state, { type: "context", delta: 1 }).state.context).toBe(4);
     const idle = reduce(busy.state, { type: "serviceBusy", on: false });
     expect(idle.state.svcBusy).toBeNull();
   });
 
   it("connData lands snapshots; rowCount covers both pages", () => {
-    const s = reduce(loaded(), { type: "connData", weknora: null, usegpt: { configured: false, daemonRunning: false, tunnelRunning: false, issues: ["not-configured"], keySource: "missing" as const, savedKey: false } });
+    const s = reduce(loaded(), { type: "connData", weknora: null, nitter: null, usegpt: { configured: false, daemonRunning: false, tunnelRunning: false, issues: ["not-configured"], keySource: "missing" as const, savedKey: false } });
     expect(s.state.weknora).toBeNull();
     expect(s.state.usegpt?.configured).toBe(false);
     expect(rowCount({ ...loaded(), page: "knowledge" as const, context: 4, weknora: null })).toBe(5);
@@ -709,5 +843,23 @@ describe("single bottom row semantics (P6.6)", () => {
     const running = reduce(st, { type: "testBegin", provider: "exa", mode: "allKeys", total: 2 }).state;
     expect(running.status).toContain("0/2"); // testBegin takes the row over with progress
     expect(reduce(running, { type: "statusClear" }).state.status).toBe(running.status); // and aging must not blank it
+  });
+});
+
+describe("shortcut bars only advertise keys that work in the focused region", () => {
+  const at = (region: "top" | "menu" | "content", page: "providers" | "social" = "providers") =>
+    ({ ...loaded(), region, page, ...(page === "social" ? { context: 7 } : {}) }) as State;
+  it("page actions appear only with content focus", () => {
+    expect(actionLine(at("top"), 160)).toBe("");
+    expect(actionLine(at("menu"), 160)).toBe("");
+    expect(actionLine(at("content"), 160)).toContain("[a]");
+    expect(actionLine(at("menu", "social"), 160)).toBe("");
+    expect(actionLine(at("content", "social"), 160)).not.toBe("");
+  });
+  it("the tab-switch hint appears only while the strip has focus", () => {
+    expect(keyBar(at("top"), 160)).toContain("[<-/->]");
+    expect(keyBar(at("menu"), 160)).not.toContain("[<-/->]");
+    expect(keyBar(at("content"), 160)).not.toContain("[<-/->]");
+    expect(keyBar(at("content"), 160)).toContain("[Tab]");
   });
 });

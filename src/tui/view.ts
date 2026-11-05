@@ -3,7 +3,7 @@
  * padV (visibleWidth-aware); all glyphs obey the ADR 0024 ASCII rule.
  */
 import type { SetupInstanceSnapshot, SetupKeySnapshot, SetupProviderSnapshot } from "../config/manage.js";
-import { MENU_VALUES, dirtyOrder, orderRows, pageTabs, selectedTab, selectedConnectionKey, type ModalState, type Page, type State } from "./controller.js";
+import { MENU_VALUES, connectionLocked, connectionRow, dirtyOrder, orderRows, pageTabs, selectedTab, selectedConnectionKey, type ModalState, type Page, type State } from "./controller.js";
 import { msg } from "./messages.js";
 import { DIM, FG, SEL, c, padV } from "./components/style.js";
 import { truncateToWidth, visibleWidth } from "./port.js";
@@ -11,7 +11,7 @@ import { truncateToWidth, visibleWidth } from "./port.js";
 export const WEB_LABELS = ["Exa", "Tavily", "Firecrawl", "SearXNG"] as const;
 
 export function contextLabel(index: number): string {
-  return index < 4 ? WEB_LABELS[index]! : index === 4 ? "WeKnora" : index === 5 ? "UseGPT" : "Order";
+  return index < 4 ? WEB_LABELS[index]! : index === 4 ? "WeKnora" : index === 5 ? "UseGPT" : index === 7 ? "Nitter" : "Order";
 }
 
 export function currentProvider(state: State): SetupProviderSnapshot | null {
@@ -33,10 +33,17 @@ export function keyIcon(key: SetupKeySnapshot): readonly [string, number] {
   return STATUS_ICON[key.status] ?? STATUS_ICON.enabled!;
 }
 
+/** The switch only: enabled or disabled. Cooldown, exhaustion and missing values show as the icon colour plus the anomaly zone. */
 function statusText(state: State, key: SetupKeySnapshot): string {
-  if (!key.available) return msg(state.lang, "stUnavailable");
-  const map: Record<string, string> = { enabled: "stEnabled", disabled: "stDisabled", cooldown: "stCooldown", exhausted: "stExhausted" };
-  return msg(state.lang, map[key.status] ?? "stEnabled");
+  return msg(state.lang, key.status === "disabled" ? "stDisabled" : "stEnabled");
+}
+
+/** Absolute time, because Setup does not tick: today as HH:MM, earlier as MM-DD HH:MM. */
+function checkedText(state: State, key: SetupKeySnapshot, now = new Date()): string {
+  if (!key.lastCheckedAt) return msg(state.lang, "notChecked");
+  const at = new Date(key.lastCheckedAt); const two = (n: number) => String(n).padStart(2, "0");
+  const clock = `${two(at.getHours())}:${two(at.getMinutes())}`;
+  return at.toDateString() === now.toDateString() ? clock : `${two(at.getMonth() + 1)}-${two(at.getDate())} ${clock}`;
 }
 
 function reasonText(state: State, key: SetupKeySnapshot): string {
@@ -62,7 +69,7 @@ function sourceText(state: State, source: string): string {
 const CHIP_W = 13;
 const MENU_STRIP_KEYS: Record<Page | "exit", string> = {
   providers: "stripProviders", config: "stripConfig", knowledge: "stripKnowledge",
-  tools: "stripTools", settings: "pageSettings", exit: "pageExit",
+  tools: "stripTools", social: "stripSocial", settings: "pageSettings", exit: "pageExit",
 };
 
 /** The strip follows the page: tabs for grouped pages, a centered full name otherwise (and while the menu has focus). */
@@ -133,13 +140,12 @@ export function menuHitPage(_state: State, y: number): string | null {
 // ---------------- content pages ----------------
 export function pageLines(state: State, width: number): string[] {
   if (state.loading) return [" " + msg(state.lang, "loading")];
-  if (state.mode === "details") return detailsLines(state, width);
-  if (state.mode === "preview") return previewLines(state, width);
   if (state.mode === "form" && state.form) return formLines(state, width);
   switch (state.page) {
     case "providers": return providerLines(state, width);
     case "knowledge": return weknoraLines(state, width);
     case "tools": return usegptLines(state, width);
+    case "social": return nitterLines(state, width);
     case "config": return orderLines(state, width);
     case "settings": return languageLines(state, width);
   }
@@ -158,8 +164,6 @@ export function providerButtons(state: State): ButtonDef[] {
   return [
     { key: "a", label: msg(state.lang, "keyAdd"), event: "keyAdd" },
     { key: "e", label: msg(state.lang, "keyEdit"), event: "keyEdit" },
-    { key: "i", label: msg(state.lang, "keyDetails"), event: "details" },
-    { key: "p", label: msg(state.lang, "keyPreview"), event: "preview" },
     { key: "t", label: msg(state.lang, "keyTest"), event: "testIntent" },
     { key: "d", label: msg(state.lang, "keyRemove"), event: "keyRemove" },
     { key: "Space", label: msg(state.lang, "keyToggle"), event: "keyToggle" },
@@ -168,26 +172,34 @@ export function providerButtons(state: State): ButtonDef[] {
 
 /** Page-scoped actions, pinned as the centered bottom row of the content frame. */
 export function actionDefs(state: State): { key: string; label: string; event?: string }[] {
-  if (state.mode === "form") return [
-    { key: "Enter", label: msg(state.lang, state.form?.typing ? "keyCommit" : "keyEdit"), event: "formEnter" },
-    { key: "Ctrl-S", label: msg(state.lang, "keySave"), event: "formSave" },
-    { key: "Esc", label: msg(state.lang, "keyBack"), event: "escape" },
-  ];
-  if (state.mode === "details") return [{ key: "...", label: msg(state.lang, "keyAnyBack"), event: "escape" }];
-  if (state.mode === "preview") return [
-    { key: "r", label: msg(state.lang, "keyReveal"), event: "reveal" },
-    { key: "...", label: msg(state.lang, "keyAnyBack"), event: "escape" },
-  ];
+  if (state.mode === "form") {
+    if (state.form?.readonly) return [
+      { key: "Ctrl-R", label: msg(state.lang, "keyReveal"), event: "formReveal" },
+      { key: "Esc", label: msg(state.lang, "keyBack"), event: "escape" },
+    ];
+    return [
+      { key: "Enter", label: msg(state.lang, state.form?.typing ? "keyCommit" : "keyEdit"), event: "formEnter" },
+      { key: "Ctrl-S", label: msg(state.lang, "keySave"), event: "formSave" },
+      ...(state.form?.current ? [{ key: "Ctrl-R", label: msg(state.lang, "keyReveal"), event: "formReveal" }] : []),
+      { key: "Esc", label: msg(state.lang, "keyBack"), event: "escape" },
+    ];
+  }
   if (state.mode !== "browse") return [];
+  // Page actions only act when the content region has focus; on the strip or menu they would be dead keys.
+  if (state.region !== "content") return [];
   if (state.page === "providers") return providerButtons(state).map(b => ({ key: b.key, label: b.label, event: b.event }));
-  if (state.page === "knowledge" || state.page === "tools") {
+  if (state.page === "knowledge" || state.page === "tools" || state.page === "social") {
     const key = selectedConnectionKey(state);
-    if (!key) return [{ key: "Enter", label: msg(state.lang, "keyRowOp"), event: "enter" }];
+    if (!key) {
+      if (connectionLocked(state)) return []; // environment-managed: every non-key row refuses, so advertise nothing
+      const row = connectionRow(state);
+      if (row?.kind === "edit") return [{ key: row.filled ? "e" : "a", label: msg(state.lang, row.filled ? "keyEdit" : "keyAdd"), event: row.filled ? "keyEdit" : "keyAdd" }];
+      return [{ key: "Enter", label: msg(state.lang, "keyRowOp"), event: "enter" }];
+    }
     const editable = !key.external && !key.sharedProviders.length;
     return [
-      ...(editable ? [{ key: key.hasLocal ? "e" : "a", label: msg(state.lang, key.hasLocal ? "keyEdit" : "keyAdd"), event: key.hasLocal ? "keyEdit" : "keyAdd" }] : []),
-      { key: "i", label: msg(state.lang, "keyDetails"), event: "details" },
-      { key: "p", label: msg(state.lang, "keyPreview"), event: "preview" },
+      ...(editable ? [{ key: key.hasLocal ? "e" : "a", label: msg(state.lang, key.hasLocal ? "keyEdit" : "keyAdd"), event: key.hasLocal ? "keyEdit" : "keyAdd" }]
+        : [{ key: "e", label: msg(state.lang, "keyView"), event: "keyEdit" }]),
       ...(editable && key.hasLocal ? [{ key: "d", label: msg(state.lang, "keyRemove"), event: "keyRemove" }] : []),
     ];
   }
@@ -250,20 +262,79 @@ function providerLines(state: State, width: number): string[] {
       const line = padV(" " + truncateToWidth(instance.baseUrl, urlWidth - 1), urlWidth) + FG(icon[1], padV(truncateToWidth(`${icon[0]} ${text}`, statusWidth), statusWidth)) + truncateToWidth(detail, detailWidth);
       out.push(i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width));
     });
-    out.push("", DIM(" " + msg(state.lang, "searxngNote")));
-    return [...out, ...diagRows(state, "searxng")];
+    return [...out, ...instanceNoteZone(state, provider, width), ...instanceAnomalyZone(state, provider, width), ...diagRows(state, "searxng")];
   }
-  const referenceWidth = Math.min(36, Math.max(18, Math.floor(width * 0.45)));
-  const statusWidth = Math.min(14, Math.max(10, Math.floor(width * 0.2)));
-  const sourceWidth = Math.max(1, width - referenceWidth - statusWidth);
-  const out = [DIM(padV(` ${msg(state.lang, "colKey")}`, referenceWidth) + padV(truncateToWidth(msg(state.lang, "colStatus"), statusWidth), statusWidth) + truncateToWidth(msg(state.lang, "colSource"), sourceWidth))];
+  const referenceWidth = Math.min(34, Math.max(18, Math.floor(width * 0.4)));
+  const statusWidth = Math.min(10, Math.max(8, Math.floor(width * 0.14)));
+  const checkedWidth = Math.min(14, Math.max(10, Math.floor(width * 0.18)));
+  const sourceWidth = Math.max(1, width - referenceWidth - statusWidth - checkedWidth);
+  const out = [DIM(padV(` ${msg(state.lang, "colKey")}`, referenceWidth) + padV(truncateToWidth(msg(state.lang, "colStatus"), statusWidth), statusWidth) + padV(truncateToWidth(msg(state.lang, "colChecked"), checkedWidth), checkedWidth) + truncateToWidth(msg(state.lang, "colSource"), sourceWidth))];
   if (!provider.keys.length) out.push(DIM(" " + msg(state.lang, "noKeys")));
   provider.keys.forEach((key, i) => {
     const [icon, color] = keyIcon(key);
-    const line = padV(" " + truncateToWidth(key.reference, referenceWidth - 1), referenceWidth) + FG(color, padV(truncateToWidth(`${icon} ${statusText(state, key)}`, statusWidth), statusWidth)) + truncateToWidth(sourceText(state, key.source) + (key.source === "environment" && key.hasLocal ? " / " + msg(state.lang, "wekOverride") : ""), sourceWidth);
+    const line = padV(" " + truncateToWidth(key.reference, referenceWidth - 1), referenceWidth) + FG(color, padV(truncateToWidth(`${icon} ${statusText(state, key)}`, statusWidth), statusWidth)) + padV(truncateToWidth(checkedText(state, key), checkedWidth), checkedWidth) + truncateToWidth(sourceText(state, key.source) + (key.source === "environment" && key.hasLocal ? " / " + msg(state.lang, "wekOverride") : ""), sourceWidth);
     out.push(i === state.row && state.region === "content" ? SEL(padV(line, width)) : padV(line, width));
   });
-  return [...out, ...diagRows(state, provider.id)];
+  return [...out, ...noteZone(state, provider, width), ...anomalyZone(state, provider, width), ...diagRows(state, provider.id)];
+}
+
+function priorityRow(state: State, provider: SetupProviderSnapshot): string {
+  const position = provider.automaticPosition;
+  return detailField(msg(state.lang, "fieldPriority"), position
+    ? msg(state.lang, "priorityAt", { n: position, total: state.snapshot?.providerOrder.length ?? position })
+    : msg(state.lang, "priorityNone"));
+}
+
+/** SearXNG middle zone: the selected instance's grants, search priority and the keyless/grant rule. */
+function instanceNoteZone(state: State, provider: SetupProviderSnapshot, width: number): string[] {
+  const instance = provider.instances[state.row];
+  const rows = [
+    ...(instance ? [detailField(msg(state.lang, "fieldGrants"), instance.allowRanges.length ? instance.allowRanges.join(msg(state.lang, "listSep")) : msg(state.lang, "grantsNone"))] : []),
+    priorityRow(state, provider),
+    ...(provider.enabled ? [] : [detailField(msg(state.lang, "fieldProvider"), msg(state.lang, "providerOffHint"))]),
+  ];
+  return ["", ...rows.map(row => padV(row, width)), DIM(padV(" " + msg(state.lang, "searxngNoteKeyless"), width))];
+}
+
+/** SearXNG bottom zone: why the selected instance is cooling down; absent when there is nothing to report. */
+function instanceAnomalyZone(state: State, provider: SetupProviderSnapshot, width: number): string[] {
+  const instance = provider.instances[state.row];
+  if (!instance?.cooldownRemainingMs) return [];
+  const reasons: Record<string, string> = { "rate-limit": "reasonRateLimit", network: "reasonNetwork", transient: "reasonTransient" };
+  const rows = [
+    ...(instance.healthReason ? [detailField(msg(state.lang, "fieldReason"), msg(state.lang, reasons[instance.healthReason] ?? "reasonUnknown"))] : []),
+    detailField(msg(state.lang, "fieldCooldownLeft"), msg(state.lang, "secondsLeft", { n: Math.ceil(instance.cooldownRemainingMs / 1000) })),
+  ];
+  return ["", ...rows.map(row => FG(33, padV(row, width)))];
+}
+
+/** Middle zone: explanations for the selected key and its engine. */
+function noteZone(state: State, provider: SetupProviderSnapshot, width: number): string[] {
+  const key = provider.keys[state.row];
+  const rows: string[] = [];
+  rows.push(priorityRow(state, provider));
+  if (!provider.enabled) rows.push(detailField(msg(state.lang, "fieldProvider"), msg(state.lang, "providerOffHint")));
+  if (key?.source === "environment" && key.hasLocal) rows.push(detailField(msg(state.lang, "fieldSource"), msg(state.lang, "envOverridesLocal")));
+  const shared = key ? [...(key.sharedProviders ?? []), ...(key.sharedConnections ?? [])].join("/") : "";
+  if (shared) rows.push(detailField(msg(state.lang, "fieldShared"), shared));
+  return ["", ...rows.map(row => padV(row, width))];
+}
+
+/** Bottom zone: why the selected key is not healthy or cannot be removed; absent when there is nothing to report. */
+function anomalyZone(state: State, provider: SetupProviderSnapshot, width: number): string[] {
+  const key = provider.keys[state.row];
+  if (!key) return [];
+  const rows: string[] = [];
+  if (!key.available) rows.push(detailField(msg(state.lang, "fieldReason"), msg(state.lang, "stUnavailable")));
+  // A manual disable is the user's own switch, already shown in the status column; it is not an anomaly.
+  else if (key.healthReason && key.healthReason !== "operator-disabled") rows.push(detailField(msg(state.lang, "fieldReason"), reasonText(state, key)));
+  if (key.cooldownRemainingMs) rows.push(detailField(msg(state.lang, "fieldCooldownLeft"), msg(state.lang, "secondsLeft", { n: Math.ceil(key.cooldownRemainingMs / 1000) })));
+  const types = key.ownedResourceTypes;
+  const parts = types ? ([[types.browserSessions, "ownedBrowser"], [types.monitors, "ownedMonitor"], [types.siteMonitors, "ownedSiteMonitor"]] as const)
+    .filter(([n]) => n > 0).map(([n, k]) => msg(state.lang, k, { n })) : [];
+  if (parts.length) rows.push(detailField(msg(state.lang, "fieldOwners"), parts.join(msg(state.lang, "listSep"))));
+  else if (key.ownedResources > 0) rows.push(detailField(msg(state.lang, "fieldOwners"), msg(state.lang, "owned", { n: key.ownedResources })));
+  return rows.length ? ["", ...rows.map(row => FG(33, padV(row, width)))] : [];
 }
 
 function orderLines(state: State, width: number): string[] {
@@ -299,50 +370,11 @@ function detailField(label: string, value: string): string {
   return padV(" " + label, 14) + value;
 }
 
-function detailsLines(state: State, width: number): string[] {
-  const connection = selectedConnectionKey(state);
-  if (connection) {
-    const source = connection.external ? msg(state.lang, "srcEnvironment") : connection.hasLocal ? msg(state.lang, "srcLocal") : msg(state.lang, "srcMissing");
-    return [
-      detailField(msg(state.lang, "fieldSource"), source),
-      detailField(msg(state.lang, "srcLocalValue"), connection.hasLocal ? "+" : "-"),
-      detailField(msg(state.lang, "fieldShared"), connection.sharedProviders.join("/") || "-"),
-      "", DIM(" " + msg(state.lang, "connNote")),
-    ].map(line => padV(line, width));
-  }
-  const provider = currentProvider(state);
-  const key = provider?.keys.find(k => k.reference === state.detailRef);
-  if (!provider || !key) return [" " + msg(state.lang, "previewChanged")];
-  const cooldown = key.cooldownRemainingMs ? msg(state.lang, "secondsLeft", { n: Math.ceil(key.cooldownRemainingMs / 1000) }) : "-";
-  const shared = [...(key.sharedProviders ?? []), ...(key.sharedConnections ?? [])].join("/") || "-";
-  const routing = provider.automaticPosition ? msg(state.lang, "autoPosition", { n: provider.automaticPosition }) : msg(state.lang, "explicitOnly");
-  const owners = msg(state.lang, "owned", { n: key.ownedResources });
-  const out = [
-    detailField(msg(state.lang, "fieldSource"), sourceText(state, key.source) + (key.source === "environment" && key.hasLocal ? " / " + msg(state.lang, "wekOverride") : "")),
-    detailField(msg(state.lang, "fieldStatus"), statusText(state, key)),
-    detailField(msg(state.lang, "fieldReason"), reasonText(state, key)),
-    detailField(msg(state.lang, "fieldCooldownLeft"), cooldown),
-    detailField(msg(state.lang, "fieldOwners"), owners),
-    detailField(msg(state.lang, "fieldShared"), shared),
-    detailField(msg(state.lang, "fieldRouting"), routing),
-    detailField(msg(state.lang, "fieldAvailable"), key.available ? "+" : "?"),
-  ];
-  return out.map(line => padV(line, width));
-}
-
-function previewLines(state: State, width: number): string[] {
-  const preview = state.preview;
-  if (!preview) return [" " + msg(state.lang, "previewMissing")];
-  const out = [
-    " " + msg(state.lang, "maskedNote"),
-    "",
-  ];
-  for (const source of preview.sources) {
-    const shown = state.revealed ? source.value : "*".repeat(Math.min(24, source.value.length));
-    out.push(detailField(source.label, shown));
-    out.push(padV("", 14) + DIM(msg(state.lang, "chars", { n: source.value.length })));
-  }
-  return out.map(line => padV(line, width));
+/** Masked form of a stored secret: a few leading and trailing characters, stars between. Short values show nothing. */
+function maskedPartial(value: string): string {
+  const chars = [...value];
+  if (chars.length < 12) return "*".repeat(Math.min(chars.length, 16));
+  return chars.slice(0, 4).join("") + "*".repeat(Math.min(chars.length - 6, 16)) + chars.slice(-2).join("");
 }
 
 // ---------------- form page ----------------
@@ -351,6 +383,7 @@ function formTitleKey(form: NonNullable<State["form"]>): string {
     : form.intent === "instAdd" ? "formInstAdd" : form.intent === "instEdit" ? "formInstEdit"
     : form.intent === "cidrAdd" || form.intent === "cidrEdit" ? "formCidr"
     : form.intent === "wekUrl" ? "wekUrlFormTitle" : form.intent === "wekKey" ? "wekKeyFormTitle"
+    : form.intent === "nitterUrl" ? "nitterUrlFormTitle" : form.intent === "nitterKey" ? "nitterKeyFormTitle"
     : form.intent === "usegptTunnel" ? "usegptTunnelFormTitle" : form.intent === "usegptDir" ? "usegptDirFormTitle"
     : form.intent === "usegptKey" ? "usegptKeyFormTitle" : "wekKbFormTitle";
 }
@@ -358,20 +391,36 @@ function formTitleKey(form: NonNullable<State["form"]>): string {
 function formLines(state: State, width: number): string[] {
   const form = state.form!;
   const secret = form.field === "secret";
-  const labelKey = secret ? "fieldSecretLabel" : form.field === "url" ? "fieldUrlLabel" : form.field === "cidr" ? "fieldCidrLabel" : "fieldTextLabel";
+  const replacing = form.previous !== undefined || (secret && form.reference !== null);
+  const token = form.intent === "nitterKey";
+  const endpoint = form.intent === "wekUrl" || form.intent === "nitterUrl";
+  const labelKey = secret ? (token ? (replacing ? "fieldNewTokenLabel" : "fieldTokenLabel") : replacing ? "fieldNewSecretLabel" : "fieldSecretLabel")
+    : form.field === "url" ? (endpoint ? (replacing ? "fieldNewEndpointLabel" : "fieldEndpointLabel") : replacing ? "fieldNewUrlLabel" : "fieldUrlLabel")
+    : form.field === "cidr" ? "fieldCidrLabel" : (replacing ? "fieldNewValueLabel" : "fieldTextLabel");
   const shown = secret ? "*".repeat(Math.min(form.draft.length, Math.max(0, width - 24))) : form.draft;
-  const field = ` ${msg(state.lang, labelKey)}: ${shown}${form.typing ? "|" : ""}`;
+  // Current value and new value share one label column so their values line up.
+  const currentLabel = msg(state.lang, endpoint ? "fieldCurrentEndpointLabel" : form.field === "url" ? "fieldCurrentUrlLabel" : "fieldCurrentLabel") + ":";
+  const newLabel = msg(state.lang, labelKey) + ":";
+  const col = Math.max(visibleWidth(currentLabel), visibleWidth(newLabel)) + 3;
+  const row = (label: string, value: string) => padV(" " + label, col) + value;
+  const field = row(newLabel, `${shown}${form.typing ? "|" : ""}`);
   const titleKey = formTitleKey(form);
-  const titleRef = form.intent === "key" || form.intent === "instEdit" ? form.reference : form.intent.startsWith("cidr") ? form.pending?.url : null;
+  const titleRef = form.intent === "key" ? form.reference : form.intent.startsWith("cidr") ? form.pending?.url : null;
   const title = " " + msg(state.lang, titleKey) + (titleRef ? " / " + titleRef : "");
-  const out = [
-    title,
-    "",
-    form.draft || !form.typing ? field : ` ${msg(state.lang, labelKey)}: |`,
-    " " + DIM(msg(state.lang, "chars", { n: [...form.draft].length })),
-    "",
-    ...(secret ? [DIM(" " + msg(state.lang, "keyStorageNote")), DIM(" " + (state.credentialFile ?? "credentials.json").replace(/[\u0000-\u001f\u007f-\u009f]/g, "?"))] : []),
-  ];
+  // The stored value stays masked until Ctrl-R, and exists only while this form is open.
+  const current = form.previous !== undefined ? [row(currentLabel, form.previous)] : (form.current?.sources ?? []).map(source =>
+    row(currentLabel, (form.revealed ? source.value : maskedPartial(source.value)) + DIM("  " + source.label + " · " + msg(state.lang, "chars", { n: [...source.value].length }))));
+  const out = form.readonly
+    ? [title, "", ...(current.length ? current : [" " + msg(state.lang, "previewMissing")]), "", FG(33, " " + form.readonly)]
+    : [
+      title,
+      "",
+      ...(current.length ? [...current, ""] : []),
+      form.draft || !form.typing ? field : row(newLabel, "|"),
+      ...(secret ? [padV("", col) + DIM(msg(state.lang, "chars", { n: [...form.draft].length }))] : []),
+      "",
+      ...(secret ? [DIM(" " + msg(state.lang, "keyStorageNote")), DIM(" " + (state.credentialFile ?? "credentials.json").replace(/[\u0000-\u001f\u007f-\u009f]/g, "?"))] : []),
+    ];
   return out.map(line => padV(line, width));
 }
 
@@ -399,6 +448,23 @@ function weknoraLines(state: State, width: number): string[] {
     [msg(state.lang, "rowKey"), keyText],
     [msg(state.lang, "rowKb"), wk?.defaultKnowledgeBaseId ?? msg(state.lang, "wekMissing")],
     [msg(state.lang, "rowVerify"), msg(state.lang, "wekVerifyHint")],
+    [msg(state.lang, "rowRemoveConn"), msg(state.lang, "wekRemoveHint")],
+  ], note);
+}
+
+function nitterLines(state: State, width: number): string[] {
+  const n = state.nitter;
+  const keyText = !n ? msg(state.lang, "wekMissing")
+    : n.source === "environment-override" ? msg(state.lang, "srcEnvironment") + " / " + msg(state.lang, "wekOverride")
+    : n.source === "environment" ? msg(state.lang, "srcEnvironment")
+    : n.hasLocal ? msg(state.lang, "srcLocal") : msg(state.lang, "wekMissing");
+  const note = n?.status === "conflict" ? msg(state.lang, "nitterConflictGuard")
+    : n && n.source !== "managed" ? msg(state.lang, "nitterExternalGuard")
+    : n?.warnings.length ? msg(state.lang, "nitterPlaintext") : msg(state.lang, "nitterNote");
+  return connRows(state, width, [
+    [msg(state.lang, "rowEndpoint"), n?.baseUrl ? truncateToWidth(n.baseUrl, Math.max(8, width - 20)) : msg(state.lang, "wekMissing")],
+    [msg(state.lang, "rowNitterToken"), keyText],
+    [msg(state.lang, "rowVerify"), msg(state.lang, "nitterVerifyHint")],
     [msg(state.lang, "rowRemoveConn"), msg(state.lang, "wekRemoveHint")],
   ], note);
 }
@@ -434,12 +500,11 @@ export function modalLines(modal: ModalState, width: number): string[] {
 
 // ---------------- titles + key bar ----------------
 export function contentTitle(state: State): string {
-  if (state.mode === "details") return msg(state.lang, "detailsTitle") + " / " + (state.detailRef ?? "");
-  if (state.mode === "preview") return msg(state.lang, "previewTitle") + " / " + (state.preview?.variable ?? "");
   if (state.mode === "form" && state.form) return msg(state.lang, formTitleKey(state.form)) + " / " + contextLabel(state.context);
   if (state.page === "providers") return contextLabel(state.context);
   if (state.page === "knowledge") return "WeKnora";
   if (state.page === "tools") return "UseGPT";
+  if (state.page === "social") return "Nitter";
   if (state.page === "config") {
     return msg(state.lang, "pageConfig") + " / " + (dirtyOrder(state) ? FG(33, msg(state.lang, "unsaved")) : msg(state.lang, "unchanged"));
   }
@@ -454,9 +519,9 @@ export function keyBar(state: State, width: number, offset = 0): string {
     if (state.modal.kind === "confirm" && state.modal.items[1]?.value === "yes") defs.push({ key: "y/n", label: msg(state.lang, "keyQuickPick") });
     defs.push({ key: "Esc", label: msg(state.lang, "keyBack") });
   }
-  else if (state.mode === "details") defs.push({ key: "...", label: msg(state.lang, "keyAnyBack") });
-  else if (state.mode === "preview") defs.push({ key: "r", label: msg(state.lang, "keyReveal") }, { key: "...", label: msg(state.lang, "keyAnyBack") });
-  defs.push({ key: "<-/->", label: msg(state.lang, "keyContext") }, { key: "q", label: msg(state.lang, "keyQuit") });
+  // Left/Right switch strip tabs, and only while the strip has focus.
+  if (state.region === "top" && !state.modal && state.mode === "browse") defs.push({ key: "<-/->", label: msg(state.lang, "keyContext") });
+  defs.push({ key: "q", label: msg(state.lang, "keyQuit") });
   const inner = Math.max(10, width - offset - 4); // content frame inner region: borders + one pad column each side
   const segs = (full: boolean) => defs.map(d => full ? `[${d.key}]${d.label}` : `[${d.key}]`);
   const total = (ss: string[], gap: number) => ss.reduce((a, x) => a + x.length, 0) + gap * (ss.length - 1);

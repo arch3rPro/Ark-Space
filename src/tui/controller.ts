@@ -6,22 +6,24 @@
  */
 import { isAbsolute } from "node:path";
 import type { ProviderId } from "../protocol/types.js";
-import type { SetupSnapshot, WeknoraConnectionSnapshot } from "../config/manage.js";
+import type { SetupSnapshot, WeknoraConnectionSnapshot, NitterConnectionSnapshot } from "../config/manage.js";
 import { msg } from "./messages.js";
 import type { TuiLang } from "./messages.js";
 
 export type Region = "top" | "menu" | "content";
-export type Page = "providers" | "config" | "knowledge" | "tools" | "settings";
-export type Mode = "browse" | "details" | "preview" | "form";
+export type Page = "providers" | "config" | "knowledge" | "tools" | "social" | "settings";
+export type Mode = "browse" | "form";
 export const CONTEXT_COUNT = 6;                       // 4 web providers + WeKnora + UseGPT (ADR 0024 item 3)
+const NITTER_TAB = 7;                          // Social media page (ADR 0026)
 export const ORDER_TAB = 6;                           // pseudo context: search order rides the strip, not the menu
-export const MENU_VALUES = ["providers", "knowledge", "tools", "settings", "exit"] as const;
+export const MENU_VALUES = ["providers", "social", "knowledge", "tools", "settings", "exit"] as const;
 
 /** Context tabs the top strip shows per page; [] means the strip renders the page's full name instead. */
 export function pageTabs(page: Page): number[] {
   if (page === "providers" || page === "config") return [0, 1, 2, 3, ORDER_TAB]; // search engines + order
   if (page === "knowledge") return [4];
   if (page === "tools") return [5];
+  if (page === "social") return [NITTER_TAB];
   return [];
 }
 
@@ -32,7 +34,7 @@ export function selectedTab(state: State): number {
 
 /** Apply a page change without moving focus; menu navigation and tab switches share this. */
 function switchPage(state: State, page: Page): State {
-  const context = page === "knowledge" ? 4 : page === "tools" ? 5 : page === "providers" && state.context >= 4 ? 0 : state.context;
+  const context = page === "knowledge" ? 4 : page === "tools" ? 5 : page === "social" ? NITTER_TAB : page === "providers" && state.context >= 4 ? 0 : state.context;
   const next = { ...state, page, context, row: 0 };
   return page === "config" ? { ...next, orderDraft: null } : next;
 }
@@ -41,10 +43,13 @@ function tabTo(state: State, target: number): State {
   if (target === ORDER_TAB) return switchPage(state, "config");
   if (target === 4) return switchPage(state, "knowledge");
   if (target === 5) return switchPage(state, "tools");
+  if (target === NITTER_TAB) return switchPage(state, "social");
   return switchPage({ ...state, context: target }, "providers");
 }
 
 export interface PreviewSource { label: string; value: string }
+/** Current stored value(s) of the key being edited; held in memory only while the form is open (ADR 0016). */
+export interface CurrentValue { variable: string; sources: PreviewSource[] }
 export interface DiagEntry { provider: string; when: string; ref: string; out: string; dur: number }
 
 export interface TestRun {
@@ -56,13 +61,18 @@ export interface TestRun {
 }
 
 export interface FormState {
-  provider: ProviderId | "weknora" | "usegpt";
+  provider: ProviderId | "weknora" | "nitter" | "usegpt";
   reference: string | null;  // null = add, otherwise edit existing local key (or old instance URL)
   draft: string;             // typed value; secrets only ever held in memory (ADR 0016)
+  original?: string;         // prefilled value of an edit form; Esc discards silently while draft still equals it
   typing: boolean;           // Enter starts editing, Enter commits, Esc reverts
-  intent: "key" | "instAdd" | "instEdit" | "cidrAdd" | "cidrEdit" | "wekUrl" | "wekKey" | "wekKb" | "usegptTunnel" | "usegptDir" | "usegptKey";
+  intent: "key" | "instAdd" | "instEdit" | "cidrAdd" | "cidrEdit" | "wekUrl" | "wekKey" | "wekKb" | "nitterUrl" | "nitterKey" | "usegptTunnel" | "usegptDir" | "usegptKey";
   field: "secret" | "url" | "cidr" | "text";
   pending?: { url: string; oldUrl?: string | undefined }; // cidr second step carries the staged endpoint
+  current?: CurrentValue | undefined; // masked current value of an edited key; Ctrl-R reveals it
+  revealed?: boolean;
+  previous?: string; // value being replaced by a field edit; shown as context, never prefilled
+  readonly?: string; // set: read-only view of a key that cannot be edited here; text says where to change it
 }
 
 export interface ModalState {
@@ -88,9 +98,6 @@ export interface State {
   statusWarn: boolean;
   loading: boolean;
   snapshot: SetupSnapshot | null;
-  detailRef: string | null;
-  preview: { variable: string; sources: PreviewSource[] } | null;
-  revealed: boolean;
   modal: ModalState | null;
   form: FormState | null;
   orderDraft: ProviderId[] | null;
@@ -98,6 +105,7 @@ export interface State {
   testing: TestRun | null;   // live key/pool test in flight (host owns the abort)
   svcBusy: string | null;    // connection service action in flight (start/stop/verify)
   weknora: WeknoraConnectionSnapshot | null;
+  nitter: NitterConnectionSnapshot | null;
   usegpt: UseGptStatus | null;
 }
 
@@ -117,6 +125,9 @@ export type Op =
   | { kind: "removeInstance"; baseUrl: string }
   | { kind: "wekSave"; field: "url" | "key" | "kb"; value: string; reuseSavedKey: boolean; secret?: string; replaceSavedKey?: boolean }
   | { kind: "wekRemove" }
+  | { kind: "nitterSave"; field: "url" | "key"; value: string; reuseSavedKey: boolean; secret?: string; replaceSavedKey?: boolean }
+  | { kind: "nitterRemove" }
+  | { kind: "nitterKeyRemove" }
   | { kind: "wekKeyRemove" }
   // P6 connection parity writes (port of the retired v1 shells)
   | { kind: "usegptSave"; field: "tunnelId" | "dataDir"; value: string }
@@ -132,17 +143,15 @@ export type Event =
   | { type: "move"; delta: 1 | -1 }
   | { type: "enter" }
   | { type: "escape" }
-  | { type: "detailsOpen"; reference: string }
-  | { type: "previewOpen"; variable: string; sources: PreviewSource[] }
+  | { type: "formCurrent"; reference: string; current: CurrentValue }
+  | { type: "formReveal" }
   | { type: "notice"; text: string; warn?: boolean }
   | { type: "statusClear" }
-  | { type: "reveal" }
   // P2 mutations and modals
   | { type: "keyAdd" }
   | { type: "keyEdit" }
   | { type: "keyRemoveStart" }
   | { type: "keyToggle" }
-  | { type: "providerToggle" }
   | { type: "formType"; text: string }
   | { type: "formBackspace" }
   | { type: "formEnter" }        // start typing / commit field
@@ -167,27 +176,30 @@ export type Event =
   | { type: "testResult"; provider: string; entry: DiagEntry }
   | { type: "testEnd"; cancelled: boolean }
   // P4 connection events
-  | { type: "connData"; weknora: WeknoraConnectionSnapshot | null; usegpt: UseGptStatus | null }
+  | { type: "connData"; weknora: WeknoraConnectionSnapshot | null; nitter: NitterConnectionSnapshot | null; usegpt: UseGptStatus | null }
   | { type: "usegptDiagnosis"; issues: string[] }
   | { type: "serviceBusy"; on: boolean };
 
 export type Effect =
   | { type: "exit" }
   | { type: "op"; op: Op }
+  | { type: "formCurrent"; provider: string; reference: string }
   | { type: "testRun"; provider: ProviderId; mode: "pool" | "allKeys"; references: string[] }
-  | { type: "service"; action: "wekVerify" | "usegptDiagnose" | "usegptHubStart" | "usegptHubStop" | "usegptTunnelStart" | "usegptTunnelStop" };
+  | { type: "service"; action: "wekVerify" | "nitterVerify" | "usegptDiagnose" | "usegptHubStart" | "usegptHubStop" | "usegptTunnelStart" | "usegptTunnelStop" };
 
 export function initialState(lang: TuiLang, status: string, context = 0): State {
-  const page: Page = context === 4 ? "knowledge" : context === 5 ? "tools" : "providers";
+  const page: Page = context === 4 ? "knowledge" : context === 5 ? "tools" : context === NITTER_TAB ? "social" : "providers";
   return {
     lang, region: context >= 4 ? "content" : "top", menuCursor: MENU_VALUES.indexOf(page), page, context, row: 0,
     mode: "browse", status, statusWarn: false, loading: true, snapshot: null,
-    detailRef: null, preview: null, revealed: false, modal: null, form: null,
-    orderDraft: null, diagnostics: [], testing: null, svcBusy: null, weknora: null, usegpt: null,
+    modal: null, form: null,
+    orderDraft: null, diagnostics: [], testing: null, svcBusy: null, weknora: null, nitter: null, usegpt: null,
   };
 }
 
-const REGIONS: Region[] = ["top", "menu", "content"];
+// Focus path is menu -> top -> content; only pages with several strip tabs (Search + its Order tab) have a top stop.
+const hasTopStrip = (page: Page): page is "providers" | "config" => page === "providers" || page === "config";
+const regionPath = (page: Page): Region[] => hasTopStrip(page) ? ["menu", "top", "content"] : ["menu", "content"];
 const CONFIRM_ITEMS = (lang: TuiLang) => [
   { value: "no", label: msg(lang, "cancelDefault") },
   { value: "yes", label: msg(lang, "confirm") },
@@ -206,12 +218,30 @@ export function selectedConnectionKey(state: State) {
     return { provider: "weknora" as const, reference: wk?.source === "environment" ? "env:WEKNORA_API_KEY" : "env:ARKSPACE_WEKNORA_API_KEY",
       hasLocal: wk?.hasLocal ?? false, external: Boolean(wk && wk.source !== "managed"), sharedProviders: wk?.sharedProviders ?? [] };
   }
+  if (state.context === NITTER_TAB && state.row === 1) {
+    const n = state.nitter;
+    return { provider: "nitter" as const, reference: n?.source === "environment" ? "env:NITTER_API_TOKEN" : "env:ARKSPACE_NITTER_API_TOKEN",
+      hasLocal: n?.hasLocal ?? false, external: Boolean(n && n.source !== "managed"), sharedProviders: n?.sharedProviders ?? [] };
+  }
   if (state.context === 5 && state.row === 5) {
     const u = state.usegpt;
     return { provider: "usegpt" as const, reference: "env:CONTROL_PLANE_API_KEY", hasLocal: u?.savedKey ?? false,
       external: u?.keySource === "environment" || u?.keySource === "invalid", sharedProviders: u?.sharedProviders ?? [] };
   }
   return null;
+}
+
+/** Connection-page rows are either editable fields (a/e/Enter open the form) or one-shot actions (Enter). */
+export function connectionRow(state: State): { kind: "edit"; filled: boolean } | { kind: "action" } | null {
+  const w = state.weknora, n = state.nitter, u = state.usegpt;
+  const fields: Record<number, Record<number, unknown>> = {
+    4: { 0: w?.baseUrl, 1: w?.hasLocal, 2: w?.defaultKnowledgeBaseId },
+    [NITTER_TAB]: { 0: n?.baseUrl, 1: n?.hasLocal },
+    5: { 3: u?.tunnelId, 4: u?.dataDir, 5: u?.savedKey },
+  };
+  const page = fields[state.context];
+  if (!page) return null;
+  return state.row in page ? { kind: "edit", filled: Boolean(page[state.row]) } : { kind: "action" };
 }
 
 /** Rows available on the current content page (clamps for move/enter). */
@@ -221,6 +251,7 @@ export function rowCount(state: State): number {
   if (state.page === "config") return orderRows(state).length;
   if (state.page === "settings") return 2;
   if (state.context === 4) return 5; // endpoint / key / kb / verify / remove
+  if (state.context === NITTER_TAB) return 4; // address / token / verify / remove
   if (state.context === 5) return 7; // Artifact Hub / Tunnel / diagnose / config / restore
   const provider = snapshot.providers[state.context];
   if (!provider) return 0; // WeKnora/UseGPT contexts have no rows until P4
@@ -243,7 +274,7 @@ export function orderRows(state: State): ProviderId[] {
 
 /** Leave transient modes; secret values are never retained past preview (ADR 0016). */
 function rest(state: State): State {
-  return { ...state, mode: "browse", detailRef: null, preview: null, revealed: false };
+  return { ...state, mode: "browse" };
 }
 
 function notice(state: State, text: string, warn = false): { state: State; effects: Effect[] } {
@@ -256,17 +287,6 @@ function selectedKey(state: State) {
 
 function withForm(state: State, form: FormState | null): State {
   return { ...state, form, mode: form ? "form" : "browse" };
-}
-
-/** Guard rows that the P2 write surface does not own (env-only edits are refused). */
-function refuseGuard(state: State, key: ReturnType<typeof selectedKey>): { state: State; effects: Effect[] } | null {
-  if (!key) return notice(state, msg(state.lang, "noRows"));
-  if (state.context >= 4) return notice(state, msg(state.lang, "connPending"));
-  if (key.source === "environment") return notice(state, msg(state.lang, "envGuarded"), true);
-  if (key.sharedProviders?.length || key.sharedConnections?.length) return notice(state, msg(state.lang, "sharedGuarded"), true);
-  if (key.ownedResources) return notice(state, msg(state.lang, "ownedGuarded"), true);
-  if (!key.hasLocal || !key.available) return notice(state, msg(state.lang, "previewMissing"), true);
-  return null;
 }
 
 export function reduce(state: State, event: Event): { state: State; effects: Effect[] } {
@@ -325,6 +345,19 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
         case "wek-key-replace":
           if (picked.value !== "yes" || !closed.form) return { state: closed, effects: [] };
           return { state: closed, effects: [{ type: "op", op: { kind: "wekSave", field: "key", value: closed.form.draft, reuseSavedKey: false, replaceSavedKey: true } }] };
+        case "nitter-url-reuse": {
+          if (picked.value !== "yes" || !modal.context?.variable) return { state: closed, effects: [] };
+          return { state: closed, effects: [{ type: "op", op: { kind: "nitterSave", field: "url", value: modal.context.variable, reuseSavedKey: true } }] };
+        }
+        case "nitter-key-replace":
+          if (picked.value !== "yes" || !closed.form) return { state: closed, effects: [] };
+          return { state: closed, effects: [{ type: "op", op: { kind: "nitterSave", field: "key", value: closed.form.draft, reuseSavedKey: false, replaceSavedKey: true } }] };
+        case "nitter-verify":
+          return { state: closed, effects: picked.value === "yes" ? [{ type: "service", action: "nitterVerify" }] : [] };
+        case "nitter-remove":
+          return { state: closed, effects: picked.value === "yes" ? [{ type: "op", op: { kind: "nitterRemove" } }] : [] };
+        case "nitter-key-remove":
+          return { state: closed, effects: picked.value === "yes" ? [{ type: "op", op: { kind: "nitterKeyRemove" } }] : [] };
         case "wek-verify": case "usegpt-hub": case "usegpt-tunnel":
           if (picked.value !== "yes") return { state: closed, effects: [] };
           return { state: closed, effects: [{ type: "service", action: modal.tag === "wek-verify" ? "wekVerify" : modal.tag === "usegpt-hub" ? (state.usegpt?.daemonRunning ? "usegptHubStop" : "usegptHubStart") : (state.usegpt?.tunnelRunning ? "usegptTunnelStop" : "usegptTunnelStart") }] };
@@ -369,7 +402,7 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
       case "testIntent":
         return notice(state, msg(state.lang, "testBusy"), true);
       default:
-        return { state, effects: [] }; // mutations/preview/details are fenced until the run ends
+        return { state, effects: [] }; // mutations are fenced until the run ends
     }
   }
 
@@ -377,18 +410,21 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
   if (state.mode === "form" && state.form) {
     const form = state.form;
     switch (event.type) {
-      case "formType": return { state: withForm(state, { ...form, draft: form.draft + event.text }), effects: [] };
-      case "formBackspace": return { state: withForm(state, { ...form, draft: form.draft.slice(0, -1) }), effects: [] };
+      case "formType": return form.readonly ? { state, effects: [] } : { state: withForm(state, { ...form, draft: form.draft + event.text }), effects: [] };
+      case "formBackspace": return form.readonly ? { state, effects: [] } : { state: withForm(state, { ...form, draft: form.draft.slice(0, -1) }), effects: [] };
       case "formEnter":
+        if (form.readonly) return { state: withForm(rest(state), null), effects: [] };
         return form.typing
           ? { state: withForm(state, { ...form, typing: false }), effects: [] } // commit draft into the field
           : { state: withForm(state, { ...form, typing: true }), effects: [] };  // start editing
-      case "formSave": return formSaveEvent(state, form);
+      case "formSave": return form.readonly ? { state, effects: [] } : formSaveEvent(state, form);
+      case "formCurrent": return event.reference === form.reference ? { state: withForm(state, { ...form, current: event.current, revealed: false }), effects: [] } : { state, effects: [] };
+      case "formReveal": return form.current ? { state: withForm(state, { ...form, revealed: !form.revealed }), effects: [] } : { state, effects: [] };
       case "formDone": return { state: withForm(rest(state), null), effects: [] };
       case "escape": {
-        if (form.typing) return { state: withForm(state, { ...form, typing: false, draft: "" }), effects: [] }; // revert field
-        if (form.draft) {
-          const title = msg(state.lang, "discardFormConfirm");
+        // One Esc leaves an untouched form, typing or not; only a changed draft asks before it is discarded.
+        if (form.draft !== (form.original ?? "")) {
+          const title = msg(state.lang, form.field === "secret" ? "discardFormConfirm" : "discardFormInput");
           return { state: { ...state, modal: { kind: "confirm", title, items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "form-discard" } }, effects: [] };
         }
         return { state: withForm(rest(state), null), effects: [] };
@@ -404,7 +440,7 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
         if (state.loading || state.testing) return { state, effects: [] };
         return { state: { ...state, status: "", statusWarn: false }, effects: [] };
       case "connData":
-        return { state: { ...state, weknora: event.weknora, usegpt: event.usegpt }, effects: [] };
+        return { state: { ...state, weknora: event.weknora, nitter: event.nitter, usegpt: event.usegpt }, effects: [] };
       case "loadError":
         return { state: { ...state, loading: false, status: event.text, statusWarn: true }, effects: [] };
       case "notice":
@@ -429,7 +465,8 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
     case "notice": return notice(state, event.text, event.warn);
 
     case "tab": {
-      const region = REGIONS[(REGIONS.indexOf(state.region) + (event.delta === 1 ? 1 : REGIONS.length - 1)) % REGIONS.length]!;
+      const path = regionPath(state.page); const at = path.indexOf(state.region);
+      const region = at < 0 ? "menu" : path[(at + (event.delta === 1 ? 1 : path.length - 1)) % path.length]!;
       return { state: { ...rest(state), region }, effects: [] };
     }
     case "context": {
@@ -476,12 +513,11 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
       if (state.region === "menu") {
         const value = MENU_VALUES[state.menuCursor]!;
         if (value === "exit") return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "exitConfirm"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "exit" } }, effects: [] };
-        return { state: { ...state, region: "content" as Region }, effects: [] }; // the page already followed the cursor
+        return { state: { ...state, region: hasTopStrip(state.page) ? "top" as Region : "content" as Region }, effects: [] }; // the page already followed the cursor
       }
       if (state.page === "settings") return reduce(state, { type: "languageApply" });
-      if (state.page === "knowledge" || state.page === "tools") {
-        const editingRow = state.page === "knowledge" ? state.row <= 2 : state.row >= 3 && state.row <= 5;
-        return editingRow ? notice(state, msg(state.lang, "connPending"), true) : connectionEnter(state);
+      if (state.page === "knowledge" || state.page === "tools" || state.page === "social") {
+        return connectionEnter(state);
       }
       return { state, effects: [] };
     }
@@ -495,20 +531,20 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
         }
       }
       if (state.region === "content") {
-        if (state.page === "config") return { state: { ...switchPage(state, "providers"), region: "menu" as Region }, effects: [] }; // order lives on the strip; the menu has no row for it
+        if (hasTopStrip(state.page)) return { state: { ...state, region: "top" as Region }, effects: [] };
         const cursor = MENU_VALUES.indexOf(state.page);
         return { state: { ...state, region: "menu" as Region, menuCursor: cursor >= 0 ? cursor : state.menuCursor }, effects: [] };
       }
-      if (state.region === "menu") return { state: { ...state, region: "top" }, effects: [] };
+      if (state.region === "top") {
+        // order lives on the strip; the menu has no row for it, so leaving the strip returns to Search
+        return { state: { ...(state.page === "config" ? switchPage(state, "providers") : state), region: "menu" as Region, menuCursor: MENU_VALUES.indexOf("providers") }, effects: [] };
+      }
       return { state, effects: [] };
     }
 
-    case "detailsOpen": return { state: { ...state, mode: "details", detailRef: event.reference }, effects: [] };
-    case "previewOpen": return { state: { ...state, mode: "preview", revealed: false, preview: { variable: event.variable, sources: event.sources } }, effects: [] };
-    case "reveal": return state.mode === "preview" ? { state: { ...state, revealed: !state.revealed }, effects: [] } : { state, effects: [] };
 
     case "testIntent": {
-      if (state.context >= 4) return notice(state, msg(state.lang, "connPending"), true);
+      if (state.context >= 4) return { state, effects: [] }; // the host never sends this event here
       const provider = currentProvider(state);
       if (!provider) return notice(state, msg(state.lang, "noRows"), true);
       const name = PROV_LABELS[provider.id] ?? provider.id;
@@ -549,7 +585,7 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
       return { state: { ...state, testing: null }, effects: [] };
 
     case "connData":
-      return { state: { ...state, weknora: event.weknora, usegpt: event.usegpt }, effects: [] };
+      return { state: { ...state, weknora: event.weknora, nitter: event.nitter, usegpt: event.usegpt }, effects: [] };
     case "usegptDiagnosis": {
       const note = event.issues.length ? event.issues.join("\n") : msg(state.lang, "svcDiagClean");
       return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "usegptDiagTitle"), note, items: [{ value: "cancel", label: msg(state.lang, "keyBack") }], cursor: 0, tag: "usegpt-diagnose" } }, effects: [] };
@@ -572,7 +608,12 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
         if (provider.external) return notice(state, msg(state.lang, "instEnvGuarded"), true);
         return { state: withForm(state, { provider: "searxng", reference: null, draft: "", typing: true, intent: "instAdd", field: "url" }), effects: [] };
       }
-      if (!provider || state.context >= 4) return notice(state, msg(state.lang, "connPending"));
+      if (state.context >= 4) {
+        const row = connectionRow(state);
+        if (row?.kind !== "edit") return { state, effects: [] }; // the host never sends this event here
+        return row.filled ? notice(state, msg(state.lang, "fieldSet"), true) : connectionEnter(state);
+      }
+      if (!provider) return { state, effects: [] }; // the host never sends this event here
       return { state: withForm(state, { provider: provider.id, reference: null, draft: "", typing: true, intent: "key", field: "secret" }), effects: [] };
     }
     case "keyEdit": {
@@ -581,13 +622,15 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
         const instance = provider.instances[state.row];
         if (!instance) return notice(state, msg(state.lang, "noRows"), true);
         if (instance.source === "environment") return notice(state, msg(state.lang, "instEnvGuarded"), true);
-        return { state: withForm(state, { provider: "searxng", reference: instance.baseUrl, draft: instance.baseUrl, typing: false, intent: "instEdit", field: "url" }), effects: [] };
+        return { state: withForm(state, { provider: "searxng", reference: instance.baseUrl, draft: "", typing: true, intent: "instEdit", field: "url", previous: instance.baseUrl }), effects: [] };
       }
       if (state.context >= 4) return connectionEnter(state);
       const key = selectedKey(state);
-      const guard = refuseGuard(state, key);
-      if (guard) return guard;
-      return { state: withForm(state, { provider: currentProvider(state)!.id, reference: key!.reference, draft: "", typing: true, intent: "key", field: "secret" }), effects: [] };
+      if (!key) return notice(state, msg(state.lang, "noRows"));
+      const why = key.source === "environment" ? "envGuarded" : (key.sharedProviders?.length || key.sharedConnections?.length) ? "sharedGuarded"
+        : key.ownedResources ? "ownedGuarded" : !key.hasLocal || !key.available ? "previewMissing" : null;
+      // A key that cannot be replaced here still opens its form, read-only, so the stored value can be inspected.
+      return { state: withForm(state, { provider: currentProvider(state)!.id, reference: key.reference, draft: "", typing: !why, intent: "key", field: "secret", ...(why ? { readonly: msg(state.lang, why) } : {}) }), effects: [{ type: "formCurrent", provider: currentProvider(state)!.id, reference: key.reference }] };
     }
     case "keyRemoveStart": {
       const connection = selectedConnectionKey(state);
@@ -595,7 +638,7 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
         if (connection.external) return notice(state, msg(state.lang, "envGuarded"), true);
         if (connection.sharedProviders.length) return notice(state, msg(state.lang, "sharedGuarded"), true);
         if (!connection.hasLocal) return notice(state, msg(state.lang, "previewMissing"), true);
-        return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "removeConfirm", { ref: connection.reference }), note: msg(state.lang, "connectionKeyRemoveConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: connection.provider === "weknora" ? "wek-key-remove" : "usegpt-key-remove" } }, effects: [] };
+        return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "removeConfirm", { ref: connection.reference }), note: msg(state.lang, "connectionKeyRemoveConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: connection.provider === "weknora" ? "wek-key-remove" : connection.provider === "nitter" ? "nitter-key-remove" : "usegpt-key-remove" } }, effects: [] };
       }
       if (state.context === 3) {
         const provider = currentProvider(state)!;
@@ -606,7 +649,7 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
         const title = last ? msg(state.lang, "instRemoveLast") : msg(state.lang, "removeConfirm", { ref: instance.baseUrl });
         return { state: { ...state, modal: { kind: "confirm", title, items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "inst-remove", context: { reference: instance.baseUrl } } }, effects: [] };
       }
-      if (state.context >= 4) return notice(state, msg(state.lang, "connPending"));
+      if (state.context >= 4) return { state, effects: [] }; // the host never sends this event here
       const key = selectedKey(state);
       if (!key) return notice(state, msg(state.lang, "noRows"));
       const provider = currentProvider(state)!;
@@ -615,19 +658,14 @@ export function reduce(state: State, event: Event): { state: State; effects: Eff
     }
     case "keyToggle": {
       if (state.context === 3) return notice(state, msg(state.lang, "searxngNoToggle"), true);
-      if (state.context >= 4) return notice(state, msg(state.lang, "connPending"));
+      if (state.context >= 4) return { state, effects: [] }; // the host never sends this event here
       const key = selectedKey(state);
       if (!key) return notice(state, msg(state.lang, "noRows"));
       const provider = currentProvider(state);
-      if (!provider) return notice(state, msg(state.lang, "connPending"));
+      if (!provider) return { state, effects: [] }; // the host never sends this event here
       // currently disabled/cooldown -> enable; otherwise disable (matches the retired workbench mapping)
       const enabled = key.status === "disabled" || key.status === "cooldown";
       return { state, effects: [{ type: "op", op: { kind: "toggleKey", provider: provider.id, reference: key.reference, enabled } }] };
-    }
-    case "providerToggle": {
-      const provider = currentProvider(state);
-      if (!provider) return notice(state, msg(state.lang, "connPending"));
-      return { state, effects: [{ type: "op", op: { kind: "toggleProvider", provider: provider.id, enabled: !provider.enabled } }] };
     }
     case "languageApply": {
       const target = (state.row === 1 ? "en" : "zh") as TuiLang;
@@ -727,18 +765,25 @@ function formSaveEvent(state: State, form: FormState): { state: State; effects: 
       if (!draft) return notice(state, msg(state.lang, "urlEmpty"), true);
       const wk = state.weknora;
       if (wk && wk.baseUrl === draft) return notice(state, msg(state.lang, "noopSave"));
-      if (!wk || (!wk.available && !wk.hasLocal)) {
-        // first-time setup stores endpoint and credential in one write; chain the key field now
-        return { state: withForm(state, { ...form, draft: "", typing: true, intent: "wekKey", field: "secret", pending: { url: draft } }), effects: [] };
-      }
-      if (wk.hasLocal) return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "wekUrlReuseConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "wek-url-reuse", context: { variable: draft } } }, effects: [] };
+      // Address and key are saved independently; only changing an existing address with a saved key needs consent.
+      if (wk?.baseUrl && wk.hasLocal) return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "wekUrlReuseConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "wek-url-reuse", context: { variable: draft } } }, effects: [] };
       return { state: { ...state, form: null, mode: "browse" as Mode }, effects: [{ type: "op", op: { kind: "wekSave", field: "url", value: draft, reuseSavedKey: false } }] };
     }
     case "wekKey":
       if (!form.draft) return notice(state, msg(state.lang, "emptySecret"), true);
-      if (form.pending?.url) return { state: { ...state, form: null, mode: "browse" as Mode }, effects: [{ type: "op", op: { kind: "wekSave", field: "url", value: form.pending.url, reuseSavedKey: false, secret: form.draft } }] };
       if (state.weknora?.hasLocal) return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "overwriteConfirm", { ref: "env:ARKSPACE_WEKNORA_API_KEY" }), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "wek-key-replace" } }, effects: [] };
       return { state: { ...state, form: null, mode: "browse" as Mode }, effects: [{ type: "op", op: { kind: "wekSave", field: "key", value: form.draft, reuseSavedKey: false } }] };
+    case "nitterUrl": {
+      if (!draft) return notice(state, msg(state.lang, "urlEmpty"), true);
+      const n = state.nitter;
+      if (n && n.baseUrl === draft) return notice(state, msg(state.lang, "noopSave"));
+      if (n?.baseUrl && n.hasLocal) return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "nitterUrlReuseConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "nitter-url-reuse", context: { variable: draft } } }, effects: [] };
+      return { state: { ...state, form: null, mode: "browse" as Mode }, effects: [{ type: "op", op: { kind: "nitterSave", field: "url", value: draft, reuseSavedKey: false } }] };
+    }
+    case "nitterKey":
+      if (!form.draft) return notice(state, msg(state.lang, "emptySecret"), true);
+      if (state.nitter?.hasLocal) return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "overwriteConfirm", { ref: "env:ARKSPACE_NITTER_API_TOKEN" }), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "nitter-key-replace" } }, effects: [] };
+      return { state: { ...state, form: null, mode: "browse" as Mode }, effects: [{ type: "op", op: { kind: "nitterSave", field: "key", value: form.draft, reuseSavedKey: false } }] };
     case "wekKb":
       return { state: { ...state, form: null, mode: "browse" as Mode }, effects: [{ type: "op", op: { kind: "wekSave", field: "kb", value: draft, reuseSavedKey: false } }] };
     case "usegptTunnel":
@@ -754,10 +799,33 @@ function formSaveEvent(state: State, form: FormState): { state: State; effects: 
   }
 }
 
+function connectionKeyIntent(provider: "weknora" | "nitter" | "usegpt"): FormState["intent"] {
+  return provider === "weknora" ? "wekKey" : provider === "nitter" ? "nitterKey" : "usegptKey";
+}
+
+/** True when the page's endpoint is managed outside Setup (environment or conflicting), so its rows cannot be changed here. */
+export function connectionLocked(state: State): boolean {
+  const c = state.context === 4 ? state.weknora : state.context === NITTER_TAB ? state.nitter : null;
+  return Boolean(c && (c.status === "conflict" || c.source === "environment"));
+}
+
+/** Opening a connection's key form also fetches its stored value, so the form can show it masked. */
 function connectionEnter(state: State): { state: State; effects: Effect[] } {
+  const result = connectionEnterRaw(state);
   const key = selectedConnectionKey(state);
-  if (key?.external) return notice(state, msg(state.lang, "envGuarded"), true);
-  if (key?.sharedProviders.length) return notice(state, msg(state.lang, "sharedGuarded"), true);
+  const form = result.state.form;
+  if (!key || !form || form.field !== "secret" || form.readonly || !key.hasLocal) return result;
+  return { state: withForm(result.state, { ...form, reference: key.reference }), effects: [{ type: "formCurrent", provider: key.provider, reference: key.reference }] };
+}
+
+function connectionEnterRaw(state: State): { state: State; effects: Effect[] } {
+  const key = selectedConnectionKey(state);
+  if (key && (key.external || key.sharedProviders.length)) {
+    // The key cannot be replaced here, but its stored value can still be inspected read-only.
+    const readonly = msg(state.lang, key.external ? "envGuarded" : "sharedGuarded");
+    return { state: withForm(state, { provider: key.provider, reference: key.reference, draft: "", typing: false, intent: connectionKeyIntent(key.provider), field: "secret", readonly }),
+      effects: [{ type: "formCurrent", provider: key.provider, reference: key.reference }] };
+  }
   if (state.context === 4) {
     const wk = state.weknora;
     if (wk && (wk.status === "conflict" || wk.source === "environment")) {
@@ -765,11 +833,27 @@ function connectionEnter(state: State): { state: State; effects: Effect[] } {
     }
     const base = { provider: "weknora" as const, reference: null, typing: false };
     switch (state.row) {
-      case 0: return { state: withForm(state, { ...base, draft: wk?.baseUrl ?? "", intent: "wekUrl", field: "url" }), effects: [] };
+      case 0: return { state: withForm(state, { ...base, draft: "", typing: true, intent: "wekUrl", field: "url", ...(wk?.baseUrl ? { previous: wk.baseUrl } : {}) }), effects: [] };
       case 1: return { state: withForm(state, { ...base, draft: "", typing: true, intent: "wekKey", field: "secret" }), effects: [] };
-      case 2: return { state: withForm(state, { ...base, draft: wk?.defaultKnowledgeBaseId ?? "", intent: "wekKb", field: "text" }), effects: [] };
+      case 2: return { state: withForm(state, { ...base, draft: "", typing: true, intent: "wekKb", field: "text", ...(wk?.defaultKnowledgeBaseId ? { previous: wk.defaultKnowledgeBaseId } : {}) }), effects: [] };
       case 3: return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "rowVerify"), note: msg(state.lang, "wekVerifyConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "wek-verify" } }, effects: [] };
       case 4: return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "rowRemoveConn"), note: msg(state.lang, "wekRemoveConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "wek-remove" } }, effects: [] };
+    }
+    return { state, effects: [] };
+  }
+  if (state.context === NITTER_TAB) {
+    const n = state.nitter;
+    if (n && (n.status === "conflict" || n.source === "environment")) {
+      return notice(state, msg(state.lang, n.status === "conflict" ? "nitterConflictGuard" : "nitterExternalGuard"), true);
+    }
+    const base = { provider: "nitter" as const, reference: null, typing: false };
+    switch (state.row) {
+      case 0: return { state: withForm(state, { ...base, draft: "", typing: true, intent: "nitterUrl", field: "url", ...(n?.baseUrl ? { previous: n.baseUrl } : {}) }), effects: [] };
+      case 1: return { state: withForm(state, { ...base, draft: "", typing: true, intent: "nitterKey", field: "secret" }), effects: [] };
+      case 2:
+        if (!n?.available) return notice(state, msg(state.lang, "nitterNotConfigured"), true);
+        return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "rowVerify"), note: msg(state.lang, "nitterVerifyConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "nitter-verify" } }, effects: [] };
+      case 3: return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "rowRemoveConn"), note: msg(state.lang, "nitterRemoveConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "nitter-remove" } }, effects: [] };
     }
     return { state, effects: [] };
   }
@@ -782,8 +866,8 @@ function connectionEnter(state: State): { state: State; effects: Effect[] } {
       if (!u?.tunnelRunning && !u?.configured) return notice(state, msg(state.lang, "usegptConfigureFirst"), true);
       return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "rowTunnel"), note: msg(state.lang, u.tunnelRunning ? "tunnelStopConsent" : "tunnelStartConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "usegpt-tunnel" } }, effects: [] };
     case 2: return { state, effects: [{ type: "service", action: "usegptDiagnose" }] };
-    case 3: return { state: withForm(state, { provider: "usegpt", reference: null, draft: u?.tunnelId ?? "", typing: false, intent: "usegptTunnel", field: "text" }), effects: [] };
-    case 4: return { state: withForm(state, { provider: "usegpt", reference: null, draft: u?.dataDir ?? "", typing: false, intent: "usegptDir", field: "text" }), effects: [] };
+    case 3: return { state: withForm(state, { provider: "usegpt", reference: null, draft: "", typing: true, intent: "usegptTunnel", field: "text", ...(u?.tunnelId ? { previous: u.tunnelId } : {}) }), effects: [] };
+    case 4: return { state: withForm(state, { provider: "usegpt", reference: null, draft: "", typing: true, intent: "usegptDir", field: "text", ...(u?.dataDir ? { previous: u.dataDir } : {}) }), effects: [] };
     case 5: return { state: withForm(state, { provider: "usegpt", reference: null, draft: "", typing: true, intent: "usegptKey", field: "secret" }), effects: [] };
     case 6: return { state: { ...state, modal: { kind: "confirm", title: msg(state.lang, "rowRestoreUseGpt"), note: msg(state.lang, "usegptRestoreConsent"), items: CONFIRM_ITEMS(state.lang), cursor: 0, tag: "usegpt-unlink" } }, effects: [] };
     default: return { state, effects: [] };

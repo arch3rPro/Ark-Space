@@ -7,7 +7,7 @@
 import {
   addSetupKey, removeSetupKey, replaceSetupKey, setSetupKeyEnabled,
   setSetupLanguage, setSetupProviderEnabled, setSetupProviderOrder,
-  updateSetupInstance, removeSetupInstance, saveWeknoraConnection, removeWeknoraConnection, saveUseGptKey, removeConnectionKey,
+  updateSetupInstance, removeSetupInstance, saveWeknoraConnection, saveNitterConnection, removeNitterConnection, removeWeknoraConnection, saveUseGptKey, removeConnectionKey,
 } from "../config/manage.js";
 import { addSearxngInstance, loadConfig } from "../config/store.js";
 import { saveUseGptConfig, removeUseGptConfig } from "../config/usegpt.js";
@@ -42,18 +42,25 @@ export async function runOp(paths: ArkSpacePaths, environment: NodeJS.ProcessEnv
         const config = await loadConfig(paths.config);
         const conn = config.connections?.weknora as { baseUrl: string; defaultKnowledgeBaseId?: string } | undefined;
         if (op.field === "url") {
-          await saveWeknoraConnection(paths, { baseUrl: op.value }, op.secret, { reuseSavedKey: op.reuseSavedKey, replaceSavedKey: op.replaceSavedKey === true }, environment);
+          await saveWeknoraConnection(paths, { baseUrl: op.value, ...(conn?.defaultKnowledgeBaseId ? { defaultKnowledgeBaseId: conn.defaultKnowledgeBaseId } : {}) }, undefined, { reuseSavedKey: op.reuseSavedKey }, environment);
+          return { ok: true };
+        }
+        if (op.field === "key") {
+          await saveWeknoraConnection(paths, {}, op.value, { reuseSavedKey: true, replaceSavedKey: op.replaceSavedKey === true }, environment);
           return { ok: true };
         }
         if (!conn) return { ok: false, reason: "WeKnora is not configured yet; set the API root first." };
-        if (op.field === "key") {
-          await saveWeknoraConnection(paths, { baseUrl: conn.baseUrl, ...(conn.defaultKnowledgeBaseId ? { defaultKnowledgeBaseId: conn.defaultKnowledgeBaseId } : {}) }, op.value, { reuseSavedKey: true, replaceSavedKey: op.replaceSavedKey === true }, environment);
-          return { ok: true };
-        }
         await saveWeknoraConnection(paths, { baseUrl: conn.baseUrl, ...(op.value ? { defaultKnowledgeBaseId: op.value } : {}) }, undefined, { reuseSavedKey: true }, environment);
         return { ok: true };
       }
       case "wekRemove": await removeWeknoraConnection(paths); return { ok: true };
+      case "nitterSave": {
+        if (op.field === "url") { await saveNitterConnection(paths, op.value, undefined, { reuseSavedKey: op.reuseSavedKey }, environment); return { ok: true }; }
+        await saveNitterConnection(paths, undefined, op.value, { replaceSavedKey: op.replaceSavedKey === true }, environment);
+        return { ok: true };
+      }
+      case "nitterRemove": await removeNitterConnection(paths); return { ok: true };
+      case "nitterKeyRemove": await removeConnectionKey(paths, "nitter", environment); return { ok: true };
       case "usegptSave": {
         const config = await loadConfig(paths.config);
         const saved = config.connections?.usegpt;

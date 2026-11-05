@@ -16,13 +16,14 @@ import { Line } from "./components/line.js";
 import { FG } from "./components/style.js";
 import { msg } from "./messages.js";
 import type { TuiLang } from "./messages.js";
-import { initialState, reduce, selectedConnectionKey, type Event, type Op, type State } from "./controller.js";
+import { connectionRow, initialState, reduce, selectedConnectionKey, type Event, type Op, type State } from "./controller.js";
 import {
   actionHits, actionLine, contentTitle, currentProvider, currentRowItems, keyBar, menuHitPage,
   menuLines, modalLines, pageLines, stripHits, stripLine,
 } from "./view.js";
 import { getSetupSnapshot, getConnections, loadPreview } from "./data.js";
 import { runOp } from "./commands.js";
+import { verifyNitter } from "../capabilities/x-verify.js";
 import { executeWeknoraVerify } from "../capabilities/weknora-verify.js";
 import { startUseGptService, stopUseGptService, diagnoseUseGpt } from "../usegpt/services.js";
 import { loadConfig } from "../config/store.js";
@@ -66,7 +67,7 @@ const printableChar = (data: string): string => {
   return "";
 };
 
-const CONTEXT_BY_ID: Record<string, number> = { exa: 0, tavily: 1, firecrawl: 2, searxng: 3, weknora: 4, usegpt: 5 };
+const CONTEXT_BY_ID: Record<string, number> = { exa: 0, tavily: 1, firecrawl: 2, searxng: 3, weknora: 4, usegpt: 5, nitter: 7 };
 
 export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
   let state: State = { ...initialState(options.language(), msg(options.language(), "loading"), options.provider ? CONTEXT_BY_ID[options.provider] ?? 0 : 0), credentialFile: options.paths.credentials };
@@ -97,7 +98,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
       const value = menuHitPage(state, e.y);
       if (value === null) return undefined;
       if (value === "exit") return dispatch({ type: "quitIntent" }), { handled: true };
-      dispatch({ type: "pageSet", page: value as "providers" | "knowledge" | "tools" | "settings" });
+      dispatch({ type: "pageSet", page: value as "providers" | "knowledge" | "tools" | "social" | "settings" });
       return { handled: true };
     },
   };
@@ -173,6 +174,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
       if (effect.type === "exit") close();
       else if (effect.type === "testRun") void runTest(effect);
       else if (effect.type === "service") void runService(effect.action);
+      else if (effect.type === "formCurrent") void loadCurrent(effect.provider, effect.reference);
       else void applyOp(effect.op);
     }
     render();
@@ -195,7 +197,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     try {
       const [snapshot, conn] = await Promise.all([getSetupSnapshot(options.paths, options.environment), getConnections(options.paths, options.environment)]);
       dispatch({ type: "data", snapshot });
-      dispatch({ type: "connData", weknora: conn.weknora, usegpt: conn.usegpt });
+      dispatch({ type: "connData", weknora: conn.weknora, nitter: conn.nitter, usegpt: conn.usegpt });
     }
     catch { dispatch({ type: "loadError", text: msg(state.lang, "dataError") }); }
   }
@@ -230,6 +232,12 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
         if (op.field === "key" || (op.field === "url" && op.secret === undefined)) dispatch({ type: "formDone" });
         dispatch({ type: "notice", text: msg(state.lang, "wekSaved") });
         break;
+      case "nitterSave":
+        if (op.field === "key" || (op.field === "url" && op.secret === undefined)) dispatch({ type: "formDone" });
+        dispatch({ type: "notice", text: msg(state.lang, "nitterSaved") });
+        break;
+      case "nitterKeyRemove": dispatch({ type: "notice", text: msg(state.lang, "connectionKeyRemoved") }); break;
+      case "nitterRemove": dispatch({ type: "notice", text: msg(state.lang, "nitterRemoved") }); break;
       case "wekKeyRemove": dispatch({ type: "notice", text: msg(state.lang, "connectionKeyRemoved") }); break;
       case "wekRemove": dispatch({ type: "notice", text: msg(state.lang, "wekRemoved") }); break;
       case "usegptSave": dispatch({ type: "notice", text: msg(state.lang, "usegptConfigSaved") }); break;
@@ -258,6 +266,9 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
         const envelope = await executeWeknoraVerify({ protocolVersion: 1, capability: "weknora.connection.verify", input: { confirmed: true, timeoutMs: 5000 } }, options.paths, options.environment);
         detail = envelope.ok ? `2xx/${envelope.data.status}` : `${envelope.error.kind}${envelope.error.status ? `/${envelope.error.status}` : ""}`;
         dispatch({ type: "notice", text: msg(state.lang, "wekVerifyResult", { res: msg(state.lang, envelope.ok ? "wekVerifyOk" : "wekVerifyBad"), detail: `: ${detail}` }), warn: !envelope.ok });
+      } else if (action === "nitterVerify") {
+        const result = await verifyNitter(options.paths, options.environment);
+        dispatch({ type: "notice", text: msg(state.lang, "nitterVerifyResult", { res: msg(state.lang, result.ok ? "wekVerifyOk" : "wekVerifyBad"), detail: `: ${result.detail}` }), warn: !result.ok });
       } else if (action === "usegptDiagnose") {
         const d = await diagnoseUseGpt(options.environment);
         detail = d.issues.length ? d.issues.join(", ") : "clean";
@@ -310,7 +321,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
         const report = await testSetupKeys({
           config: { ...config, providers: { ...config.providers, [effect.provider]: { ...entry, keyRefs: effect.references } } },
           provider: effect.provider as "exa" | "tavily" | "firecrawl",
-          environment, providers: registry, signal: ac.signal,
+          environment, providers: registry, signal: ac.signal, recordStatePath: options.paths.state,
           onStart: (reference, index, total) => dispatch({ type: "testProgress", completed: index - 1, total, current: reference }),
           onResult: (row, completed, total) => {
             dispatch({ type: "testResult", provider: effect.provider, entry: toDiag(row, effect.provider) });
@@ -348,33 +359,16 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     }
   }
 
-  async function openDetails(): Promise<void> {
-    const item = currentRowItems(state)[state.row];
-    const reference = selectedConnectionKey(state)?.reference ?? (item && "reference" in item ? item.reference : null);
-    if (!reference) return;
-    await refresh(); // ADR 0017: snapshot refreshed before the detail view reads it
-    const fresh = selectedConnectionKey(state)?.reference ?? currentProvider(state)?.keys[state.row]?.reference;
-    if (fresh !== reference) return dispatch({ type: "notice", text: msg(state.lang, "previewChanged"), warn: true });
-    dispatch({ type: "detailsOpen", reference });
-  }
-
-  async function openPreview(): Promise<void> {
-    const provider = currentProvider(state);
-    const connection = selectedConnectionKey(state);
-    if (provider?.id === "searxng") return dispatch({ type: "notice", text: msg(state.lang, "previewKeyless"), warn: true });
-    const item = currentRowItems(state)[state.row];
-    const reference = connection?.reference ?? (item && "reference" in item ? item.reference : null);
-    const owner = connection?.provider ?? provider?.id;
-    if (!reference || !owner) return;
-    const outcome = await loadPreview(options.paths, owner, reference, options.environment);
-    if (outcome.kind === "ok") {
+  /** Fetch the stored value of the key being edited; the form shows it masked until Ctrl-R. Missing or changed keys just show no current value. */
+  async function loadCurrent(owner: string, reference: string): Promise<void> {
+    try {
+      const outcome = await loadPreview(options.paths, owner, reference, options.environment);
+      if (outcome.kind !== "ok") return;
       const labels: Record<string, string> = {
         local: msg(state.lang, "srcLocalValue"), env: msg(state.lang, "srcEnvValue"), "env-over": msg(state.lang, "srcEnvOver"),
       };
-      return dispatch({ type: "previewOpen", variable: outcome.variable, sources: outcome.sources.map(s => ({ label: labels[s.label] ?? s.label, value: s.value })) });
-    }
-    const reason = outcome.kind === "missing" ? "previewMissing" : outcome.kind === "invalid-env" ? "previewInvalidEnv" : "previewChanged";
-    dispatch({ type: "notice", text: msg(state.lang, reason), warn: true });
+      dispatch({ type: "formCurrent", reference, current: { variable: outcome.variable, sources: outcome.sources.map(s => ({ label: labels[s.label] ?? s.label, value: s.value })) } });
+    } catch { /* the form still works without a current value */ }
   }
 
   function fireButton(event: string): void {
@@ -389,12 +383,6 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
       case "keyRemove": dispatch({ type: "keyRemoveStart" }); break;
       case "keyToggle": dispatch({ type: "keyToggle" }); break;
       case "testIntent": dispatch({ type: "testIntent" }); break;
-      case "details": case "preview":
-        ioBusy = true;
-        void (event === "details" ? openDetails() : openPreview())
-          .catch(() => dispatch({ type: "notice", text: msg(state.lang, "dataError"), warn: true }))
-          .finally(() => { ioBusy = false; });
-        break;
       case "orderSave": dispatch({ type: "orderSave" }); break;
       case "orderToggle": dispatch({ type: "orderToggle" }); break;
       default: dispatch({ type: "notice", text: msg(state.lang, "pendingP3"), warn: true });
@@ -424,6 +412,7 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
       const paste = PASTE_RE.exec(data);
       if (matchesKey(data, Key.escape)) dispatch({ type: "escape" });
       else if (matchesKey(data, "ctrl+s")) dispatch({ type: "formSave" });
+      else if (matchesKey(data, "ctrl+r")) dispatch({ type: "formReveal" });
       else if (matchesKey(data, Key.enter)) dispatch({ type: "formEnter" });
       else if (matchesKey(data, Key.backspace)) dispatch({ type: "formBackspace" });
       else if (paste && state.form?.typing) dispatch({ type: "formType", text: printable(paste[1]!.trim()) });
@@ -432,14 +421,10 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     }
 
     if (ioBusy) return { consume: true }; // keys during in-flight IO: drop, never queue
-    if (state.mode === "preview") { // r toggles reveal, any other key leaves (values cleared on exit)
-      if (ch === "r") dispatch({ type: "reveal" }); else dispatch({ type: "escape" });
-      return { consume: true };
-    }
-    if (state.mode === "details") { dispatch({ type: "escape" }); return { consume: true }; } // any key back
     if (state.testing && matchesKey(data, Key.escape)) { testAbort?.abort(); return { consume: true }; } // Esc stops the run, keeps partial rows
     const onConfig = state.region === "content" && state.page === "config";
     const onProviderList = state.region === "content" && state.page === "providers";
+    const onConnField = state.region === "content" && connectionRow(state)?.kind === "edit";
     const onKeyList = onProviderList || (state.region === "content" && selectedConnectionKey(state) !== null);
     // Browse keys are page-scoped: arrows move lists and switch context; every action
     // letter acts only on the list it is displayed above. No letter aliases.
@@ -456,13 +441,10 @@ export async function runSetupTui(options: SetupTuiOptions): Promise<void> {
     else if (onConfig && matchesKey(data, "ctrl+s")) dispatch({ type: "orderSave" });
     else if (matchesKey(data, Key.enter)) dispatch({ type: "enter" });
     else if (matchesKey(data, Key.escape)) dispatch({ type: "escape" });
-    else if (onKeyList && ch === "i") fireButton("details");
-    else if (onKeyList && ch === "p") fireButton("preview");
-    else if (onKeyList && ch === "a") dispatch({ type: "keyAdd" });
-    else if (onKeyList && ch === "e") dispatch({ type: "keyEdit" });
+    else if ((onKeyList || onConnField) && ch === "a") dispatch({ type: "keyAdd" });
+    else if ((onKeyList || onConnField) && ch === "e") dispatch({ type: "keyEdit" });
     else if (onKeyList && ch === "d") dispatch({ type: "keyRemoveStart" });
     else if (onProviderList && ch === " ") dispatch({ type: "keyToggle" });
-    else if (onProviderList && ch === "v") dispatch({ type: "providerToggle" });
     else if (onProviderList && ch === "t") dispatch({ type: "testIntent" });
     return { consume: true };
   });
