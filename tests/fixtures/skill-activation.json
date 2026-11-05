@@ -113,5 +113,17 @@
       "Produce a decision-ready research report comparing these vendors with citations.",
       "Import this Markdown file into WeKnora and confirm it becomes searchable."
     ]
+  },
+  "x-search": {
+    "positive": [
+      "Search X for what people are saying about the new release and give me the tweet links.",
+      "Read this tweet thread and summarize the replies: https://x.com/jack/status/20",
+      "Show me the latest posts and profile of the X account @jack."
+    ],
+    "negative": [
+      "Post this announcement to my X account and pin it.",
+      "Search the public web for the current Node.js release notes and return the source URLs.",
+      "Download every video posted by this account and save the files locally."
+    ]
   }
 }

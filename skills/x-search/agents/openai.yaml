@@ -1,0 +1,8 @@
+interface:
+  display_name: "X search"
+  short_description: "Read X posts, threads and accounts through your own Nitter"
+  default_prompt: >-
+    Use $x-search to read what people posted on X and cite the tweet URLs.
+
+policy:
+  allow_implicit_invocation: true

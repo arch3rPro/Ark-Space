@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "protocolVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "capability": {
+      "type": "string",
+      "const": "x.thread"
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "confirmed": {
+          "type": "boolean",
+          "const": true
+        },
+        "timeoutMs": {
+          "default": 20000,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60000
+        },
+        "tweet": {
+          "type": "string",
+          "maxLength": 300,
+          "pattern": "^(?:\\d{1,25}|https?:\\/\\/(?:www\\.)?(?:x|twitter)\\.com\\/[A-Za-z0-9_]{1,15}\\/status\\/\\d{1,25}[^\\s]*)$"
+        },
+        "includeReplies": {
+          "default": false,
+          "type": "boolean"
+        },
+        "maxReplies": {
+          "default": 20,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "sort": {
+          "default": "relevance",
+          "type": "string",
+          "enum": [
+            "relevance",
+            "recency",
+            "likes"
+          ]
+        },
+        "cursor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "confirmed",
+        "tweet"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "protocolVersion",
+    "capability",
+    "input"
+  ],
+  "additionalProperties": false
+}

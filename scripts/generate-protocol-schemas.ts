@@ -30,12 +30,15 @@ import { SiteMonitorRequestSchemas } from "../src/protocol/site-monitor-schema.j
 
 import { WeknoraRetrievalRequestSchemas, WeknoraRetrievalEnvelopeSchemas } from "../src/protocol/weknora-retrieval-schema.js";
 import { WeknoraVerifyRequestSchema, WeknoraVerifyEnvelopeSchema } from "../src/protocol/weknora-schema.js";
+import { XRequestSchemas, XEnvelopeSchemas } from "../src/protocol/x-schema.js";
 import { UseGptEnvelopeSchema, UseGptRequestSchemas } from "../src/protocol/usegpt-schema.js";
 
 const outputDirectory = resolve("schemas/protocol/v1");
 await mkdir(outputDirectory, { recursive: true });
 
 await Promise.all([
+  ...Object.entries(XRequestSchemas).map(([capability, schema]) => writeSchema(`${capability.replaceAll(".", "-")}-request.schema.json`, schema, "input")),
+  ...Object.entries(XEnvelopeSchemas).map(([capability, schema]) => writeSchema(`${capability.replaceAll(".", "-")}-response.schema.json`, schema)),
   ...Object.entries(WeknoraRetrievalRequestSchemas).map(([capability, schema]) => writeSchema(`${capability.replaceAll(".", "-")}-request.schema.json`, schema, "input")),
   ...Object.entries(WeknoraRetrievalEnvelopeSchemas).map(([capability, schema]) => writeSchema(`${capability.replaceAll(".", "-")}-response.schema.json`, schema)),
   writeSchema("weknora-connection-verify-request.schema.json", WeknoraVerifyRequestSchema, "input"),

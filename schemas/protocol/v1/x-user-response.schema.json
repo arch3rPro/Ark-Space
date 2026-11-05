@@ -1,0 +1,293 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "connection": {
+          "type": "string",
+          "const": "nitter"
+        },
+        "warnings": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "capability": {
+          "type": "string",
+          "const": "x.user"
+        },
+        "ok": {
+          "type": "boolean",
+          "const": true
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "managed",
+            "environment"
+          ]
+        },
+        "contentTrust": {
+          "type": "string",
+          "const": "untrusted"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "user": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                "username": {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                "url": {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                "bio": {
+                  "type": "string",
+                  "maxLength": 5000
+                },
+                "location": {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                "website": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "verified": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 64
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "protected": {
+                  "type": "boolean"
+                },
+                "joined": {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                "stats": {
+                  "type": "object",
+                  "properties": {
+                    "followers": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "following": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "tweets": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "likes": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "media": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "followers",
+                    "following",
+                    "tweets",
+                    "likes",
+                    "media"
+                  ],
+                  "additionalProperties": false
+                },
+                "pinnedTweetId": {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                "about": {
+                  "type": "object",
+                  "properties": {
+                    "basedIn": {
+                      "type": "string",
+                      "maxLength": 200
+                    },
+                    "source": {
+                      "type": "string",
+                      "maxLength": 200
+                    },
+                    "usernameChanges": {
+                      "type": "number"
+                    },
+                    "identityVerified": {
+                      "type": "boolean"
+                    },
+                    "affiliate": {
+                      "type": "string",
+                      "maxLength": 200
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "id",
+                "username",
+                "name",
+                "url",
+                "bio",
+                "location",
+                "website",
+                "verified",
+                "protected",
+                "joined",
+                "stats"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "user"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "connection",
+        "warnings",
+        "capability",
+        "ok",
+        "source",
+        "contentTrust",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "connection": {
+          "type": "string",
+          "const": "nitter"
+        },
+        "warnings": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "capability": {
+          "type": "string",
+          "const": "x.user"
+        },
+        "ok": {
+          "type": "boolean",
+          "const": false
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "managed",
+            "environment"
+          ]
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "invalid-request",
+                "config",
+                "auth",
+                "permission",
+                "rate-limit",
+                "transient",
+                "upstream-error",
+                "not-found",
+                "protected-account",
+                "user-suspended",
+                "invalid-response",
+                "timeout",
+                "cancelled",
+                "network"
+              ]
+            },
+            "message": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "retryable": {
+              "type": "boolean"
+            },
+            "retryAfterSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 86400
+            },
+            "status": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 599
+            }
+          },
+          "required": [
+            "kind",
+            "message",
+            "retryable"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "connection",
+        "warnings",
+        "capability",
+        "ok",
+        "error"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

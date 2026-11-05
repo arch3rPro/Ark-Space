@@ -1,0 +1,1717 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "connection": {
+          "type": "string",
+          "const": "nitter"
+        },
+        "warnings": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "capability": {
+          "type": "string",
+          "const": "x.thread"
+        },
+        "ok": {
+          "type": "boolean",
+          "const": true
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "managed",
+            "environment"
+          ]
+        },
+        "contentTrust": {
+          "type": "string",
+          "const": "untrusted"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "tweet": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                "url": {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                "available": {
+                  "type": "boolean"
+                },
+                "tombstone": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "author": {
+                  "type": "object",
+                  "properties": {
+                    "username": {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "name": {
+                      "type": "string",
+                      "maxLength": 1000
+                    },
+                    "verified": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "username",
+                    "name",
+                    "verified"
+                  ],
+                  "additionalProperties": false
+                },
+                "text": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "createdAt": {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                "stats": {
+                  "type": "object",
+                  "properties": {
+                    "replies": {
+                      "type": "number"
+                    },
+                    "reposts": {
+                      "type": "number"
+                    },
+                    "likes": {
+                      "type": "number"
+                    },
+                    "views": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "replies",
+                    "reposts",
+                    "likes",
+                    "views"
+                  ],
+                  "additionalProperties": false
+                },
+                "conversationId": {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                "inReplyToId": {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                "replyingTo": {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 100
+                  }
+                },
+                "media": {
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "maxLength": 32
+                      },
+                      "url": {
+                        "type": "string",
+                        "maxLength": 4096
+                      },
+                      "playlist": {
+                        "type": "string",
+                        "maxLength": 4096
+                      },
+                      "thumbnail": {
+                        "type": "string",
+                        "maxLength": 4096
+                      },
+                      "altText": {
+                        "type": "string",
+                        "maxLength": 2000
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "card": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "maxLength": 64
+                    },
+                    "title": {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "description": {
+                      "type": "string",
+                      "maxLength": 4000
+                    },
+                    "url": {
+                      "type": "string",
+                      "maxLength": 4096
+                    },
+                    "domain": {
+                      "type": "string",
+                      "maxLength": 500
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                "communityNote": {
+                  "type": "string",
+                  "maxLength": 4000
+                },
+                "retweetedBy": {
+                  "type": "object",
+                  "properties": {
+                    "username": {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "name": {
+                      "type": "string",
+                      "maxLength": 1000
+                    },
+                    "verified": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "username",
+                    "name",
+                    "verified"
+                  ],
+                  "additionalProperties": false
+                },
+                "pinned": {
+                  "type": "boolean"
+                },
+                "quote": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "maxLength": 32
+                    },
+                    "url": {
+                      "type": "string",
+                      "maxLength": 500
+                    },
+                    "available": {
+                      "type": "boolean"
+                    },
+                    "tombstone": {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "author": {
+                      "type": "object",
+                      "properties": {
+                        "username": {
+                          "type": "string",
+                          "maxLength": 100
+                        },
+                        "name": {
+                          "type": "string",
+                          "maxLength": 1000
+                        },
+                        "verified": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "username",
+                        "name",
+                        "verified"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "text": {
+                      "type": "string",
+                      "maxLength": 10000
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "maxLength": 40
+                    },
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "replies": {
+                          "type": "number"
+                        },
+                        "reposts": {
+                          "type": "number"
+                        },
+                        "likes": {
+                          "type": "number"
+                        },
+                        "views": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "replies",
+                        "reposts",
+                        "likes",
+                        "views"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "conversationId": {
+                      "type": "string",
+                      "maxLength": 32
+                    },
+                    "inReplyToId": {
+                      "type": "string",
+                      "maxLength": 32
+                    },
+                    "replyingTo": {
+                      "maxItems": 50,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 100
+                      }
+                    },
+                    "media": {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "maxLength": 32
+                          },
+                          "url": {
+                            "type": "string",
+                            "maxLength": 4096
+                          },
+                          "playlist": {
+                            "type": "string",
+                            "maxLength": 4096
+                          },
+                          "thumbnail": {
+                            "type": "string",
+                            "maxLength": 4096
+                          },
+                          "altText": {
+                            "type": "string",
+                            "maxLength": 2000
+                          }
+                        },
+                        "required": [
+                          "type"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "card": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "title": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "description": {
+                          "type": "string",
+                          "maxLength": 4000
+                        },
+                        "url": {
+                          "type": "string",
+                          "maxLength": 4096
+                        },
+                        "domain": {
+                          "type": "string",
+                          "maxLength": 500
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "communityNote": {
+                      "type": "string",
+                      "maxLength": 4000
+                    },
+                    "retweetedBy": {
+                      "type": "object",
+                      "properties": {
+                        "username": {
+                          "type": "string",
+                          "maxLength": 100
+                        },
+                        "name": {
+                          "type": "string",
+                          "maxLength": 1000
+                        },
+                        "verified": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "username",
+                        "name",
+                        "verified"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "pinned": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "url",
+                    "available"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "id",
+                "url",
+                "available"
+              ],
+              "additionalProperties": false
+            },
+            "ancestors": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "url": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "available": {
+                    "type": "boolean"
+                  },
+                  "tombstone": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "author": {
+                    "type": "object",
+                    "properties": {
+                      "username": {
+                        "type": "string",
+                        "maxLength": 100
+                      },
+                      "name": {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "verified": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "username",
+                      "name",
+                      "verified"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 10000
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "stats": {
+                    "type": "object",
+                    "properties": {
+                      "replies": {
+                        "type": "number"
+                      },
+                      "reposts": {
+                        "type": "number"
+                      },
+                      "likes": {
+                        "type": "number"
+                      },
+                      "views": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "replies",
+                      "reposts",
+                      "likes",
+                      "views"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "conversationId": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "inReplyToId": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "replyingTo": {
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 100
+                    }
+                  },
+                  "media": {
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "maxLength": 32
+                        },
+                        "url": {
+                          "type": "string",
+                          "maxLength": 4096
+                        },
+                        "playlist": {
+                          "type": "string",
+                          "maxLength": 4096
+                        },
+                        "thumbnail": {
+                          "type": "string",
+                          "maxLength": 4096
+                        },
+                        "altText": {
+                          "type": "string",
+                          "maxLength": 2000
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "card": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "title": {
+                        "type": "string",
+                        "maxLength": 2000
+                      },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 4000
+                      },
+                      "url": {
+                        "type": "string",
+                        "maxLength": 4096
+                      },
+                      "domain": {
+                        "type": "string",
+                        "maxLength": 500
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "communityNote": {
+                    "type": "string",
+                    "maxLength": 4000
+                  },
+                  "retweetedBy": {
+                    "type": "object",
+                    "properties": {
+                      "username": {
+                        "type": "string",
+                        "maxLength": 100
+                      },
+                      "name": {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "verified": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "username",
+                      "name",
+                      "verified"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "pinned": {
+                    "type": "boolean"
+                  },
+                  "quote": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "maxLength": 32
+                      },
+                      "url": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      "available": {
+                        "type": "boolean"
+                      },
+                      "tombstone": {
+                        "type": "string",
+                        "maxLength": 2000
+                      },
+                      "author": {
+                        "type": "object",
+                        "properties": {
+                          "username": {
+                            "type": "string",
+                            "maxLength": 100
+                          },
+                          "name": {
+                            "type": "string",
+                            "maxLength": 1000
+                          },
+                          "verified": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "username",
+                          "name",
+                          "verified"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "text": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "createdAt": {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      "stats": {
+                        "type": "object",
+                        "properties": {
+                          "replies": {
+                            "type": "number"
+                          },
+                          "reposts": {
+                            "type": "number"
+                          },
+                          "likes": {
+                            "type": "number"
+                          },
+                          "views": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "replies",
+                          "reposts",
+                          "likes",
+                          "views"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "conversationId": {
+                        "type": "string",
+                        "maxLength": 32
+                      },
+                      "inReplyToId": {
+                        "type": "string",
+                        "maxLength": 32
+                      },
+                      "replyingTo": {
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 100
+                        }
+                      },
+                      "media": {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "maxLength": 32
+                            },
+                            "url": {
+                              "type": "string",
+                              "maxLength": 4096
+                            },
+                            "playlist": {
+                              "type": "string",
+                              "maxLength": 4096
+                            },
+                            "thumbnail": {
+                              "type": "string",
+                              "maxLength": 4096
+                            },
+                            "altText": {
+                              "type": "string",
+                              "maxLength": 2000
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "card": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "maxLength": 64
+                          },
+                          "title": {
+                            "type": "string",
+                            "maxLength": 2000
+                          },
+                          "description": {
+                            "type": "string",
+                            "maxLength": 4000
+                          },
+                          "url": {
+                            "type": "string",
+                            "maxLength": 4096
+                          },
+                          "domain": {
+                            "type": "string",
+                            "maxLength": 500
+                          }
+                        },
+                        "required": [
+                          "kind"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "communityNote": {
+                        "type": "string",
+                        "maxLength": 4000
+                      },
+                      "retweetedBy": {
+                        "type": "object",
+                        "properties": {
+                          "username": {
+                            "type": "string",
+                            "maxLength": 100
+                          },
+                          "name": {
+                            "type": "string",
+                            "maxLength": 1000
+                          },
+                          "verified": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "username",
+                          "name",
+                          "verified"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "pinned": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "url",
+                      "available"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "url",
+                  "available"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "continuation": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "url": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "available": {
+                    "type": "boolean"
+                  },
+                  "tombstone": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "author": {
+                    "type": "object",
+                    "properties": {
+                      "username": {
+                        "type": "string",
+                        "maxLength": 100
+                      },
+                      "name": {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "verified": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "username",
+                      "name",
+                      "verified"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 10000
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "stats": {
+                    "type": "object",
+                    "properties": {
+                      "replies": {
+                        "type": "number"
+                      },
+                      "reposts": {
+                        "type": "number"
+                      },
+                      "likes": {
+                        "type": "number"
+                      },
+                      "views": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "replies",
+                      "reposts",
+                      "likes",
+                      "views"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "conversationId": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "inReplyToId": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "replyingTo": {
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 100
+                    }
+                  },
+                  "media": {
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "maxLength": 32
+                        },
+                        "url": {
+                          "type": "string",
+                          "maxLength": 4096
+                        },
+                        "playlist": {
+                          "type": "string",
+                          "maxLength": 4096
+                        },
+                        "thumbnail": {
+                          "type": "string",
+                          "maxLength": 4096
+                        },
+                        "altText": {
+                          "type": "string",
+                          "maxLength": 2000
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "card": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "title": {
+                        "type": "string",
+                        "maxLength": 2000
+                      },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 4000
+                      },
+                      "url": {
+                        "type": "string",
+                        "maxLength": 4096
+                      },
+                      "domain": {
+                        "type": "string",
+                        "maxLength": 500
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "communityNote": {
+                    "type": "string",
+                    "maxLength": 4000
+                  },
+                  "retweetedBy": {
+                    "type": "object",
+                    "properties": {
+                      "username": {
+                        "type": "string",
+                        "maxLength": 100
+                      },
+                      "name": {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "verified": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "username",
+                      "name",
+                      "verified"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "pinned": {
+                    "type": "boolean"
+                  },
+                  "quote": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "maxLength": 32
+                      },
+                      "url": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      "available": {
+                        "type": "boolean"
+                      },
+                      "tombstone": {
+                        "type": "string",
+                        "maxLength": 2000
+                      },
+                      "author": {
+                        "type": "object",
+                        "properties": {
+                          "username": {
+                            "type": "string",
+                            "maxLength": 100
+                          },
+                          "name": {
+                            "type": "string",
+                            "maxLength": 1000
+                          },
+                          "verified": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "username",
+                          "name",
+                          "verified"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "text": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "createdAt": {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      "stats": {
+                        "type": "object",
+                        "properties": {
+                          "replies": {
+                            "type": "number"
+                          },
+                          "reposts": {
+                            "type": "number"
+                          },
+                          "likes": {
+                            "type": "number"
+                          },
+                          "views": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "replies",
+                          "reposts",
+                          "likes",
+                          "views"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "conversationId": {
+                        "type": "string",
+                        "maxLength": 32
+                      },
+                      "inReplyToId": {
+                        "type": "string",
+                        "maxLength": 32
+                      },
+                      "replyingTo": {
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 100
+                        }
+                      },
+                      "media": {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "maxLength": 32
+                            },
+                            "url": {
+                              "type": "string",
+                              "maxLength": 4096
+                            },
+                            "playlist": {
+                              "type": "string",
+                              "maxLength": 4096
+                            },
+                            "thumbnail": {
+                              "type": "string",
+                              "maxLength": 4096
+                            },
+                            "altText": {
+                              "type": "string",
+                              "maxLength": 2000
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "card": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "maxLength": 64
+                          },
+                          "title": {
+                            "type": "string",
+                            "maxLength": 2000
+                          },
+                          "description": {
+                            "type": "string",
+                            "maxLength": 4000
+                          },
+                          "url": {
+                            "type": "string",
+                            "maxLength": 4096
+                          },
+                          "domain": {
+                            "type": "string",
+                            "maxLength": 500
+                          }
+                        },
+                        "required": [
+                          "kind"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "communityNote": {
+                        "type": "string",
+                        "maxLength": 4000
+                      },
+                      "retweetedBy": {
+                        "type": "object",
+                        "properties": {
+                          "username": {
+                            "type": "string",
+                            "maxLength": 100
+                          },
+                          "name": {
+                            "type": "string",
+                            "maxLength": 1000
+                          },
+                          "verified": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "username",
+                          "name",
+                          "verified"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "pinned": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "url",
+                      "available"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "url",
+                  "available"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "replies": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "maxLength": 32
+                    },
+                    "url": {
+                      "type": "string",
+                      "maxLength": 500
+                    },
+                    "available": {
+                      "type": "boolean"
+                    },
+                    "tombstone": {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "author": {
+                      "type": "object",
+                      "properties": {
+                        "username": {
+                          "type": "string",
+                          "maxLength": 100
+                        },
+                        "name": {
+                          "type": "string",
+                          "maxLength": 1000
+                        },
+                        "verified": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "username",
+                        "name",
+                        "verified"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "text": {
+                      "type": "string",
+                      "maxLength": 10000
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "maxLength": 40
+                    },
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "replies": {
+                          "type": "number"
+                        },
+                        "reposts": {
+                          "type": "number"
+                        },
+                        "likes": {
+                          "type": "number"
+                        },
+                        "views": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "replies",
+                        "reposts",
+                        "likes",
+                        "views"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "conversationId": {
+                      "type": "string",
+                      "maxLength": 32
+                    },
+                    "inReplyToId": {
+                      "type": "string",
+                      "maxLength": 32
+                    },
+                    "replyingTo": {
+                      "maxItems": 50,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 100
+                      }
+                    },
+                    "media": {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "maxLength": 32
+                          },
+                          "url": {
+                            "type": "string",
+                            "maxLength": 4096
+                          },
+                          "playlist": {
+                            "type": "string",
+                            "maxLength": 4096
+                          },
+                          "thumbnail": {
+                            "type": "string",
+                            "maxLength": 4096
+                          },
+                          "altText": {
+                            "type": "string",
+                            "maxLength": 2000
+                          }
+                        },
+                        "required": [
+                          "type"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "card": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "title": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "description": {
+                          "type": "string",
+                          "maxLength": 4000
+                        },
+                        "url": {
+                          "type": "string",
+                          "maxLength": 4096
+                        },
+                        "domain": {
+                          "type": "string",
+                          "maxLength": 500
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "communityNote": {
+                      "type": "string",
+                      "maxLength": 4000
+                    },
+                    "retweetedBy": {
+                      "type": "object",
+                      "properties": {
+                        "username": {
+                          "type": "string",
+                          "maxLength": 100
+                        },
+                        "name": {
+                          "type": "string",
+                          "maxLength": 1000
+                        },
+                        "verified": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "username",
+                        "name",
+                        "verified"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "pinned": {
+                      "type": "boolean"
+                    },
+                    "quote": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "maxLength": 32
+                        },
+                        "url": {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        "available": {
+                          "type": "boolean"
+                        },
+                        "tombstone": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "author": {
+                          "type": "object",
+                          "properties": {
+                            "username": {
+                              "type": "string",
+                              "maxLength": 100
+                            },
+                            "name": {
+                              "type": "string",
+                              "maxLength": 1000
+                            },
+                            "verified": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "username",
+                            "name",
+                            "verified"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "text": {
+                          "type": "string",
+                          "maxLength": 10000
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "maxLength": 40
+                        },
+                        "stats": {
+                          "type": "object",
+                          "properties": {
+                            "replies": {
+                              "type": "number"
+                            },
+                            "reposts": {
+                              "type": "number"
+                            },
+                            "likes": {
+                              "type": "number"
+                            },
+                            "views": {
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "replies",
+                            "reposts",
+                            "likes",
+                            "views"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "conversationId": {
+                          "type": "string",
+                          "maxLength": 32
+                        },
+                        "inReplyToId": {
+                          "type": "string",
+                          "maxLength": 32
+                        },
+                        "replyingTo": {
+                          "maxItems": 50,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "maxLength": 100
+                          }
+                        },
+                        "media": {
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "maxLength": 32
+                              },
+                              "url": {
+                                "type": "string",
+                                "maxLength": 4096
+                              },
+                              "playlist": {
+                                "type": "string",
+                                "maxLength": 4096
+                              },
+                              "thumbnail": {
+                                "type": "string",
+                                "maxLength": 4096
+                              },
+                              "altText": {
+                                "type": "string",
+                                "maxLength": 2000
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "card": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "maxLength": 64
+                            },
+                            "title": {
+                              "type": "string",
+                              "maxLength": 2000
+                            },
+                            "description": {
+                              "type": "string",
+                              "maxLength": 4000
+                            },
+                            "url": {
+                              "type": "string",
+                              "maxLength": 4096
+                            },
+                            "domain": {
+                              "type": "string",
+                              "maxLength": 500
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "communityNote": {
+                          "type": "string",
+                          "maxLength": 4000
+                        },
+                        "retweetedBy": {
+                          "type": "object",
+                          "properties": {
+                            "username": {
+                              "type": "string",
+                              "maxLength": 100
+                            },
+                            "name": {
+                              "type": "string",
+                              "maxLength": 1000
+                            },
+                            "verified": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "username",
+                            "name",
+                            "verified"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "pinned": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "url",
+                        "available"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "url",
+                    "available"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "repliesOmitted": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "nextCursor": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "hasMore": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "tweet",
+            "ancestors",
+            "continuation",
+            "replies",
+            "nextCursor",
+            "hasMore"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "connection",
+        "warnings",
+        "capability",
+        "ok",
+        "source",
+        "contentTrust",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "connection": {
+          "type": "string",
+          "const": "nitter"
+        },
+        "warnings": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "capability": {
+          "type": "string",
+          "const": "x.thread"
+        },
+        "ok": {
+          "type": "boolean",
+          "const": false
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "managed",
+            "environment"
+          ]
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "invalid-request",
+                "config",
+                "auth",
+                "permission",
+                "rate-limit",
+                "transient",
+                "upstream-error",
+                "not-found",
+                "protected-account",
+                "user-suspended",
+                "invalid-response",
+                "timeout",
+                "cancelled",
+                "network"
+              ]
+            },
+            "message": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "retryable": {
+              "type": "boolean"
+            },
+            "retryAfterSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 86400
+            },
+            "status": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 599
+            }
+          },
+          "required": [
+            "kind",
+            "message",
+            "retryable"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "connection",
+        "warnings",
+        "capability",
+        "ok",
+        "error"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

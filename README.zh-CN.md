@@ -70,6 +70,7 @@ npx skills@latest update  # 手动更新已安装的技能
 | [`browser`](skills/browser/SKILL.md) | 在自有远程浏览器 Session 中读取或改变动态页面状态。 |
 | [`monitor`](skills/monitor/SKILL.md) | 管理跨越当前 Session 的周期搜索与站点变化检查。 |
 | [`weknora`](skills/weknora/SKILL.md) | 通过 REST API 检索、导入 WeKnora 知识库并基于其文档回答问题。 |
+| [`x-search`](skills/x-search/SKILL.md) | 通过你自己的 Nitter 实例读取 X 的帖子、对话串、资料和时间线。 |
 | [`usegpt`](skills/usegpt/SKILL.md) | 通过本地 Artifact Hub 发布和使用 ChatGPT 输出。 |
 | [`gh-repo`](skills/gh-repo/SKILL.md) | 基于固定 revision 的源码证据分析 GitHub 项目架构、成熟度与借鉴取舍，并读取相关 issue/PR。 |
 
@@ -84,6 +85,11 @@ npx skills@latest update  # 手动更新已安装的技能
 在可信的本地终端运行 `arks setup weknora`，管理 API 根地址、掩码密钥和可选默认知识库。托管的认证验证、列表/详情和搜索可连接有效的 localhost、私网或公网地址，无需 CIDR 例外；URL/地址校验、DNS 固定解析、TLS 验证、拒绝重定向、不使用代理、期限与响应大小限制，仍然适用。用户明确请求读取已配置实例即表示同意联网；支持 HTTP，并仅显示明文传输提示。托管路径不加入 Web 搜索顺序或 fallback。
 
 手动设置的 `WEKNORA_BASE_URL` / `WEKNORA_API_KEY` 完整变量对仍可独立使用，无需 CLI。导入、文档/分块操作、多知识库搜索和流式问答继续使用环境变量路径；托管验证、知识库列表/详情和单知识库搜索为可选能力。详见[安装说明](INSTALL.md)和[托管指南](skills/weknora/references/managed.md)。
+
+
+### 可选：通过自有 Nitter 读取 X（未发布）
+
+`x-search` 对你自己运营的 Nitter 实例调用四个只读能力（`x.search`、`x.thread`、`x.user`、`x.timeline`）。运行 `arks setup nitter` 保存地址和掩码令牌，或同时设置 `NITTER_BASE_URL` 与 `NITTER_API_TOKEN`。每次调用都消耗你的 X 会话额度，高频使用可能导致这些账号被限制。推文文本按不可信数据返回。Nitter 不是 Web 搜索 Provider。见 [ADR 0026](docs/adr/proposed/0026-owned-nitter-instance-x-search.md)。
 
 ## Runtime 提供什么
 

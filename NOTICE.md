@@ -30,6 +30,13 @@ This list is an implementation warning, not a claim that source code has already
 - Imported surface: none. ArkSpace independently implements the interaction and visual patterns in Node/TypeScript; no Rust source, assets, dependencies, configuration handling, or Provider-switching behavior is copied.
 - Adaptation: retains ArkSpace's six setup destinations, axis-specific navigation, default-Cancel action confirmations, masked input, explicit saved-key disclosure, and existing backend/security guards. Reference-only source inspection and screenshots are not evidence of running or qualifying the reference application.
 
+## Nitter API (x-search)
+
+- Upstream: <https://github.com/xiaoY233/nitter>, a fork owned by the ArkSpace user; the upstream Nitter project is AGPL-3.0.
+- Revision read: `bb5a0bc3e9297fe47acc701107f065585e2b6575`.
+- Imported surface: none. ArkSpace implements its own HTTP client against the documented REST routes (`/api/v1/search/tweets`, `/tweets/{id}/thread`, `/users/{name}`, `/users/{name}/tweets`, `/health`, `/tools`); no Nim source, templates or assets are copied.
+- Adaptation: API documentation used to implement behavior only.
+
 ## Skill UI artwork
 
 - Catalog: <https://thesvg.org/>; source repository: <https://github.com/GLINCKER/thesvg>.

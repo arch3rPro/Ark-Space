@@ -3,7 +3,7 @@ import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { BlockList, isIP } from "node:net";
 import { TextDecoder } from "node:util";
-import { WeknoraConnectionSchema, WEKNORA_MANAGED_KEY_REF } from "../config/schema.js";
+import { NITTER_MANAGED_KEY_REF, NitterConnectionSchema, WeknoraConnectionSchema, WEKNORA_MANAGED_KEY_REF } from "../config/schema.js";
 import { validateCredentialValue } from "../config/credentials.js";
 
 /** Internal transport only. Not registered with the public provider registry. */
@@ -25,6 +25,8 @@ export interface LocalHttpOptions {
   maxBodyBytes?: number;
   timeoutMs?: number;
   signal?: AbortSignal;
+  /** Return non-2xx JSON bodies instead of failing; only fixed authenticated wrappers set it. */
+  captureErrors?: boolean;
   /** Test seam; production uses node:dns lookup(all:true). */
   lookup?: (hostname: string) => Promise<readonly { address: string; family: number }[]>;
 }
@@ -116,7 +118,18 @@ export async function localHttpWeknoraVerify(baseUrl: string, apiKey: string, op
   const parsed = WeknoraConnectionSchema.safeParse({ baseUrl, apiKeyRef: WEKNORA_MANAGED_KEY_REF, allowRanges: options.allowRanges ?? [] });
   const key = validateCredentialValue(apiKey);
   if (!parsed.success || !key || /[^\x21-\x7e]/.test(key) || Buffer.byteLength(key) > 4096) throw new LocalHttpError("configuration");
-  return pinnedGet(`${parsed.data.baseUrl}/auth/me`, { ...options, maxRedirects: 0, maxHeaderBytes: 16 * 1024, maxBodyBytes: 64 * 1024, timeoutMs: Math.min(options.timeoutMs ?? 5000, 5000) }, key);
+  return pinnedGet(`${parsed.data.baseUrl}/auth/me`, { ...options, maxRedirects: 0, maxHeaderBytes: 16 * 1024, maxBodyBytes: 64 * 1024, timeoutMs: Math.min(options.timeoutMs ?? 5000, 5000) }, { header: "X-API-Key", value: key });
+}
+
+/** Authenticated read route for one configured Nitter instance (ADR 0026). The path is
+ * built by the caller from bounded fields and must stay under /api/v1/. The configured
+ * host may be public, private or loopback, so the deny list and CIDR exceptions do not apply. */
+export async function localHttpNitterGet(baseUrl: string, token: string, path: string, options: LocalHttpOptions = {}): Promise<LocalHttpResponse> {
+  const parsed = NitterConnectionSchema.safeParse({ baseUrl, apiKeyRef: NITTER_MANAGED_KEY_REF });
+  const key = validateCredentialValue(token);
+  if (!parsed.success || !key || /[^\x21-\x7e]/.test(key) || Buffer.byteLength(key) > 4096) throw new LocalHttpError("configuration");
+  if (!path.startsWith("/api/v1/") || /[\\\u0000-\u0020\u007f]/.test(path) || path.length > 4_096) throw new LocalHttpError("configuration");
+  return pinnedGet(`${parsed.data.baseUrl}${path}`, { ...options, captureErrors: true, maxRedirects: 0, maxHeaderBytes: 16 * 1024, maxBodyBytes: 4 * 1024 * 1024, timeoutMs: Math.min(options.timeoutMs ?? 20_000, 60_000) }, { header: "Authorization", value: `Bearer ${key}` });
 }
 
 /** Operation-specific authenticated read routes only; not an arbitrary proxy. */
@@ -140,19 +153,19 @@ export async function localHttpWeknoraRetrieve(baseUrl: string, apiKey: string, 
       body = JSON.stringify({ query_text: operation.query, match_count: operation.limit });
     }
   }
-  return pinnedGet(`${parsed.data.baseUrl}${path}`, { ...options, maxRedirects: 0, maxHeaderBytes: 16 * 1024, maxBodyBytes: 2 * 1024 * 1024, timeoutMs: Math.min(options.timeoutMs ?? 5000, 30_000) }, key, body);
+  return pinnedGet(`${parsed.data.baseUrl}${path}`, { ...options, maxRedirects: 0, maxHeaderBytes: 16 * 1024, maxBodyBytes: 2 * 1024 * 1024, timeoutMs: Math.min(options.timeoutMs ?? 5000, 30_000) }, { header: "X-API-Key", value: key }, body);
 }
 
-async function pinnedGet(input: string, options: LocalHttpOptions, apiKey?: string, body?: string): Promise<LocalHttpResponse> {
+async function pinnedGet(input: string, options: LocalHttpOptions, credentials?: { header: string; value: string }, body?: string): Promise<LocalHttpResponse> {
   if (options.trustEnvProxy) throw new LocalHttpError("configuration");
   const redirects = options.maxRedirects ?? 5;
   const headerLimit = options.maxHeaderBytes ?? 16 * 1024;
   const bodyLimit = options.maxBodyBytes ?? 2 * 1024 * 1024;
   const timeout = options.timeoutMs ?? 10_000;
   if (!Number.isSafeInteger(redirects) || redirects < 0 || redirects > 20 || !positiveInteger(headerLimit, 64 * 1024) || !positiveInteger(bodyLimit, 16 * 1024 * 1024) || !positiveInteger(timeout, 120_000)) throw new LocalHttpError("configuration");
-  // Only the fixed authenticated WeKnora wrappers supply apiKey. Their configured
+  // Only the fixed authenticated connection wrappers supply credentials. Their configured
   // destination may be any valid IP; unauthenticated Web/SearXNG keeps its deny list.
-  const allowed = apiKey === undefined ? ranges(options.allowRanges ?? []) : undefined;
+  const allowed = credentials === undefined ? ranges(options.allowRanges ?? []) : undefined;
   let url = parseUrl(input);
   const deadline = Date.now() + timeout;
   const resolve = options.lookup ?? (async (hostname: string) => dnsLookup(hostname, { all: true, verbatim: true }));
@@ -195,8 +208,8 @@ async function pinnedGet(input: string, options: LocalHttpOptions, apiKey?: stri
       const fail = (kind: LocalHttpErrorKind, status?: number) => { if (!settled) { settled = true; reject(new LocalHttpError(kind, status)); request.destroy(); } };
       const request = (url.protocol === "https:" ? httpsRequest : httpRequest)(url, {
         method: body === undefined ? "GET" : "POST", agent: false, maxHeaderSize: headerLimit,
-        ...(apiKey && url.protocol === "https:" ? { rejectUnauthorized: true } : {}),
-        headers: { accept: apiKey ? "application/json" : "text/*, application/json, application/xml", "accept-encoding": "identity", ...(apiKey ? { "X-API-Key": apiKey } : {}), ...(body === undefined ? {} : { "content-type": "application/json", "content-length": Buffer.byteLength(body) }) },
+        ...(credentials && url.protocol === "https:" ? { rejectUnauthorized: true } : {}),
+        headers: { accept: credentials ? "application/json" : "text/*, application/json, application/xml", "accept-encoding": "identity", ...(credentials ? { [credentials.header]: credentials.value } : {}), ...(body === undefined ? {} : { "content-type": "application/json", "content-length": Buffer.byteLength(body) }) },
         // Node requests all addresses by default (autoSelectFamily). Honour the
         // lookup callback's `all` contract while returning only the vetted IP.
         lookup: (_host, opts, cb) => {
@@ -207,17 +220,18 @@ async function pinnedGet(input: string, options: LocalHttpOptions, apiKey?: stri
         if (settled) { response.destroy(); return; }
         const status = response.statusCode ?? 0;
         const location = response.headers.location;
-        if (apiKey && status >= 300 && status < 400) { fail("redirect", status); return; }
+        if (credentials && status >= 300 && status < 400) { fail("redirect", status); return; }
         if (status >= 300 && status < 400 && location) {
           settled = true;
           resolveResult({ status, location, contentType: "", text: "" });
           response.destroy();
           return;
         }
-        if (status < 200 || status >= 300) { fail("http-status", status); return; }
+        const isError = status < 200 || status >= 300;
+        if (isError && !options.captureErrors) { fail("http-status", status); return; }
         const contentType = response.headers["content-type"];
         const match = typeof contentType === "string" && /^\s*(text\/[a-z0-9!#$&^_.+-]+|application\/(?:json|xml|[a-z0-9!#$&^_.+-]+\+(?:json|xml)))(?:\s*;\s*charset\s*=\s*"?utf-8"?)?\s*$/i.exec(contentType);
-        if (!match || response.headers["content-encoding"] && response.headers["content-encoding"] !== "identity") { fail("content-type"); return; }
+        if (!match || response.headers["content-encoding"] && response.headers["content-encoding"] !== "identity") { if (isError) fail("http-status", status); else fail("content-type"); return; }
         const parts: Buffer[] = [];
         let size = 0;
         response.on("data", (chunk: Buffer) => {

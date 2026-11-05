@@ -85,6 +85,26 @@ export const WeknoraConnectionSchema = z.object({
 }).strict();
 export type WeknoraConnection = z.infer<typeof WeknoraConnectionSchema>;
 
+export const NITTER_MANAGED_KEY_REF = "env:ARKSPACE_NITTER_API_TOKEN" as const;
+// The configured host may be public, private or loopback (ADR 0026): no CIDR grant is
+// involved and credentials are never part of the URL.
+export const NitterConnectionSchema = z.object({
+  baseUrl: z.string().max(4_096).refine((value) => {
+    try {
+      const url = new URL(value);
+      const authority = /^https?:\/\/([^/?#]+)/i.exec(value)?.[1];
+      return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash &&
+        authority !== undefined && /^(?:\[[0-9a-f:.]+\]|[a-z0-9.-]+)(?::\d{1,5})?$/i.test(authority) &&
+        !/[\\\u0000-\u0020\u007f]/.test(value);
+    } catch { return false; }
+  }, "Nitter requires a credential-free HTTP(S) base URL without query or fragment"),
+  apiKeyRef: z.literal(NITTER_MANAGED_KEY_REF),
+}).strict().transform((connection) => {
+  try { return { ...connection, baseUrl: new URL(connection.baseUrl).href.replace(/\/+$/, "") }; }
+  catch { return connection; }
+});
+export type NitterConnection = z.infer<typeof NitterConnectionSchema>;
+
 const SearxngPolicySchema = ProviderConfigSchema.omit({ baseUrl: true }).extend({
   keyRefs: z.array(z.never()).default([]),
 });
@@ -109,6 +129,7 @@ export const ExecutionConfigSchema = z
 
 // Keys are Protocol capability IDs; aliases affect discovery surfaces, never the invoke ID.
 const CapabilitySchema = z.enum([
+  "x.search", "x.thread", "x.user", "x.timeline",
   "weknora.connection.verify", "weknora.knowledge-bases.list", "weknora.knowledge-bases.get", "weknora.search",
   "web.search", "web.fetch", "web.content.get", "web.map", "web.crawl", "web.related", "web.extract",
   "code.context", "research.run", "browser.open", "browser.snapshot", "browser.interact",
@@ -147,7 +168,7 @@ export const ArkSpaceConfigSchema = z
   .object({
     version: z.literal(1),
     setupLanguage: z.enum(["en", "zh"]).optional(),
-    connections: z.object({ weknora: WeknoraConnectionSchema.optional(), usegpt: UseGptConfigSchema.optional() }).strict().optional(),
+    connections: z.object({ weknora: WeknoraConnectionSchema.optional(), nitter: NitterConnectionSchema.optional(), usegpt: UseGptConfigSchema.optional() }).strict().optional(),
     providerOrder: z.array(z.enum(PROVIDER_IDS)).min(1),
     tools: z.partialRecord(CapabilitySchema, ToolConfigSchema).default({}),
     localFetch: LocalFetchConfigSchema.default({ enabled: false, allowRanges: [], trustEnvProxy: false }),

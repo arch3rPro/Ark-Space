@@ -26,6 +26,7 @@ export const RESEARCH_PROVIDER_IDS = ["exa", "tavily"] as const;
 export type ResearchProviderId = (typeof RESEARCH_PROVIDER_IDS)[number];
 export type Capability =
   | import("./usegpt-schema.js").UseGptCapability
+  | import("./x-schema.js").XCapability
   | "weknora.connection.verify"
   | "weknora.knowledge-bases.list"
   | "weknora.knowledge-bases.get"

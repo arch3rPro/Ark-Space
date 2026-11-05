@@ -70,6 +70,7 @@ These commands apply to Skills tracked by the installer, not just ArkSpace. Back
 | [`browser`](skills/browser/SKILL.md) | Inspect or change dynamic page state in an owned remote browser session. |
 | [`monitor`](skills/monitor/SKILL.md) | Manage recurring searches and site-change checks beyond the current session. |
 | [`weknora`](skills/weknora/SKILL.md) | Search, import, and answer questions over a WeKnora knowledge base through its REST API. |
+| [`x-search`](skills/x-search/SKILL.md) | Read X posts, threads, profiles and timelines through your own Nitter instance. |
 | [`usegpt`](skills/usegpt/SKILL.md) | Publish and consume ChatGPT outputs through the local Artifact Hub. |
 | [`gh-repo`](skills/gh-repo/SKILL.md) | Analyze GitHub project architecture, maturity, and borrowing tradeoffs with revision-pinned source evidence; inspect supporting issues/PRs. |
 
@@ -84,6 +85,10 @@ See the [Skill, Capability, and Provider reference](docs/capabilities.md) for op
 Run `arks setup weknora` in your trusted terminal to manage its API root, masked key, and optional default knowledge base. Authenticated managed verification, list/detail, and search may target a valid localhost, private, or public address without a CIDR exception. They retain URL and address validation, DNS pinning, TLS verification, redirect refusal, no-proxy transport, deadlines, and response bounds. An explicit request to read the configured instance authorizes that network access; HTTP is supported with an informational plaintext-transport warning. The managed path does not join Web search order or fallback.
 
 A manually supplied `WEKNORA_BASE_URL` / `WEKNORA_API_KEY` pair remains independent and needs no CLI. Imports, document/chunk operations, multi-base search, and streamed chat continue using that environment path. See [installation](INSTALL.md) and the [managed guide](skills/weknora/references/managed.md).
+
+### Optional X reading through your own Nitter (unreleased)
+
+`x-search` calls four read-only capabilities (`x.search`, `x.thread`, `x.user`, `x.timeline`) against a Nitter instance you operate. Run `arks setup nitter` to save its address and a masked token, or supply `NITTER_BASE_URL` and `NITTER_API_TOKEN` together. Every call spends your X session quota, and heavy use can get those accounts limited. Tweet text is returned as untrusted data. Nitter is not a Web search Provider. See [ADR 0026](docs/adr/proposed/0026-owned-nitter-instance-x-search.md).
 
 ## What the runtime adds
 

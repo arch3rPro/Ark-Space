@@ -79,6 +79,7 @@ import {
 } from "../protocol/resource-schema.js";
 import { invokeCapability, isCapability } from "../protocol/invoke.js";
 import { UseGptInputSchemas, useGptFailure, type UseGptCapability } from "../protocol/usegpt-schema.js";
+import { XEnvelopeSchemas, X_CAPABILITIES, xFailure, type XCapability } from "../protocol/x-schema.js";
 import { weknoraVerifyFailure } from "../protocol/weknora-schema.js";
 import { WeknoraRetrievalEnvelopeSchemas } from "../protocol/weknora-retrieval-schema.js";
 import {
@@ -144,7 +145,7 @@ program.command("update")
     }
   });
 
-program.command("setup").argument("[service]", "exa, tavily, firecrawl, searxng, weknora or usegpt")
+program.command("setup").argument("[service]", "exa, tavily, firecrawl, searxng, weknora, nitter or usegpt")
   .description("Manage service connections and credentials in a trusted terminal")
   .option("--lang <language>", "Setup language for this run: en or zh (English / 中文)")
   .option("--start", "Start the configured Hub and Tunnel in the background")
@@ -676,7 +677,7 @@ program
       // WeKnora resolves its connection inside the bounded operation. Web invocation
       // still loads local credentials, but bootstrap failures stay in its JSON envelope.
       let environment: NodeJS.ProcessEnv | undefined;
-      if (!capability.startsWith("weknora.") && !capability.startsWith("usegpt.")) {
+      if (!capability.startsWith("weknora.") && !capability.startsWith("usegpt.") && !capability.startsWith("x.")) {
         const paths = resolveArkSpacePaths(originalEnvironment);
         const config = await loadConfig(paths.config);
         if (!isToolEnabled(config, capability)) {
@@ -1170,6 +1171,10 @@ function writeMachineFailure(capability: Capability, error: unknown): void {
     const message = error instanceof ProviderError ? error.message : "UseGPT command failed.";
     process.stdout.write(`${JSON.stringify(useGptFailure(capability as UseGptCapability, "invalid-request", message))}\n`);
     process.exitCode = 1;
+    return;
+  }
+  if ((X_CAPABILITIES as readonly string[]).includes(capability)) {
+    writeMachineResult(xFailure(capability as XCapability, error instanceof ProviderError && error.kind === "config" ? "config" : "invalid-request"));
     return;
   }
   if (capability === "weknora.connection.verify") {

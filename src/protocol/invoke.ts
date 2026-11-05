@@ -10,6 +10,7 @@ import { executeWebFetch } from "../capabilities/web-fetch.js";
 import { executeWebMap } from "../capabilities/web-map.js";
 import { executeWebRelated } from "../capabilities/web-related.js";
 import { executeWebSearch } from "../capabilities/web-search.js";
+import { executeX } from "../capabilities/x.js";
 import { executeWeknoraRetrieval } from "../capabilities/weknora-retrieval.js";
 import { executeWeknoraVerify } from "../capabilities/weknora-verify.js";
 import { executeUseGpt } from "../capabilities/usegpt.js";
@@ -21,6 +22,7 @@ import { createCodeContextProviderRegistry, createCrawlProviderRegistry, createE
 import { parseBrowserCloseRequest, parseBrowserInteractRequest, parseBrowserOpenRequest, parseBrowserSnapshotRequest, parseBrowserStatusRequest, parseMonitorCreateRequest, parseMonitorDeleteRequest, parseMonitorListRequest, parseMonitorPauseRequest, parseMonitorResumeRequest, parseMonitorRunGetRequest, parseMonitorRunsRequest, parseMonitorStatusRequest, parseMonitorTriggerRequest, parseMonitorUpdateRequest } from "./resource-schema.js";
 import { parseCodeContextRequest, parseResearchRequest, parseWebCrawlRequest, parseWebExtractRequest, parseWebContentGetRequest, parseWebFetchRequest, parseWebMapRequest, parseWebRelatedRequest, parseWebSearchRequest } from "./schema.js";
 import { parseSiteMonitorCheckGetRequest, parseSiteMonitorChecksRequest, parseSiteMonitorCreateRequest, parseSiteMonitorDeleteRequest, parseSiteMonitorListRequest, parseSiteMonitorPauseRequest, parseSiteMonitorResumeRequest, parseSiteMonitorStatusRequest, parseSiteMonitorTriggerRequest, parseSiteMonitorUpdateRequest } from "./site-monitor-schema.js";
+import { X_CAPABILITIES, type XCapability } from "./x-schema.js";
 import { USEGPT_CAPABILITIES, useGptFailure, type UseGptCapability } from "./usegpt-schema.js";
 import type { Capability } from "./types.js";
 
@@ -29,6 +31,7 @@ export const CAPABILITIES = [
   "browser.open", "browser.snapshot", "browser.interact", "browser.status", "browser.close",
   "monitor.create", "monitor.list", "monitor.status", "monitor.update", "monitor.pause", "monitor.resume", "monitor.trigger", "monitor.delete", "monitor.runs", "monitor.run.get",
   "monitor.site.create", "monitor.site.list", "monitor.site.status", "monitor.site.update", "monitor.site.pause", "monitor.site.resume", "monitor.site.trigger", "monitor.site.delete", "monitor.site.checks", "monitor.site.check.get",
+  ...X_CAPABILITIES,
   ...USEGPT_CAPABILITIES,
 ] as const satisfies readonly Capability[];
 
@@ -41,11 +44,12 @@ export interface InvokeOptions {
 }
 
 export async function invokeCapability(capability: Capability, request: unknown, options: InvokeOptions = {}): Promise<{ ok: boolean }> {
-  const paths = options.paths ?? resolveArkSpacePaths(capability.startsWith("weknora.") || capability.startsWith("usegpt.") ? options.originalEnvironment ?? options.environment : options.environment);
+  const paths = options.paths ?? resolveArkSpacePaths(capability.startsWith("weknora.") || capability.startsWith("usegpt.") || capability.startsWith("x.") ? options.originalEnvironment ?? options.environment : options.environment);
   if (capability.startsWith("usegpt.")) {
     if (!request || typeof request !== "object" || !("capability" in request) || request.capability !== capability) return useGptFailure(capability as UseGptCapability, "invalid-request", "UseGPT request capability must match the invoked capability.");
     return executeUseGpt(request, paths, options.environment ?? options.originalEnvironment ?? process.env, options.signal);
   }
+  if ((X_CAPABILITIES as readonly string[]).includes(capability)) return executeX(capability as XCapability, request, paths, options.originalEnvironment, options.signal);
   if (capability === "weknora.connection.verify") return executeWeknoraVerify(request, paths, options.originalEnvironment, options.signal);
   if (capability === "weknora.knowledge-bases.list" || capability === "weknora.knowledge-bases.get" || capability === "weknora.search") return executeWeknoraRetrieval(capability, request, paths, options.originalEnvironment, options.signal);
   const config = await loadConfig(paths.config);
