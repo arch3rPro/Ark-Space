@@ -14,6 +14,7 @@ if (process.platform !== "linux") {
 }
 
 async function qualify() {
+  const version = parse(await readFile(join(root, "package.json"), "utf8"), "package metadata").version;
   const temporary = await mkdtemp(join(tmpdir(), "arks-setup-entry-"));
   let terminate;
   let interrupted = false;
@@ -99,7 +100,7 @@ async function qualify() {
     }
     await run("npm", ["install", "--prefix", install, "--omit=dev", "--package-lock=false", artifact, ...dependencies, ...npm]);
     const executable = join(install, "node_modules/.bin/arks");
-    if ((await run(executable, ["--version"])).trim() !== "0.2.0") throw new Error("Installed arks version changed.");
+    if ((await run(executable, ["--version"])).trim() !== version) throw new Error("Installed arks version changed.");
     const installedLock = await byteLock([executable], "installed");
     const installed = parse(await run("python3", [python, "--entry", executable]), "installed PTY report");
     for (const report of [source, installed]) if (report.status !== "passed" || !report.logicalChecks) throw new Error("PTY seam did not qualify.");

@@ -65,6 +65,47 @@ describe("manual CLI updates through the built entry", () => {
     expect(result.stdout + result.stderr).not.toContain("local-only-secret");
   });
 
+  it("keeps global updates working after a manifest-only version bump", async () => {
+    const scenario = await createScenario({ interactive: true });
+    const packagePath = join(scenario.root, "package.json");
+    const metadata = JSON.parse(await readFile(packagePath, "utf8"));
+    metadata.version = "1.2.3";
+    await writeFile(packagePath, JSON.stringify(metadata));
+
+    const result = await runCli(scenario, ["update", "--json"], ["Y"]);
+    expect(result.code, result.stdout + result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ ok: true, status: "updated", currentVersion: "1.2.3", latestVersion: "99.0.0" });
+    expect((await events(scenario)).filter(event => (event.args as string[] | undefined)?.includes("install"))).toHaveLength(1);
+    expect((await runCli(scenario, ["--version"])).stdout.trim()).toBe("99.0.0");
+  });
+
+  it.each(["1.2.3-rc.1", "1.2.3+build.4"])("reports installed npm version %s without an update check", async declared => {
+    const scenario = await createScenario();
+    const packagePath = join(scenario.root, "package.json");
+    const metadata = JSON.parse(await readFile(packagePath, "utf8"));
+    metadata.version = declared;
+    await writeFile(packagePath, JSON.stringify(metadata));
+    const result = await runCli(scenario, ["--version"]);
+    expect(result.code).toBe(0);
+    expect(result.stdout.trim()).toBe(declared);
+    expect(await events(scenario)).toEqual([]);
+  });
+
+  it.each([
+    { name: "private-wrong-package" },
+    { version: "private-invalid-version" },
+  ])("fails closed on invalid installed package identity %j", async invalid => {
+    const scenario = await createScenario();
+    const packagePath = join(scenario.root, "package.json");
+    const metadata = JSON.parse(await readFile(packagePath, "utf8"));
+    await writeFile(packagePath, JSON.stringify({ ...metadata, ...invalid }));
+    const result = await runCli(scenario, ["--version"]);
+    expect(result.code).not.toBe(0);
+    expect(result.stdout + result.stderr).toContain("ArkSpace package metadata is missing or invalid");
+    expect(result.stdout + result.stderr).not.toContain(Object.values(invalid)[0]);
+    expect(await events(scenario)).toEqual([]);
+  });
+
   it.each([
     [version, "up-to-date", false],
     ["0.0.1", "newer-than-registry", false],

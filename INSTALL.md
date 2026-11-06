@@ -206,7 +206,7 @@ npx skills@latest check
 npx skills@latest update
 ```
 
-The release-candidate implementation supports `arks update --check` for a read-only check, `arks update --check --json` for one CLI-specific JSON result, and `arks update` for an interactive install prompt. The prompt accepts Y/N (case-insensitive), with empty input defaulting to no; non-interactive use never installs. Skills still use their separate check/update commands.
+The CLI supports `arks update --check` for a read-only check, `arks update --check --json` for one CLI-specific JSON result, and `arks update` for an interactive install prompt. The prompt accepts Y/N (case-insensitive), with empty input defaulting to no; non-interactive use never installs. Skills still use their separate check/update commands.
 
 In a source checkout, build and run the development-only, read-only check:
 
@@ -215,9 +215,21 @@ npm run build
 node dist/cli/main.js update --check
 ```
 
-A source checkout cannot self-update. When released, `arks update --check` will check for a newer stable npm version without installing; `arks update` will display the verified global npm target and ask `[y/N]` interactively (Y/N, case-insensitive; empty means no). There is no `--confirm` option, and non-interactive use never installs. `--json` emits one CLI-specific JSON object on stdout; prompts and diagnostics stay on stderr.
+A source checkout cannot self-update. `arks update --check` checks for a newer stable npm version without installing; `arks update` will display the verified global npm target and ask `[y/N]` interactively (Y/N, case-insensitive; empty means no). There is no `--confirm` option, and non-interactive use never installs. `--json` emits one CLI-specific JSON object on stdout; prompts and diagnostics stay on stderr.
 
 Only a verified, unlinked npm-global installation owned by the available npm can be updated. Source, local, linked, missing, and mismatched installs must be updated manually. Installation targets the exact newer stable version checked, uses engine checks and `--ignore-scripts`, and never elevates privileges. It does not alter ArkSpace configuration or credentials, invoke Skill/plugin installers, or change host registrations. Files bundled in the npm package, including canonical Skills and plugin manifests, change with that package; separately installed Skills/plugins do not. Failed or interrupted npm installation may have partially changed files; no rollback is promised. No other command performs startup update checks. Plugin metadata changes only during an explicit ArkSpace release.
+
+### Old packages reporting the wrong CLI version
+
+Published 0.1.6 and 0.1.7 packages contain an internal CLI/MCP version of 0.1.5. That mismatch can trigger the same source/local/linked refusal even in a normal npm-global installation. Meet the current Node requirement, then bootstrap through npm directly:
+
+```bash
+npm install --global --ignore-scripts --registry=https://registry.npmjs.org @arkspace/cli@latest
+arks --version
+arks update --check --json
+```
+
+If the old version still runs, inspect shell command resolution and `npm root -g` for another installation. No source/link protection needs to be disabled. The unreleased source fix reads CLI/MCP versions from package metadata and adds a built-version packaging check so future releases cannot silently repeat this drift.
 
 ## Uninstall
 

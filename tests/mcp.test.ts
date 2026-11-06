@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -25,12 +25,19 @@ describe("MCP stdio transport", () => {
     expect(createMcpServer().toolInputSchemaJson("usegpt_artifact_publish_file")).toBeDefined();
   });
 
-  it("lists tools and returns a structured Protocol envelope over stdio", async () => {
+  it("uses the installed manifest version and returns structured Protocol envelopes over stdio", async () => {
     const home = await mkdtemp(join(tmpdir(), "arkspace-mcp-"));
     directories.push(home);
+    const packageRoot = join(home, "package");
+    await mkdir(packageRoot);
+    await cp(resolve("dist"), join(packageRoot, "dist"), { recursive: true });
+    const metadata = JSON.parse(await readFile(resolve("package.json"), "utf8"));
+    metadata.version = "1.2.3";
+    await writeFile(join(packageRoot, "package.json"), JSON.stringify(metadata));
+    await symlink(resolve("node_modules"), join(packageRoot, "node_modules"), process.platform === "win32" ? "junction" : "dir");
     await writeJsonAtomic(join(home, "config.json"), defaultConfig());
-    const child = spawn(process.execPath, [resolve("dist/cli/main.js"), "mcp", "serve"], {
-      cwd: resolve("."),
+    const child = spawn(process.execPath, [join(packageRoot, "dist/cli/main.js"), "mcp", "serve"], {
+      cwd: home,
       env: { ...process.env, ARKSPACE_HOME: home },
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -44,28 +51,35 @@ describe("MCP stdio transport", () => {
       for (const line of lines) if (line.trim()) messages.push(JSON.parse(line) as Record<string, unknown>);
     });
 
-    send(child, { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "arkspace-test", version: "1" } } });
-    await waitFor(messages, 1);
-    send(child, { jsonrpc: "2.0", method: "notifications/initialized" });
-    send(child, { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
-    const listed = await waitFor(messages, 2);
-    const result = listed.result as { tools: Array<{ name: string; _meta?: Record<string, unknown>; annotations?: Record<string, unknown> }> };
-    expect(result.tools.find(tool => tool.name === "usegpt_artifact_publish_file")).toMatchObject({ _meta: { "openai/fileParams": ["file"] }, annotations: { readOnlyHint: false, openWorldHint: true } });
-    expect(result.tools.map(tool => tool.name)).toContain("usegpt_artifact_publish_inline");
-    expect(result.tools.map((tool) => tool.name)).toContain("browser_interact");
-    expect(result.tools.map((tool) => tool.name)).toContain("monitor_create");
+    try {
+      send(child, { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "arkspace-test", version: "1" } } });
+      expect(await waitFor(messages, 1)).toHaveProperty("result.serverInfo.version", "1.2.3");
+      send(child, { jsonrpc: "2.0", method: "notifications/initialized" });
+      send(child, { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
+      const listed = await waitFor(messages, 2);
+      const result = listed.result as { tools: Array<{ name: string; _meta?: Record<string, unknown>; annotations?: Record<string, unknown> }> };
+      expect(result.tools.find(tool => tool.name === "usegpt_artifact_publish_file")).toMatchObject({ _meta: { "openai/fileParams": ["file"] }, annotations: { readOnlyHint: false, openWorldHint: true } });
+      expect(result.tools.map(tool => tool.name)).toContain("usegpt_artifact_publish_inline");
+      expect(result.tools.map((tool) => tool.name)).toContain("browser_interact");
+      expect(result.tools.map((tool) => tool.name)).toContain("monitor_create");
 
-    send(child, { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "monitor_list", arguments: { limit: 5 } } });
-    const called = await waitFor(messages, 3);
-    expect(called.result).toMatchObject({
-      isError: false,
-      structuredContent: { protocolVersion: 1, ok: true, capability: "monitor.list", provider: "exa", data: { monitors: [] } },
-    });
-    send(child, { jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "usegpt_artifact_publish_file", arguments: { projectId: "project_test", name: "data.csv", file: "https://example.com/private?cookie=secret" } } });
-    const rejected = await waitFor(messages, 4);
-    expect(JSON.stringify(rejected)).not.toContain("cookie=secret");
-    expect(rejected).toHaveProperty("result.isError", true);
-    child.kill("SIGTERM");
+      send(child, { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "monitor_list", arguments: { limit: 5 } } });
+      const called = await waitFor(messages, 3);
+      expect(called.result).toMatchObject({
+        isError: false,
+        structuredContent: { protocolVersion: 1, ok: true, capability: "monitor.list", provider: "exa", data: { monitors: [] } },
+      });
+      send(child, { jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "usegpt_artifact_publish_file", arguments: { projectId: "project_test", name: "data.csv", file: "https://example.com/private?cookie=secret" } } });
+      const rejected = await waitFor(messages, 4);
+      expect(JSON.stringify(rejected)).not.toContain("cookie=secret");
+      expect(rejected).toHaveProperty("result.isError", true);
+    } finally {
+      if (child.exitCode === null && child.signalCode === null) {
+        const closed = new Promise(resolveClose => child.once("close", resolveClose));
+        child.kill("SIGTERM");
+        await closed;
+      }
+    }
   });
 
   it("cancels Provider I/O and remains responsive after an MCP cancellation notification", async () => {

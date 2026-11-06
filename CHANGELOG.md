@@ -2,6 +2,11 @@
 
 This is the concise version ledger. Detailed changes, upgrade instructions, verification evidence, and qualification limits live in the linked release notes; current development status lives in [Roadmap](ROADMAP.md). Dates below are npm publication dates, not preparation or GitHub Release dates.
 
+## Unreleased
+
+- Read CLI and MCP versions from the installed package manifest instead of duplicated build-time literals, preventing version drift from blocking legitimate npm-global updates.
+- Verify built CLI/package/lockfile version consistency during packaging; derive installed-entry check expectations from the package version.
+
 ## 0.2.0 - 2026-11-06
 
 - Add the UseGPT Artifact Hub workflow, `notes` and `x-search`, four X capabilities, and the rebuilt Setup workbench with Nitter management.

@@ -42,6 +42,7 @@ import { serveUseGptDaemon, daemonRequest, daemonStatus, defaultDaemonDataDir, n
 import { runWorker } from "../usegpt/worker.js";
 import { runSetup } from "./setup.js";
 import { CliUpdateError, runCliUpdate } from "./update.js";
+import { VERSION } from "../version.js";
 import { buildDiagnosticPlan, renderDiagnostic } from "./diagnostics.js";
 import { loadCredentialEnvironment } from "../config/credentials.js";
 import { configuredUseGptDataDir, diagnoseUseGpt, startUseGptServices } from "../usegpt/services.js";
@@ -110,7 +111,6 @@ import {
   createSearchProviderRegistry,
 } from "../providers/registry.js";
 
-const VERSION = "0.2.0";
 const MAX_INPUT_BYTES = 1_048_576;
 // Capture before credential bootstrap so setup can distinguish external overrides from local keys.
 const originalEnvironment = { ...process.env };

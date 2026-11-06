@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -17,6 +18,7 @@ const npmrc = await readFile(resolve(root, ".npmrc"), "utf8");
 const failures = [];
 
 if (npmrc !== "ignore-scripts=true\nfund=false\n") failures.push(".npmrc must deny dependency lifecycle scripts by default.");
+if (lock.version !== packageJson.version || lock.packages?.[""]?.version !== packageJson.version) failures.push("Root package-lock versions must match package.json.");
 const lifecyclePackages = Object.entries(lock.packages).flatMap(([path, entry]) => entry.hasInstallScript ? [`${entry.name ?? path.replace(/^node_modules\//, "")}@${entry.version}`] : []);
 const reviewedDeniedScripts = ["esbuild@0.28.2", "fsevents@2.3.3"];
 if (JSON.stringify(lifecyclePackages.sort()) !== JSON.stringify(reviewedDeniedScripts.sort())) failures.push(`Lockfile lifecycle-script set changed: ${lifecyclePackages.join(", ") || "none"}. Review it before updating the deny list.`);
@@ -30,7 +32,7 @@ try {
 }
 if (report) {
   const names = report.files.map((file) => file.path);
-  for (const required of ["dist/cli/main.js", "dist/cli/update.js", "skills/askme/SKILL.md", "skills/askme/references/recovery.md", "skills/askme/agents/openai.yaml", "skills/askme/assets/icon.svg", "skills/web/SKILL.md", "skills/research/SKILL.md", "skills/research/references/evidence-review.md", "skills/browser/SKILL.md", "skills/monitor/SKILL.md", "skills/weknora/SKILL.md", "skills/usegpt/SKILL.md", "skills/usegpt/references/operations.md", "skills/gh-repo/SKILL.md", "skills/gh-repo/references/acquisition.md", "skills/gh-repo/references/discussions.md", "skills/gh-repo/scripts/view-issue-pr.mjs", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "assets/plugin/icon.svg", "skills/gh-repo/assets/github-light.svg", "skills/gh-repo/assets/github-dark.svg", "README.md", "LICENSE"]) if (!names.includes(required)) failures.push(`Packed artifact is missing ${required}.`);
+  for (const required of ["dist/cli/main.js", "dist/cli/update.js", "dist/version.js", "skills/askme/SKILL.md", "skills/askme/references/recovery.md", "skills/askme/agents/openai.yaml", "skills/askme/assets/icon.svg", "skills/web/SKILL.md", "skills/research/SKILL.md", "skills/research/references/evidence-review.md", "skills/browser/SKILL.md", "skills/monitor/SKILL.md", "skills/weknora/SKILL.md", "skills/usegpt/SKILL.md", "skills/usegpt/references/operations.md", "skills/gh-repo/SKILL.md", "skills/gh-repo/references/acquisition.md", "skills/gh-repo/references/discussions.md", "skills/gh-repo/scripts/view-issue-pr.mjs", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "assets/plugin/icon.svg", "skills/gh-repo/assets/github-light.svg", "skills/gh-repo/assets/github-dark.svg", "README.md", "LICENSE"]) if (!names.includes(required)) failures.push(`Packed artifact is missing ${required}.`);
   for (const skill of ["browser", "gh-repo", "monitor", "research", "usegpt", "web", "weknora", "x-search"]) {
     for (const asset of ["agents/openai.yaml", "assets/icon.svg"]) {
       const required = `skills/${skill}/${asset}`;
@@ -48,6 +50,19 @@ if (report) {
 }
 const cli = await readFile(resolve(root, packageJson.bin.arks), "utf8");
 if (!cli.startsWith("#!/usr/bin/env node\n")) failures.push("The packed arks entry must retain its Node shebang.");
+const versionHome = await mkdtemp(join(tmpdir(), "arks-package-version-"));
+try {
+  const reportedVersion = execFileSync(process.execPath, [resolve(root, packageJson.bin.arks), "--version"], {
+    cwd: versionHome,
+    env: { ...process.env, HOME: versionHome, USERPROFILE: versionHome, ARKSPACE_HOME: versionHome, NODE_OPTIONS: "" },
+    encoding: "utf8", timeout: 10_000, stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+  if (reportedVersion !== packageJson.version) failures.push("Built CLI version must match package.json; rebuild before release.");
+} catch {
+  failures.push("Could not verify the built CLI version against package.json.");
+} finally {
+  await rm(versionHome, { recursive: true, force: true });
+}
 if (failures.length) {
   process.stderr.write(`${failures.map((failure) => `- ${failure}`).join("\n")}\n`);
   process.exitCode = 1;

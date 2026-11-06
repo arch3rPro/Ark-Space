@@ -6,6 +6,7 @@ import { delimiter, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const version = (await parseJsonFile(join(root, "package.json"))).version;
 const temporary = await mkdtemp(join(tmpdir(), "arkspace-installed-hosts-"));
 try {
   requireCommand("claude", ["--version"]);
@@ -17,7 +18,7 @@ try {
   const prefix = join(temporary, "install");
   run(npmCommand(), ["install", "--ignore-scripts", "--prefix", prefix, tarball]);
   const executable = process.platform === "win32" ? join(prefix, "node_modules", ".bin", "arks.cmd") : join(prefix, "node_modules", ".bin", "arks");
-  if (run(executable, ["--version"]).trim() !== "0.2.0") throw new Error("Packed arks version check failed.");
+  if (run(executable, ["--version"]).trim() !== version) throw new Error("Packed arks version check failed.");
 
   await verifyInstalledMcp(executable);
   verifyClaude(executable);

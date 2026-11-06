@@ -11,6 +11,7 @@ import { SiteMonitorInputSchemas } from "../protocol/site-monitor-schema.js";
 import { XRequestSchemas, XEnvelopeSchemas, X_CAPABILITIES } from "../protocol/x-schema.js";
 import { UseGptInputSchemas } from "../protocol/usegpt-schema.js";
 import { PROTOCOL_VERSION, type Capability } from "../protocol/types.js";
+import { VERSION } from "../version.js";
 
 const inputSchemas = {
   "x.search": XRequestSchemas["x.search"].shape.input,
@@ -104,7 +105,7 @@ for (const capability of Object.keys(UseGptInputSchemas) as Capability[]) {
 }
 
 export function createMcpServer(config?: ArkSpaceConfig, options: InvokeOptions = {}): McpServer {
-  const server = new McpServer({ name: "arkspace", version: "0.2.0" });
+  const server = new McpServer({ name: "arkspace", version: VERSION });
   const activeRequests = new Map<string | number, AbortController>();
   const names = new Set<string>();
   for (const capability of Object.keys(inputSchemas) as Capability[]) {
