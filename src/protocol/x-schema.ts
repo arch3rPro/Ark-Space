@@ -54,17 +54,23 @@ export const X_FAILURE_KINDS = [
   "not-found", "protected-account", "user-suspended", "invalid-response", "timeout", "cancelled", "network",
 ] as const;
 export type XFailureKind = (typeof X_FAILURE_KINDS)[number];
+const failureReasons = ["input-unreadable", "input-json", "request-schema", "confirmation-required", "capability-disabled", "response-schema"] as const;
+export type XFailureReason = (typeof failureReasons)[number];
 
 const s = (max: number) => z.string().max(max);
 const brief = z.object({ username: s(100), name: s(1_000), verified: z.boolean() }).strict();
 const stats = z.object({ replies: z.number(), reposts: z.number(), likes: z.number(), views: z.number().nullable() }).strict();
 const media = z.object({ type: s(32), url: s(4_096).optional(), playlist: s(4_096).optional(), thumbnail: s(4_096).optional(), altText: s(2_000).optional() }).strict();
 const card = z.object({ kind: s(64), title: s(2_000).optional(), description: s(4_000).optional(), url: s(4_096).optional(), domain: s(500).optional() }).strict();
+const poll = z.object({
+  options: z.array(z.object({ label: s(1_000), votes: z.number().int().min(0) }).strict()).max(20),
+  totalVotes: z.number().int().min(0), status: s(500),
+}).strict();
 const tweetCore = {
   id: s(32), url: s(500), available: z.boolean(), tombstone: s(2_000).optional(),
   author: brief.optional(), text: s(10_000).optional(), createdAt: s(40).optional(), stats: stats.optional(),
   conversationId: s(32).optional(), inReplyToId: s(32).optional(), replyingTo: z.array(s(100)).max(50).optional(),
-  media: z.array(media).max(20).optional(), card: card.optional(), communityNote: s(4_000).optional(),
+  media: z.array(media).max(20).optional(), poll: poll.optional(), card: card.optional(), communityNote: s(4_000).optional(),
   retweetedBy: brief.optional(), pinned: z.boolean().optional(),
 };
 const quoted = z.object(tweetCore).strict();
@@ -77,13 +83,13 @@ export const XUserSchema = z.object({
   about: z.object({ basedIn: s(200).optional(), source: s(200).optional(), usernameChanges: z.number().optional(), identityVerified: z.boolean().optional(), affiliate: s(200).optional() }).strict().optional(),
 }).strict();
 
-const page = { items: z.array(XTweetSchema).max(200), nextCursor: s(2_000).nullable(), hasMore: z.boolean() };
+const page = { items: z.array(XTweetSchema).max(200), nextCursor: cursor.nullable(), hasMore: z.boolean() };
 export const XSearchDataSchema = z.object({ query: s(1_000).optional(), ...page }).strict();
 export const XTimelineDataSchema = z.object({ user: z.object({ username: s(100), name: s(1_000) }).strict().optional(), tab: z.enum(["posts", "replies", "media", "articles"]), ...page }).strict();
 export const XThreadDataSchema = z.object({
   tweet: XTweetSchema, ancestors: z.array(XTweetSchema).max(200), continuation: z.array(XTweetSchema).max(200),
   replies: z.array(z.array(XTweetSchema).max(200)).max(200), repliesOmitted: z.number().int().min(0).optional(),
-  nextCursor: s(2_000).nullable(), hasMore: z.boolean(),
+  nextCursor: cursor.nullable(), hasMore: z.boolean(),
 }).strict();
 export const XUserDataSchema = z.object({ user: XUserSchema }).strict();
 
@@ -91,7 +97,7 @@ const common = { protocolVersion: z.literal(1), connection: z.literal("nitter"),
 const failure = (capability: XCapability) => z.object({
   ...common, capability: z.literal(capability), ok: z.literal(false), source: z.enum(["managed", "environment"]).optional(),
   error: z.object({
-    kind: z.enum(X_FAILURE_KINDS), message: s(2_000), retryable: z.boolean(),
+    kind: z.enum(X_FAILURE_KINDS), message: s(2_000), retryable: z.boolean(), reason: z.enum(failureReasons).optional(),
     retryAfterSeconds: z.number().int().min(1).max(86_400).optional(), status: z.number().int().min(100).max(599).optional(),
   }).strict(),
 }).strict();
@@ -108,9 +114,9 @@ export const XEnvelopeSchemas = {
 } as const;
 export type XEnvelope = z.infer<(typeof XEnvelopeSchemas)[XCapability]>;
 
-export function xFailure(capability: XCapability, kind: XFailureKind, extra: { retryable?: boolean; retryAfterSeconds?: number; status?: number; warnings?: string[]; source?: "managed" | "environment" } = {}): XEnvelope {
+export function xFailure(capability: XCapability, kind: XFailureKind, extra: { retryable?: boolean; retryAfterSeconds?: number; status?: number; warnings?: string[]; source?: "managed" | "environment"; reason?: XFailureReason } = {}): XEnvelope {
   const hints: Partial<Record<XFailureKind, string>> = {
-    "invalid-request": " Supply the request schema with confirmed=true after the user agreed to spend X session quota.",
+    "invalid-request": " Check the request against the capability input schema.",
     config: " Run `arks setup nitter`, or supply both NITTER_BASE_URL and NITTER_API_TOKEN; never mix sources.",
     auth: " Check the Nitter token in your trusted terminal; do not paste it into Agent chat.",
     permission: " The instance refused this request (origin or access policy).",
@@ -118,10 +124,19 @@ export function xFailure(capability: XCapability, kind: XFailureKind, extra: { r
     "protected-account": " The account is protected; its content is not publicly visible.",
     "user-suspended": " The account is suspended.",
   };
+  const reasons: Record<XFailureReason, string> = {
+    "input-unreadable": " Cannot read the input file or stdin; check that it exists and is readable.",
+    "input-json": " Input is not valid JSON; correct the JSON syntax.",
+    "request-schema": " Request does not match the capability input schema; check fields and limits.",
+    "confirmation-required": " Set confirmed=true only after the user agrees to spend X session quota.",
+    "capability-disabled": " This capability is disabled in local configuration; review its enablement before calling it.",
+    "response-schema": " Nitter response fields do not match the expected schema; check instance compatibility.",
+  };
   return XEnvelopeSchemas[capability].parse({
     protocolVersion: 1, capability, connection: "nitter", ok: false, ...(extra.source ? { source: extra.source } : {}), warnings: extra.warnings ?? [],
     error: {
-      kind, message: `X request failed (${kind}).${hints[kind] ?? ""}`, retryable: extra.retryable ?? false,
+      kind, message: `X request failed (${kind}).${extra.reason ? reasons[extra.reason] : hints[kind] ?? ""}`, retryable: extra.retryable ?? false,
+      ...(extra.reason ? { reason: extra.reason } : {}),
       ...(extra.retryAfterSeconds ? { retryAfterSeconds: extra.retryAfterSeconds } : {}), ...(extra.status !== undefined ? { status: extra.status } : {}),
     },
   });

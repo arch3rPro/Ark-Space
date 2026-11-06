@@ -173,6 +173,49 @@
                       "additionalProperties": false
                     }
                   },
+                  "poll": {
+                    "type": "object",
+                    "properties": {
+                      "options": {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string",
+                              "maxLength": 1000
+                            },
+                            "votes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "label",
+                            "votes"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "totalVotes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "status": {
+                        "type": "string",
+                        "maxLength": 500
+                      }
+                    },
+                    "required": [
+                      "options",
+                      "totalVotes",
+                      "status"
+                    ],
+                    "additionalProperties": false
+                  },
                   "card": {
                     "type": "object",
                     "properties": {
@@ -355,6 +398,49 @@
                           "additionalProperties": false
                         }
                       },
+                      "poll": {
+                        "type": "object",
+                        "properties": {
+                          "options": {
+                            "maxItems": 20,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "label": {
+                                  "type": "string",
+                                  "maxLength": 1000
+                                },
+                                "votes": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "label",
+                                "votes"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "totalVotes": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "status": {
+                            "type": "string",
+                            "maxLength": 500
+                          }
+                        },
+                        "required": [
+                          "options",
+                          "totalVotes",
+                          "status"
+                        ],
+                        "additionalProperties": false
+                      },
                       "card": {
                         "type": "object",
                         "properties": {
@@ -434,6 +520,7 @@
               "anyOf": [
                 {
                   "type": "string",
+                  "minLength": 1,
                   "maxLength": 2000
                 },
                 {
@@ -527,6 +614,17 @@
             },
             "retryable": {
               "type": "boolean"
+            },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "input-unreadable",
+                "input-json",
+                "request-schema",
+                "confirmation-required",
+                "capability-disabled",
+                "response-schema"
+              ]
             },
             "retryAfterSeconds": {
               "type": "integer",

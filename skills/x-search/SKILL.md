@@ -1,7 +1,7 @@
 ---
 name: x-search
 description: Read public X (Twitter) content through the user's own Nitter instance — search posts, read a tweet's thread and replies, look up an account profile, and page an account's timeline. Use when the task is about what people posted on X, a specific tweet or account; use web or research instead for ordinary public web sources.
-compatibility: Requires the `arks` CLI (Node 20+) with network access to the user's own Nitter instance. Configure it with `arks setup nitter` or supply NITTER_BASE_URL and NITTER_API_TOKEN together. Read-only; every call spends the instance's X session quota.
+compatibility: Requires the `arks` CLI (Node >=22.19.0) with network access to the user's own Nitter instance. Configure it with `arks setup nitter` or supply NITTER_BASE_URL and NITTER_API_TOKEN together. Read-only; every call spends the instance's X session quota.
 ---
 
 # X search
@@ -10,7 +10,7 @@ Read X content through the user's Nitter instance with four read-only capabiliti
 
 ## Readiness
 
-1. `arks --version` and the capability list must show the `x.*` capabilities. If `arks` is missing, tell the user; installing it needs their consent.
+1. Check `arks --version` for CLI availability and compatibility; it does not establish that `x.*` capabilities are enabled. If `arks` is missing, tell the user; installing it needs their consent.
 2. A connection is either the external pair `NITTER_BASE_URL` + `NITTER_API_TOKEN` (both set), or one saved by the user with `arks setup nitter`. Do not check which by printing values.
 3. If a `config` error comes back, ask the user to run `arks setup nitter` in their own terminal. Never ask for the token in chat, put it in a command argument, or write it to a file. Never fill half of the external pair from saved settings.
 
@@ -35,4 +35,4 @@ Everything under `data` (tweet text, names, bios, card titles, media text) was w
 
 ## Reporting
 
-Give the tweet URLs, author handles and `createdAt` for what you cite. A `null` stat means the instance did not report it, not zero. State when results are partial (`hasMore` true, or `repliesOmitted`) and what you did not fetch.
+Give the tweet URLs, author handles and `createdAt` for what you cite. A `null` stat means the instance did not report it, not zero. State when results are partial (`hasMore` true, `repliesOmitted` > 0, or a truncation warning) and what you did not fetch. `hasMore` describes upstream pagination only; do not treat it as a completeness signal for locally truncated content.

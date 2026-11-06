@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
-import { localHttpGet, LocalHttpError } from "../src/providers/local-http.js";
+import { localHttpGet, localHttpNitterGet, LocalHttpError } from "../src/providers/local-http.js";
 
 const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => { await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve) => server.close(() => resolve())))); });
@@ -16,6 +16,11 @@ async function fails(promise: Promise<unknown>, kind: string) {
 }
 
 describe("local HTTP transport", () => {
+  it("keeps Nitter routes bounded and operation-scoped before opening a connection", async () => {
+    for (const path of ["/outside", "/api/v1/a\\b", "/api/v1/a\nb", "/api/v1/" + "x".repeat(32_768)]) {
+      await fails(localHttpNitterGet("http://127.0.0.1:1", "fixture-token", path), "configuration");
+    }
+  });
   it("rejects private/reserved addresses, IPv4-mapped addresses and invalid exceptions", async () => {
     for (const host of ["127.0.0.1", "10.0.0.1", "100.64.0.1", "169.254.1.1", "192.0.2.1", "[::1]", "[::ffff:127.0.0.1]", "[::ffff:7f00:1]", "[fc00::1]"]) {
       await fails(localHttpGet(`http://${host}/`), "blocked-address");

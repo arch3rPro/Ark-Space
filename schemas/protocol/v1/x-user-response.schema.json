@@ -260,6 +260,17 @@
             "retryable": {
               "type": "boolean"
             },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "input-unreadable",
+                "input-json",
+                "request-schema",
+                "confirmation-required",
+                "capability-disabled",
+                "response-schema"
+              ]
+            },
             "retryAfterSeconds": {
               "type": "integer",
               "minimum": 1,

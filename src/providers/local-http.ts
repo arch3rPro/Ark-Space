@@ -128,7 +128,8 @@ export async function localHttpNitterGet(baseUrl: string, token: string, path: s
   const parsed = NitterConnectionSchema.safeParse({ baseUrl, apiKeyRef: NITTER_MANAGED_KEY_REF });
   const key = validateCredentialValue(token);
   if (!parsed.success || !key || /[^\x21-\x7e]/.test(key) || Buffer.byteLength(key) > 4096) throw new LocalHttpError("configuration");
-  if (!path.startsWith("/api/v1/") || /[\\\u0000-\u0020\u007f]/.test(path) || path.length > 4_096) throw new LocalHttpError("configuration");
+  // A 2,000-character cursor plus a 500-character query can exceed 22 KB after percent-encoding.
+  if (!path.startsWith("/api/v1/") || /[\\\u0000-\u0020\u007f]/.test(path) || path.length > 32_768) throw new LocalHttpError("configuration");
   return pinnedGet(`${parsed.data.baseUrl}${path}`, { ...options, captureErrors: true, maxRedirects: 0, maxHeaderBytes: 16 * 1024, maxBodyBytes: 4 * 1024 * 1024, timeoutMs: Math.min(options.timeoutMs ?? 20_000, 60_000) }, { header: "Authorization", value: `Bearer ${key}` });
 }
 

@@ -79,7 +79,7 @@ import {
 } from "../protocol/resource-schema.js";
 import { invokeCapability, isCapability } from "../protocol/invoke.js";
 import { UseGptInputSchemas, useGptFailure, type UseGptCapability } from "../protocol/usegpt-schema.js";
-import { XEnvelopeSchemas, X_CAPABILITIES, xFailure, type XCapability } from "../protocol/x-schema.js";
+import { X_CAPABILITIES, xFailure, type XCapability, type XFailureReason } from "../protocol/x-schema.js";
 import { weknoraVerifyFailure } from "../protocol/weknora-schema.js";
 import { WeknoraRetrievalEnvelopeSchemas } from "../protocol/weknora-retrieval-schema.js";
 import {
@@ -115,6 +115,8 @@ const MAX_INPUT_BYTES = 1_048_576;
 // Capture before credential bootstrap so setup can distinguish external overrides from local keys.
 const originalEnvironment = { ...process.env };
 const isUpdateInvocation = process.argv.slice(2).find((argument) => !argument.startsWith("-")) === "update";
+const xInvokeCapability = process.argv[2] === "invoke" && (X_CAPABILITIES as readonly string[]).includes(process.argv[3] ?? "")
+  ? process.argv[3] as XCapability : undefined;
 const operationController = new AbortController();
 let receivedTerminationSignal = false;
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
@@ -130,7 +132,7 @@ const program = new Command()
   .description("ArkSpace provider execution CLI")
   .version(VERSION);
 
-if (isUpdateInvocation) program.exitOverride().configureOutput({ writeErr: () => {} });
+if (isUpdateInvocation || xInvokeCapability) program.exitOverride().configureOutput({ writeErr: () => {} });
 program.command("update")
   .description("Check npm stable or interactively approve an npm-global CLI update")
   .option("--check", "Check the official stable release without running npm or changing files")
@@ -686,7 +688,17 @@ program
         }
         environment = await loadCredentialEnvironment(paths.credentials, originalEnvironment);
       }
-      const value = await readJsonInput(options.input);
+      let value: unknown;
+      try {
+        value = await readJsonInput(options.input);
+      } catch (error) {
+        if (!(X_CAPABILITIES as readonly string[]).includes(capability)) throw error;
+        const reason: XFailureReason = error instanceof ProviderError
+          ? error.cause instanceof SyntaxError ? "input-json" : "request-schema"
+          : "input-unreadable";
+        writeMachineResult(xFailure(capability as XCapability, "invalid-request", { reason }));
+        return;
+      }
       if (options.inputFile !== undefined) {
         if (capability !== "usegpt.artifact.publish_inline" || !isRecord(value) || !isRecord(value.input) || value.input.content !== undefined) throw new Error("Invalid content file request.");
         value.input.content = await readUseGptContent(options.inputFile);
@@ -893,7 +905,11 @@ try {
   }
   await program.parseAsync(process.argv);
 } catch (error) {
-  if (process.argv[2] === "usegpt" && process.argv[3] === "daemon") {
+  if (xInvokeCapability) {
+    if (!(error instanceof CommanderError && error.exitCode === 0)) {
+      writeMachineResult(xFailure(xInvokeCapability, "invalid-request", { reason: "request-schema" }));
+    }
+  } else if (process.argv[2] === "usegpt" && process.argv[3] === "daemon") {
     process.stdout.write(`${JSON.stringify({ ok: false, command: `usegpt.daemon.${process.argv[4] ?? "unknown"}`, error: { message: "Artifact Hub daemon command failed; inspect the data directory and runtime." } })}\n`);
     process.exitCode = 1;
   } else if (isUpdateInvocation) {
@@ -1174,7 +1190,8 @@ function writeMachineFailure(capability: Capability, error: unknown): void {
     return;
   }
   if ((X_CAPABILITIES as readonly string[]).includes(capability)) {
-    writeMachineResult(xFailure(capability as XCapability, error instanceof ProviderError && error.kind === "config" ? "config" : "invalid-request"));
+    const kind = error instanceof ProviderError && error.kind === "config" ? "config" : "invalid-request";
+    writeMachineResult(xFailure(capability as XCapability, kind, kind === "config" ? {} : { reason: "request-schema" }));
     return;
   }
   if (capability === "weknora.connection.verify") {

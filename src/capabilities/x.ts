@@ -3,79 +3,135 @@ import { loadConfig } from "../config/store.js";
 import { isToolEnabled } from "../config/schema.js";
 import { resolveNitterConnection } from "../config/nitter.js";
 import { LocalHttpError, localHttpNitterGet } from "../providers/local-http.js";
-import { XEnvelopeSchemas, XRequestSchema, xFailure, type XCapability, type XEnvelope, type XFailureKind } from "../protocol/x-schema.js";
+import { XEnvelopeSchemas, XRequestSchema, xFailure, type XCapability, type XEnvelope, type XFailureKind, type XFailureReason } from "../protocol/x-schema.js";
 
 type Json = Record<string, unknown>;
 const isObj = (value: unknown): value is Json => typeof value === "object" && value !== null && !Array.isArray(value);
 const bad = (): never => { throw new TypeError("invalid upstream shape"); };
 const obj = (value: unknown): Json => isObj(value) ? value : bad();
 const arr = (value: unknown): unknown[] => Array.isArray(value) ? value : bad();
-const str = (value: unknown, max: number): string => typeof value === "string" ? value.slice(0, max) : bad();
-const optStr = (value: unknown, max: number): string | undefined => value === undefined || value === null ? undefined : str(value, max);
 const num = (value: unknown): number => typeof value === "number" && Number.isFinite(value) ? value : bad();
 const optNum = (value: unknown): number | undefined => value === undefined || value === null ? undefined : num(value);
 const nullNum = (value: unknown): number | null => value === undefined || value === null ? null : num(value);
 const set = <T extends Json>(target: T, key: string, value: unknown): T => { if (value !== undefined) (target as Json)[key] = value; return target; };
 
-function brief(value: unknown) {
-  const v = obj(value);
-  return { username: str(v.username, 100), name: str(v.name ?? "", 1_000), verified: v.verified === true };
-}
-function tweet(value: unknown, depth = 0): Json {
-  const v = obj(value);
-  const out: Json = { id: str(v.id, 32), url: str(v.url, 500), available: v.available !== false };
-  set(out, "tombstone", optStr(v.tombstone, 2_000));
-  if (v.author !== undefined) out.author = brief(v.author);
-  set(out, "text", optStr(v.text, 10_000));
-  set(out, "createdAt", optStr(v.created_at, 40));
-  if (v.stats !== undefined && v.stats !== null) {
-    const st = obj(v.stats);
-    out.stats = { replies: num(st.replies), reposts: num(st.reposts), likes: num(st.likes), views: nullNum(st.views) };
-  }
-  set(out, "conversationId", optStr(v.conversation_id, 32));
-  set(out, "inReplyToId", optStr(v.in_reply_to_id, 32));
-  if (v.replying_to !== undefined) out.replyingTo = arr(v.replying_to).slice(0, 50).map(item => str(item, 100));
-  if (v.media !== undefined) out.media = arr(v.media).slice(0, 20).map(item => {
-    const m = obj(item);
-    const media: Json = { type: str(m.type, 32) };
-    set(media, "url", optStr(m.url, 4_096)); set(media, "playlist", optStr(m.playlist, 4_096));
-    set(media, "thumbnail", optStr(m.thumbnail, 4_096)); set(media, "altText", optStr(m.alt_text, 2_000));
-    return media;
-  });
-  if (v.card !== undefined && v.card !== null) {
-    const c = obj(v.card);
-    const card: Json = { kind: str(c.kind, 64) };
-    set(card, "title", optStr(c.title, 2_000)); set(card, "description", optStr(c.description, 4_000));
-    set(card, "url", optStr(c.url, 4_096)); set(card, "domain", optStr(c.domain, 500));
-    out.card = card;
-  }
-  set(out, "communityNote", optStr(v.community_note, 4_000));
-  if (v.retweeted_by !== undefined) out.retweetedBy = brief(v.retweeted_by);
-  if (v.pinned === true) out.pinned = true;
-  if (depth < 1 && v.quote !== undefined && v.quote !== null) out.quote = tweet(v.quote, depth + 1);
-  return out;
-}
-const tweets = (value: unknown, max = 200): Json[] => arr(value).slice(0, max).map(item => tweet(item));
-const cursorOf = (value: unknown): string | null => value === undefined || value === null ? null : str(value, 2_000);
-
-function user(value: unknown): Json {
-  const v = obj(value); const st = obj(v.stats);
-  const out: Json = {
-    id: str(v.id, 32), username: str(v.username, 100), name: str(v.name ?? "", 1_000), url: str(v.url, 500),
-    bio: str(v.bio ?? "", 5_000), location: str(v.location ?? "", 500), website: str(v.website ?? "", 2_000),
-    verified: optStr(v.verified, 64) ?? null, protected: v.protected === true, joined: str(v.joined ?? "", 40),
-    stats: { followers: nullNum(st.followers), following: nullNum(st.following), tweets: nullNum(st.tweets), likes: nullNum(st.likes), media: nullNum(st.media) },
+function project(capability: XCapability, data: Json, warnings: string[]): Json {
+  const warnTruncated = () => {
+    const warning = "Nitter response was truncated locally; returned content may be incomplete even when hasMore is false.";
+    if (!warnings.includes(warning)) warnings.push(warning);
   };
-  set(out, "pinnedTweetId", optStr(v.pinned_tweet_id, 32));
-  if (v.about !== undefined && v.about !== null) {
-    const a = obj(v.about); const about: Json = {};
-    set(about, "basedIn", optStr(a.based_in, 200)); set(about, "source", optStr(a.source, 200));
-    set(about, "usernameChanges", optNum(a.username_changes));
-    if (typeof a.identity_verified === "boolean") about.identityVerified = a.identity_verified;
-    set(about, "affiliate", optStr(a.affiliate, 200));
-    out.about = about;
+  const str = (value: unknown, max: number): string => {
+    if (typeof value !== "string") return bad();
+    if (value.length > max) warnTruncated();
+    return value.slice(0, max);
+  };
+  const optStr = (value: unknown, max: number): string | undefined => value === undefined || value === null ? undefined : str(value, max);
+  const take = (value: unknown, max: number): unknown[] => {
+    const values = arr(value);
+    if (values.length > max) warnTruncated();
+    return values.slice(0, max);
+  };
+  function brief(value: unknown) {
+    const v = obj(value);
+    return { username: str(v.username, 100), name: str(v.name ?? "", 1_000), verified: v.verified === true };
   }
-  return out;
+  function tweet(value: unknown, depth = 0): Json {
+    const v = obj(value);
+    const out: Json = { id: str(v.id, 32), url: str(v.url, 500), available: v.available !== false };
+    set(out, "tombstone", optStr(v.tombstone, 2_000));
+    if (v.author !== undefined) out.author = brief(v.author);
+    set(out, "text", optStr(v.text, 10_000));
+    set(out, "createdAt", optStr(v.created_at, 40));
+    if (v.stats !== undefined && v.stats !== null) {
+      const st = obj(v.stats);
+      out.stats = { replies: num(st.replies), reposts: num(st.reposts), likes: num(st.likes), views: nullNum(st.views) };
+    }
+    set(out, "conversationId", optStr(v.conversation_id, 32));
+    set(out, "inReplyToId", optStr(v.in_reply_to_id, 32));
+    if (v.replying_to !== undefined) out.replyingTo = take(v.replying_to, 50).map(item => str(item, 100));
+    if (v.media !== undefined) out.media = take(v.media, 20).map(item => {
+      const m = obj(item);
+      const media: Json = { type: str(m.type, 32) };
+      set(media, "url", optStr(m.url, 4_096)); set(media, "playlist", optStr(m.playlist, 4_096));
+      set(media, "thumbnail", optStr(m.thumbnail, 4_096)); set(media, "altText", optStr(m.alt_text, 2_000));
+      return media;
+    });
+    if (v.poll !== undefined && v.poll !== null) {
+      const p = obj(v.poll);
+      out.poll = {
+        options: take(p.options, 20).map(value => {
+          const option = obj(value);
+          return { label: str(option.label, 1_000), votes: num(option.votes) };
+        }),
+        totalVotes: num(p.total_votes), status: str(p.status, 500),
+      };
+    }
+    if (v.card !== undefined && v.card !== null) {
+      const c = obj(v.card);
+      const card: Json = { kind: str(c.kind, 64) };
+      set(card, "title", optStr(c.title, 2_000)); set(card, "description", optStr(c.description, 4_000));
+      set(card, "url", optStr(c.url, 4_096)); set(card, "domain", optStr(c.domain, 500));
+      out.card = card;
+    }
+    set(out, "communityNote", optStr(v.community_note, 4_000));
+    if (v.retweeted_by !== undefined) out.retweetedBy = brief(v.retweeted_by);
+    if (v.pinned === true) out.pinned = true;
+    if (v.quote !== undefined && v.quote !== null) {
+      if (depth < 1) out.quote = tweet(v.quote, depth + 1);
+      else warnTruncated();
+    }
+    return out;
+  }
+  const tweets = (value: unknown, max = 200): Json[] => take(value, max).map(item => tweet(item));
+  const pagination = () => {
+    const hasMore = data.has_more, nextCursor = data.next_cursor;
+    if (typeof hasMore !== "boolean") return bad();
+    if (nextCursor !== null && (typeof nextCursor !== "string" || nextCursor.length === 0 || nextCursor.length > 2_000)) return bad();
+    if (hasMore !== (nextCursor !== null)) return bad();
+    return { nextCursor, hasMore };
+  };
+
+  function user(value: unknown): Json {
+    const v = obj(value); const st = obj(v.stats);
+    const out: Json = {
+      id: str(v.id, 32), username: str(v.username, 100), name: str(v.name ?? "", 1_000), url: str(v.url, 500),
+      bio: str(v.bio ?? "", 5_000), location: str(v.location ?? "", 500), website: str(v.website ?? "", 2_000),
+      verified: optStr(v.verified, 64) ?? null, protected: v.protected === true, joined: str(v.joined ?? "", 40),
+      stats: { followers: nullNum(st.followers), following: nullNum(st.following), tweets: nullNum(st.tweets), likes: nullNum(st.likes), media: nullNum(st.media) },
+    };
+    set(out, "pinnedTweetId", optStr(v.pinned_tweet_id, 32));
+    if (v.about !== undefined && v.about !== null) {
+      const a = obj(v.about); const about: Json = {};
+      set(about, "basedIn", optStr(a.based_in, 200)); set(about, "source", optStr(a.source, 200));
+      set(about, "usernameChanges", optNum(a.username_changes));
+      if (typeof a.identity_verified === "boolean") about.identityVerified = a.identity_verified;
+      set(about, "affiliate", optStr(a.affiliate, 200));
+      out.about = about;
+    }
+    return out;
+  }
+  switch (capability) {
+    case "x.search": {
+      const out: Json = { items: tweets(data.items), ...pagination() };
+      set(out, "query", optStr(data.query, 1_000));
+      return out;
+    }
+    case "x.timeline": {
+      const out: Json = { tab: str(data.tab, 16), items: tweets(data.items), ...pagination() };
+      if (data.user !== undefined) { const u = obj(data.user); out.user = { username: str(u.username, 100), name: str(u.name ?? "", 1_000) }; }
+      return out;
+    }
+    case "x.thread": {
+      const out: Json = {
+        tweet: tweet(data.tweet), ancestors: tweets(data.ancestors), continuation: tweets(data.continuation),
+        replies: take(data.replies, 200).map(chain => tweets(chain)),
+        ...pagination(),
+      };
+      set(out, "repliesOmitted", optNum(data.replies_omitted));
+      return out;
+    }
+    case "x.user": return { user: user(data) };
+  }
 }
 
 function pathFor(request: ReturnType<typeof XRequestSchema.parse>): string {
@@ -129,10 +185,13 @@ function statusKind(status: number): XFailureKind {
 export async function executeX(capability: XCapability, request: unknown, paths: ArkSpacePaths, originalEnvironment: NodeJS.ProcessEnv | undefined, signal?: AbortSignal): Promise<XEnvelope> {
   let source: "managed" | "environment" | undefined;
   let warnings: string[] = [];
-  const fail = (kind: XFailureKind, extra: { retryAfterSeconds?: number; status?: number } = {}): XEnvelope =>
+  const fail = (kind: XFailureKind, extra: { retryAfterSeconds?: number; status?: number; reason?: XFailureReason } = {}): XEnvelope =>
     xFailure(capability, kind, { retryable: RETRYABLE.has(kind), warnings, ...(source ? { source } : {}), ...extra });
   const parsed = XRequestSchema.safeParse(request);
-  if (!parsed.success || parsed.data.capability !== capability) return fail("invalid-request");
+  if (!parsed.success || parsed.data.capability !== capability) {
+    const input = isObj(request) && isObj(request.input) ? request.input : undefined;
+    return fail("invalid-request", { reason: input && input.confirmed !== true ? "confirmation-required" : "request-schema" });
+  }
   if (!originalEnvironment) return fail("config");
   const controller = new AbortController();
   const active = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
@@ -144,7 +203,7 @@ export async function executeX(capability: XCapability, request: unknown, paths:
       let connection;
       try {
         const config = await loadConfig(paths.config);
-        if (!isToolEnabled(config, capability)) return fail("invalid-request");
+        if (!isToolEnabled(config, capability)) return fail("invalid-request", { reason: "capability-disabled" });
         connection = await resolveNitterConnection(config, paths.credentials, originalEnvironment);
       } catch { return fail("config"); }
       if (active.aborted) return interrupted();
@@ -154,8 +213,8 @@ export async function executeX(capability: XCapability, request: unknown, paths:
         const response = await localHttpNitterGet(connection.baseUrl, connection.token, pathFor(parsed.data), { timeoutMs: parsed.data.input.timeoutMs, signal: active });
         let body: unknown;
         try { body = JSON.parse(response.text); } catch { return fail(response.status >= 200 && response.status < 300 ? "invalid-response" : statusKind(response.status), { status: response.status }); }
-        // Reject an echoed credential rather than returning raw text.
-        if (response.text.includes(connection.token)) return fail("invalid-response");
+        // Canonicalize JSON so Unicode escapes cannot hide an echoed credential.
+        if (response.text.includes(connection.token) || JSON.stringify(body).includes(JSON.stringify(connection.token).slice(1, -1))) return fail("invalid-response");
         if (response.status < 200 || response.status >= 300) {
           const error = isObj(body) && isObj(body.error) ? body.error : undefined;
           const kind = (typeof error?.code === "string" ? CODE_KIND[error.code] : undefined) ?? statusKind(response.status);
@@ -163,7 +222,7 @@ export async function executeX(capability: XCapability, request: unknown, paths:
           return fail(kind, { status: response.status, ...(retry ? { retryAfterSeconds: retry } : {}) });
         }
         const data = obj(obj(body).data);
-        const projected = project(capability, data);
+        const projected = project(capability, data, warnings);
         return XEnvelopeSchemas[capability].parse({ protocolVersion: 1, capability, connection: "nitter", ok: true, source: connection.source, contentTrust: "untrusted", warnings, data: projected });
       } catch (error) {
         if (active.aborted) return interrupted();
@@ -174,34 +233,9 @@ export async function executeX(capability: XCapability, request: unknown, paths:
           if (["content-type", "encoding", "body", "headers", "redirect"].includes(error.kind)) return fail("invalid-response");
           return fail("network", error.status === undefined ? {} : { status: error.status });
         }
-        return fail("invalid-response");
+        return fail("invalid-response", { reason: "response-schema" });
       }
     };
     return await Promise.race([operation(), new Promise<XEnvelope>(resolve => { abort = () => resolve(interrupted()); active.addEventListener("abort", abort, { once: true }); if (active.aborted) abort(); })]);
   } finally { clearTimeout(timer); if (abort) active.removeEventListener("abort", abort); }
-}
-
-function project(capability: XCapability, data: Json): Json {
-  switch (capability) {
-    case "x.search": {
-      const out: Json = { items: tweets(data.items), nextCursor: cursorOf(data.next_cursor), hasMore: data.has_more === true };
-      set(out, "query", optStr(data.query, 1_000));
-      return out;
-    }
-    case "x.timeline": {
-      const out: Json = { tab: str(data.tab, 16), items: tweets(data.items), nextCursor: cursorOf(data.next_cursor), hasMore: data.has_more === true };
-      if (data.user !== undefined) { const u = obj(data.user); out.user = { username: str(u.username, 100), name: str(u.name ?? "", 1_000) }; }
-      return out;
-    }
-    case "x.thread": {
-      const out: Json = {
-        tweet: tweet(data.tweet), ancestors: tweets(data.ancestors), continuation: tweets(data.continuation),
-        replies: arr(data.replies).slice(0, 200).map(chain => tweets(chain)),
-        nextCursor: cursorOf(data.next_cursor), hasMore: data.has_more === true,
-      };
-      set(out, "repliesOmitted", optNum(data.replies_omitted));
-      return out;
-    }
-    case "x.user": return { user: user(data) };
-  }
 }

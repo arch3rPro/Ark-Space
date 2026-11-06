@@ -16,4 +16,4 @@
 | `limit` | 1–50, default 20. The instance returns whole pages, so you can get more than asked. |
 | `cursor` | The previous `nextCursor`; use it only when more results are needed. |
 
-Result: `data.items[]` tweets, `nextCursor`, `hasMore`. Narrow the query rather than paging far. `timeoutMs` defaults to 20000 (max 60000).
+Result: `data.items[]` tweets, `nextCursor`, `hasMore`, and `warnings[]` when applicable. A local truncation adds this warning once: `Nitter response was truncated locally; returned content may be incomplete even when hasMore is false.` `hasMore` reports only upstream pagination. The response schema requires boolean `has_more` and a `next_cursor` that is null or a non-empty string of at most 2000 characters, consistent with `has_more`; malformed cursors are rejected, not shortened. Narrow the query rather than paging far. `timeoutMs` defaults to 20000 (max 60000).

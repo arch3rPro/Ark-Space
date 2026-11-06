@@ -19,7 +19,7 @@ const tweetDto = { id: "20", url: "https://x.com/jack/status/20", available: tru
 type Reply = { status?: number; body?: unknown; raw?: string; type?: string; delay?: number };
 async function fixture(reply: (url: URL) => Reply = () => ({ body: { data: { items: [tweetDto], next_cursor: "c2", has_more: true }, meta: {} } })) {
   const seen: { url: string; auth: string | undefined }[] = [];
-  const server = createServer((req, res) => {
+  const server = createServer({ maxHeaderSize: 32 * 1024 }, (req, res) => {
     seen.push({ url: req.url!, auth: req.headers.authorization });
     const r = reply(new URL(req.url!, "http://x"));
     setTimeout(() => {
@@ -94,10 +94,144 @@ it("rejects malformed, non-JSON, wrong-shape and token-echoing responses", async
   expect(echo).toMatchObject({ ok: false, error: { kind: "invalid-response" } }); expect(JSON.stringify(echo)).not.toContain(TOKEN);
 });
 
-it("keeps text bounded and quote nesting to one level", async () => {
+it("rejects JSON-escaped credential echoes in text, polls and quotes", async () => {
+  for (const item of [
+    { ...tweetDto, text: TOKEN },
+    { ...tweetDto, poll: { options: [{ label: TOKEN, votes: 1 }], total_votes: 1, status: "Final" } },
+    { ...tweetDto, poll: { options: [{ label: "Yes", votes: 1 }], total_votes: 1, status: TOKEN } },
+    { ...tweetDto, quote: { ...tweetDto, text: TOKEN } },
+  ]) {
+    const raw = JSON.stringify({ data: { items: [item], next_cursor: null, has_more: false } }).replaceAll(TOKEN, "\\u0066" + TOKEN.slice(1));
+    expect(raw).not.toContain(TOKEN);
+    const f = await fixture(() => ({ raw }));
+    const result = await f.run("x.search", { query: "a" });
+    expect(result).toMatchObject({ ok: false, error: { kind: "invalid-response" } });
+    expect(JSON.stringify(result)).not.toContain(TOKEN);
+  }
+});
+
+it.each(["/".repeat(2_000), "中".repeat(2_000)])("accepts a schema-bounded cursor after percent-encoding expansion (%#)", async cursor => {
+  const f = await fixture();
+  const query = "中".repeat(500);
+  expect(await f.run("x.search", { query, cursor })).toMatchObject({ ok: true });
+  const url = new URL(f.seen[0]!.url, "http://x");
+  expect(url.searchParams.get("cursor")).toBe(cursor);
+  expect(url.searchParams.get("query")).toBe(query);
+});
+
+it("reports local truncation while keeping text and quote nesting bounded", async () => {
   const nested = { ...tweetDto, text: "x".repeat(20_000), quote: { ...tweetDto, id: "21", quote: { ...tweetDto, id: "22" } } };
   const result: any = await (await fixture(() => ({ body: { data: { items: [nested], next_cursor: null, has_more: false } } }))).run("x.search", { query: "a" });
   expect(result.ok).toBe(true); expect(result.data.items[0].text).toHaveLength(10_000); expect(result.data.items[0].quote.id).toBe("21"); expect(result.data.items[0].quote.quote).toBeUndefined();
+  expect(result.warnings.filter((warning: string) => warning.includes("truncated locally"))).toHaveLength(1);
+  expect(result.data.hasMore).toBe(false);
+  const complete: any = await (await fixture()).run("x.search", { query: "a" });
+  expect(complete.warnings.some((warning: string) => warning.includes("truncated locally"))).toBe(false);
+});
+
+it("also reports truncated profiles, tweet arrays and media once per call", async () => {
+  const profile = await fixture(() => ({ body: { data: { id: "12", username: "jack", url: "https://x.com/jack", bio: "x".repeat(5_001), stats: {} } } }));
+  const user: any = await profile.run("x.user", { username: "jack" });
+  expect(user.ok).toBe(true);
+  expect(user.data.user.bio).toHaveLength(5_000);
+  expect(user.warnings.some((warning: string) => warning.includes("truncated locally"))).toBe(true);
+  const item = { ...tweetDto, media: Array.from({ length: 21 }, () => ({ type: "image", url: "https://example.com/image.png" })) };
+  const list = await fixture(() => ({ body: { data: { items: Array.from({ length: 201 }, () => item), next_cursor: null, has_more: false } } }));
+  const result: any = await list.run("x.search", { query: "a" });
+  expect(result.ok).toBe(true);
+  expect(result.data.items).toHaveLength(200);
+  expect(result.data.items[0].media).toHaveLength(20);
+  expect(result.warnings.filter((warning: string) => warning.includes("truncated locally"))).toHaveLength(1);
+});
+
+it("reports bounded poll options, labels and status in both the tweet and quote", async () => {
+  const poll = { options: Array.from({ length: 21 }, () => ({ label: "x".repeat(1_001), votes: 1 })), total_votes: 21, status: "x".repeat(501) };
+  const item = { ...tweetDto, poll, quote: { ...tweetDto, poll } };
+  const result: any = await (await fixture(() => ({ body: { data: { items: [item], next_cursor: null, has_more: false } } }))).run("x.search", { query: "a" });
+  expect(result.ok).toBe(true);
+  for (const tweet of [result.data.items[0], result.data.items[0].quote]) {
+    expect(tweet.poll.options).toHaveLength(20);
+    expect(tweet.poll.options[0].label).toHaveLength(1_000);
+    expect(tweet.poll.status).toHaveLength(500);
+    expect(tweet.poll.totalVotes).toBe(21);
+  }
+  expect(result.warnings.filter((warning: string) => warning.includes("truncated locally"))).toHaveLength(1);
+  expect(result.data.hasMore).toBe(false);
+});
+
+it.each(["x.search", "x.timeline", "x.thread"] as const)("keeps unreported tweet and quote stats absent in %s", async capability => {
+  const item = { ...tweetDto, stats: null, quote: { ...tweetDto, stats: null } };
+  const data = capability === "x.thread"
+    ? { tweet: item, ancestors: [], continuation: [], replies: [], next_cursor: null, has_more: false }
+    : { items: [item], tab: "posts", next_cursor: null, has_more: false };
+  const f = await fixture(() => ({ body: { data } }));
+  const result: any = await f.run(capability, capability === "x.thread" ? { tweet: "20" } : capability === "x.timeline" ? { username: "jack" } : { query: "a" });
+  expect(result.ok).toBe(true);
+  const tweet = capability === "x.thread" ? result.data.tweet : result.data.items[0];
+  expect(tweet).not.toHaveProperty("stats");
+  expect(tweet.quote).not.toHaveProperty("stats");
+  expect(result.warnings.some((warning: string) => warning.includes("truncated locally"))).toBe(false);
+});
+
+it("rejects malformed poll counts instead of returning a misleading successful poll", async () => {
+  for (const poll of [
+    { options: [{ label: "Yes", votes: "3" }], total_votes: 3, status: "Final" },
+    { options: [{ label: "Yes", votes: -1 }], total_votes: 3, status: "Final" },
+    { options: [{ label: "Yes", votes: 3 }], total_votes: 1.5, status: "Final" },
+  ]) {
+    const f = await fixture(() => ({ body: { data: { items: [{ ...tweetDto, poll }], next_cursor: null, has_more: false } } }));
+    expect(await f.run("x.search", { query: "a" })).toMatchObject({ ok: false, error: { kind: "invalid-response", reason: "response-schema" } });
+  }
+});
+
+it.each(["x.search", "x.timeline", "x.thread"] as const)("preserves bounded polls in %s and quoted tweets", async capability => {
+  const poll = { options: [{ label: "Yes", votes: 3 }, { label: "No", votes: 2 }], total_votes: 5, status: "Final results" };
+  const item = { ...tweetDto, poll, quote: { ...tweetDto, id: "21", poll } };
+  const data = capability === "x.thread"
+    ? { tweet: item, ancestors: [], continuation: [], replies: [], next_cursor: null, has_more: false }
+    : { items: [item], tab: "posts", next_cursor: null, has_more: false };
+  const f = await fixture(() => ({ body: { data } }));
+  const result: any = await f.run(capability, capability === "x.thread" ? { tweet: "20" } : capability === "x.timeline" ? { username: "jack" } : { query: "a" });
+  expect(result.ok).toBe(true);
+  const projected = capability === "x.thread" ? result.data.tweet : result.data.items[0];
+  const expected = { options: [{ label: "Yes", votes: 3 }, { label: "No", votes: 2 }], totalVotes: 5, status: "Final results" };
+  expect(projected.poll).toEqual(expected);
+  expect(projected.quote.poll).toEqual(expected);
+  expect(XEnvelopeSchemas[capability].safeParse(result).success).toBe(true);
+});
+
+it.each(["x.search", "x.timeline", "x.thread"] as const)("rejects malformed pagination in %s instead of hiding or truncating it", async capability => {
+  const base = capability === "x.thread"
+    ? { tweet: tweetDto, ancestors: [], continuation: [], replies: [] }
+    : { items: [tweetDto], tab: "posts" };
+  const input = capability === "x.thread" ? { tweet: "20" } : capability === "x.timeline" ? { username: "jack" } : { query: "a" };
+  for (const pagination of [
+    { next_cursor: null }, { has_more: false }, { has_more: "false", next_cursor: null },
+    { has_more: true, next_cursor: null }, { has_more: true, next_cursor: "" },
+    { has_more: true, next_cursor: "c".repeat(2_001) }, { has_more: false, next_cursor: "c2" },
+  ]) {
+    const f = await fixture(() => ({ body: { data: { ...base, ...pagination } } }));
+    expect(await f.run(capability, input)).toMatchObject({ ok: false, error: { kind: "invalid-response", reason: "response-schema" } });
+    expect(f.seen).toHaveLength(1);
+  }
+  const cursor = "c".repeat(2_000);
+  const f = await fixture(() => ({ body: { data: { ...base, has_more: true, next_cursor: cursor } } }));
+  expect(await f.run(capability, input)).toMatchObject({ ok: true, data: { nextCursor: cursor, hasMore: true } });
+});
+
+it("forwards an opaque thread cursor without hiding repeated context or page omissions", async () => {
+  const cursor = "cursor+/=opaque";
+  const f = await fixture(url => {
+    const secondPage = url.searchParams.has("cursor");
+    return { body: { data: { tweet: tweetDto, ancestors: [], continuation: [tweetDto], replies: [[{ ...tweetDto, id: secondPage ? "22" : "21" }]],
+      replies_omitted: secondPage ? 0 : 2, has_more: !secondPage, next_cursor: secondPage ? null : cursor } } };
+  });
+  const first: any = await f.run("x.thread", { tweet: "20", includeReplies: true, maxReplies: 1 });
+  expect(first).toMatchObject({ ok: true, data: { tweet: { id: "20" }, replies: [[{ id: "21" }]], repliesOmitted: 2, nextCursor: cursor, hasMore: true } });
+  const second = await f.run("x.thread", { tweet: "20", includeReplies: true, maxReplies: 1, cursor: first.data.nextCursor });
+  expect(second).toMatchObject({ ok: true, data: { tweet: { id: "20" }, replies: [[{ id: "22" }]], repliesOmitted: 0, nextCursor: null, hasMore: false } });
+  expect(new URL(f.seen[1]!.url, "http://x").searchParams.get("cursor")).toBe(cursor);
+  expect(f.seen).toHaveLength(2);
 });
 
 it("rejects absent consent, unknown fields, empty search and missing provenance offline", async () => {
@@ -109,6 +243,13 @@ it("rejects absent consent, unknown fields, empty search and missing provenance 
   expect(f.seen).toHaveLength(0);
 });
 
+it("distinguishes missing confirmation from other request validation failures offline", async () => {
+  const f = await fixture();
+  expect(await f.run("x.user", { username: "jack", confirmed: false })).toMatchObject({ ok: false, error: { kind: "invalid-request", reason: "confirmation-required" } });
+  expect(await f.run("x.user", { username: "invalid handle", confirmed: true })).toMatchObject({ ok: false, error: { kind: "invalid-request", reason: "request-schema" } });
+  expect(f.seen).toHaveLength(0);
+});
+
 it("resolves connections: external pair wins, partial pair and override conflict are config errors, disabled tool refuses", async () => {
   const f = await fixture();
   expect(await f.run("x.user", { username: "jack" }, { NITTER_BASE_URL: f.baseUrl })).toMatchObject({ ok: false, error: { kind: "config" } });
@@ -117,7 +258,7 @@ it("resolves connections: external pair wins, partial pair and override conflict
   const ok = await f.run("x.user", { username: "jack" }, { NITTER_BASE_URL: f.baseUrl, NITTER_API_TOKEN: "fixture-external-secret" });
   expect(ok).toMatchObject({ source: "environment" }); expect(f.seen[0]!.auth).toBe("Bearer fixture-external-secret");
   f.config.tools["x.user"] = { enabled: false }; await writeJsonAtomic(f.paths.config, f.config);
-  expect(await f.run("x.user", { username: "jack" })).toMatchObject({ ok: false, error: { kind: "invalid-request" } });
+  expect(await f.run("x.user", { username: "jack" })).toMatchObject({ ok: false, error: { kind: "invalid-request", reason: "capability-disabled" } });
 });
 
 it("separates timeout from caller cancellation and makes one request", async () => {
