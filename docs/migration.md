@@ -1,5 +1,7 @@
 # Migration Plan
 
+> **Historical migration record.** The phases below describe the original migration plan and must not be read as a list of work that is still unimplemented. Current implementation progress and next acceptance gates live in the single [ROADMAP](../ROADMAP.md). This document remains authoritative for migration history and replacement cutover gates.
+
 ## Goal
 
 Build a new ArkSpace project at `~/Documents/Vibe-Coding/code/Ark-Space` without modifying the existing implementation in place. The existing repository remains a read-only source of behavioral evidence until the replacement satisfies its acceptance gates.
@@ -20,7 +22,7 @@ Do not carry forward:
 - agent, role, or workflow layers without a new concrete use case;
 - deprecated design and refactor plans.
 
-## Capability migration matrix
+## Historical capability migration matrix
 
 | Existing capability | New owner | Treatment |
 | --- | --- | --- |
@@ -52,7 +54,7 @@ Do not carry forward:
 | Generated integrations and package mirror | Discard from initial architecture |
 | Obsidian, product, project, and other skills | Outside the first slice, not rejected from ArkSpace's future scope |
 
-## Delivery phases
+## Historical delivery phases (plan at inception)
 
 ### Phase 0: freeze behavior evidence
 
@@ -227,8 +229,10 @@ The new project is ready to replace the existing project only when:
 
 ## Post-release 0.1 qualification backlog
 
-1. Run the hosted Windows, macOS, Linux, and Node LTS matrix against the published version.
-2. Run credentialed live tests for every retained Exa, Tavily, and Firecrawl capability.
-3. Validate Claude Code and Codex installation from the exact published tag and npm package.
-4. Review Skill activation and Research source-verification behavior with real tasks.
-5. Complete the atomic-state-store durability spike before replacement cutover.
+This list records the original 0.1 publication backlog, not current implementation status or a claim that the listed capabilities are absent. Current progress and remaining gates are tracked in [ROADMAP](../ROADMAP.md). `code.context`, `research.run`, and Monitor capabilities are implemented in the repository; implementation does not itself complete cross-platform, real-service, host-installation, or replacement cutover qualification.
+
+1. Hosted Windows, macOS, Linux, and Node LTS qualification against the relevant published version.
+2. Credentialed live tests for retained Exa, Tavily, and Firecrawl capabilities.
+3. Claude Code and Codex installation from the exact published tag and npm package.
+4. Skill activation and Research source-verification behavior with real tasks.
+5. Atomic-state-store durability evidence before replacement cutover.

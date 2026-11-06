@@ -1,41 +1,41 @@
 # Changelog
 
-Notable released changes to ArkSpace will be recorded here.
+This is the concise version ledger. Detailed changes, upgrade instructions, verification evidence, and qualification limits live in the linked release notes; current development status lives in [Roadmap](ROADMAP.md). Dates below are npm publication dates, not preparation or GitHub Release dates.
+
+## 0.2.0 - Unreleased
+
+- Add the UseGPT Artifact Hub workflow, `notes` and `x-search`, four X capabilities, and the rebuilt Setup workbench with Nitter management.
+- Harden X diagnostics, output completeness reporting, credential redaction, and pagination; preserve the CLI entry's executable permissions.
+- **Breaking:** require Node.js `>=22.19.0` and retire the old Setup engine and legacy UseGPT/CDP path. See [candidate release notes](release/0.2.0.md).
+
+## 0.1.7 - 2026-10-26
+
+- npm publication; its recorded source revision is the comparison baseline for 0.2.0. A matching Git tag or GitHub Release archive was not found. See [historical notes](release/0.1.7.md).
+
+## 0.1.6 - 2026-10-26
+
+- npm publication with the same recorded source revision as 0.1.7; a detailed release archive was not found. See [historical notes](release/0.1.6.md).
+
+## 0.1.5 - 2026-10-12
+
+- Add manual npm CLI updates, bounded research-evidence review guidance, and Skill/plugin metadata improvements. See [release notes](release/0.1.5.md).
+
+## 0.1.4 - 2026-10-09
+
+- Add optional managed WeKnora configuration, verification, and retrieval. See [release notes](release/0.1.4.md).
+
+## 0.1.3 - 2026-10-05
+
+- Add keyless SearXNG and the human-controlled Setup workbench. See [release notes](release/0.1.3.md).
 
 ## 0.1.2 - 2026-09-26
 
-- Added bounded persistent `web.fetch` response IDs and `web.content.get` pagination/text lookup.
-- Added conservative source-level research evidence metadata without fabricated passage or claim evidence.
-- Hardened credential input validation for environment and local credential sources.
-- Added a read-only, bounded GitHub Issue/PR Skill using the local `gh` CLI.
-- Deferred unvalidated proxy, configuration discovery, concurrency, and PDF/video extensions until concrete consumers exist.
+- Add bounded fetch-response retrieval, conservative research-evidence metadata, credential validation, and GitHub Issue/PR guidance. See [release notes](release/0.1.2.md).
 
 ## 0.1.1 - 2026-09-10
 
-- Added `arks setup` as a human-controlled credential wizard with hidden terminal input, owner-only local storage where supported, and environment-variable precedence.
-- Added installation-first English and Chinese README flows plus a repository-owned install, verification, update, and uninstall guide.
-- Added explicit Skill compatibility declarations, clearer operation routing, bounded result handling, and array limits for structured extraction guidance.
-- Added positive and negative activation fixtures plus isolated-Skill link and dependency checks.
-- Hardened installed-host MCP verification so malformed protocol output fails immediately with a specific error.
+- Add safe credential onboarding, installation guidance, and isolated-Skill checks. See [release notes](release/0.1.1.md).
 
 ## 0.1.0 - 2026-09-09
 
-- Established the greenfield product, architecture, and migration boundaries.
-- Added the first Node.js and TypeScript `arks` CLI implementation.
-- Added committed protocol version 1 request and response JSON Schemas for every capability.
-- Added Search and Fetch adapters for Exa, Tavily, and Firecrawl.
-- Added `web.map` through Tavily and Firecrawl with normalized links and Provider fallback.
-- Added bounded `web.crawl` through Tavily and Firecrawl, including Firecrawl polling, safe pagination, timeout cancellation, and cleanup evidence.
-- Added Exa `web.related` and `code.context` retrieval.
-- Added Firecrawl `web.extract` with bounded JSON Schema input, local output validation, and duplicate-safe remote Job evidence.
-- Added attached `research.run` through Exa Agent and Tavily Research with normalized sources, Exa grounding, bounded quality controls, polling, and terminal completion semantics.
-- Added Exa Research cancellation settlement and unsafe-retry evidence for Tavily or ambiguous submissions.
-- Prevented fallback when Firecrawl Crawl cancellation cannot be confirmed.
-- Added owned Firecrawl Browser sessions with bounded structured actions, key pinning, explicit status and close, authority-URL redaction, and cleanup evidence.
-- Added recurring Exa Monitors with key-pinned lifecycle operations, explicit mutation confirmation, run history, and private one-time webhook-secret storage.
-- Added the official MCP TypeScript SDK v2 stdio transport over the shared Protocol v1 dispatcher.
-- Added a separate owned Firecrawl Site Monitor lifecycle with typed scrape, crawl, and search targets, schedule and retention controls, judging, credit estimates, check history, cancellation, and page-level results.
-- Added environment-reference credentials, transactional key rotation, cooldown, disable, and Provider fallback behavior.
-- Added canonical `web`, `research`, `browser`, and `monitor` Skills plus direct-source Claude Code and Codex plugin manifests.
-- Added sanitized Provider fixtures, real-entry tests, and migration evidence.
-- Added cross-platform CI, installed-host checks, and opt-in credentialed Provider E2E as post-release qualification paths for the initial 0.1 line.
+- Establish the shared CLI, Protocol v1, Provider execution, owned Browser/Monitor lifecycles, and canonical Skills. See [release notes](release/0.1.0.md).

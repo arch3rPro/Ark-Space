@@ -2,7 +2,7 @@
 
 ArkSpace has two installable surfaces:
 
-1. **Agent Skills** provide operation guidance for `askme`, `notes`, `web`, `research`, `browser`, `monitor`, `weknora`, `usegpt`, and `gh-repo`.
+1. **Agent Skills** provide operation guidance for `askme`, `notes`, `web`, `research`, `browser`, `monitor`, `weknora`, `usegpt`, `gh-repo`, and `x-search`.
 2. **`arks` CLI** provides shared Provider execution, credential handling, owned resources, and MCP stdio.
 
 Provider-backed Skills need both surfaces. `weknora` can run independently with `WEKNORA_BASE_URL` and `WEKNORA_API_KEY`, without the CLI. Node.js 22.19.0 or newer is required by the current CLI package and its `pi-tui` dependency.
@@ -28,14 +28,14 @@ An Agent performing the installation must:
 
 ## Install the CLI
 
-See [0.1.5 release notes](release/0.1.5.md) for features, verification evidence, and qualification limits. Install the current published CLI:
+See the [Roadmap](ROADMAP.md) for current progress, and [0.2.0 candidate notes](release/0.2.0.md) for candidate evidence when available. Version 0.2.0 is not published. Install the current published CLI:
 
 ```bash
 npm install --global @arkspace/cli@latest
 arks --version
 ```
 
-At preparation time, the published version is 0.1.4; the 0.1.5 release-candidate source is not a claim that 0.1.5 is available from npm.
+npm latest was verified as 0.1.7 on 2026-11-06; 0.1.5 is also published. The current source package version is 0.2.0, an unpublished candidate.
 
 ## Install the Skills
 
@@ -47,10 +47,10 @@ Use the Agent Skills installer for Codex, Claude Code, Cursor, and other compati
 npx skills@latest add arch3rPro/Ark-Space
 ```
 
-Choose the target Agent and the canonical Skills you need, such as `askme`, `notes`, `web`, `research`, `browser`, `monitor`, `weknora`, `usegpt`, and `gh-repo`. For a non-interactive installation, name the host explicitly:
+Choose the target Agent and the canonical Skills you need, such as `askme`, `notes`, `web`, `research`, `browser`, `monitor`, `weknora`, `usegpt`, `gh-repo`, and `x-search`. For a non-interactive installation, name the host explicitly:
 
 ```bash
-npx skills@latest add arch3rPro/Ark-Space --agent <agent> --skill askme notes web research browser monitor weknora usegpt gh-repo -y
+npx skills@latest add arch3rPro/Ark-Space --agent <agent> --skill askme notes web research browser monitor weknora usegpt gh-repo x-search -y
 ```
 
 Use `-g` only after the user approves a user-wide installation.
@@ -84,10 +84,10 @@ node dist/cli/main.js setup exa
 # Choose a language for this session only:
 node dist/cli/main.js setup --lang zh
 node dist/cli/main.js setup exa --lang en
-# Any context also accepts weknora, nitter or usegpt.
+# `arks setup <context>` deep-links to a service context.
 ```
 
-The Setup workbench (rebuilt in 0.1.3, running on a differential-rendering engine since 0.1.5) keeps three focus regions — Top, Menu, Content — cycled with Tab/Shift-Tab, and its Top strip spans six contexts (Exa, Tavily, Firecrawl, SearXNG, WeKnora, UseGPT); `arks setup <context>` deep-links into any page. Keys: `a` add, `e`/Enter edit (the form shows the stored value masked; `Ctrl-R` reveals it, cleared when the form closes; a key that cannot be replaced, such as an environment key, opens the same view read-only), `d` remove, Space toggles the selected key (a provider is enabled or disabled on the Order page, not on its own page), `t` opens the Cancel-default test chooser (one pool round-robin test, or isolated per-key tests with Esc to stop), `u`/`d` reorder, Delete removes, `I` includes with confirmation, Ctrl-S saves drafts; connection pages act on rows with Enter as labeled. Secret entry is always masked, destructive or billable actions require a Cancel-default confirmation, SearXNG private-CIDR authorization is per-instance and never migrates between endpoints, environment-managed values stay read-only, opening setup issues no network request, non-TTY runs print one plain line without entering the alternate screen, and the terminal is always restored on exit. Automated Linux PTY qualification (`npm run test:setup`) covers all six contexts on the source build and an offline-installed entry; it uses standard-library Python 3 as a development-only prerequisite, not an end-user CLI dependency. Human usability, real services, and hosted Windows/macOS terminals remain unqualified. See [ADR 0016](docs/adr/accepted/0016-tui-provider-setup.md), [ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md), [ADR 0023](docs/adr/accepted/0023-pi-tui-setup-engine.md), and [ADR 0024](docs/adr/accepted/0024-workbench-presentation-contract.md).
+Setup has six menu items: Search, Social media, Knowledge, Tools, Settings, and Exit. Its seven service contexts are Exa, Tavily, Firecrawl, SearXNG, WeKnora, UseGPT, and Nitter; Search Order is a pseudo-context, not an eighth service. Linux PTY automation does not establish human usability, real-service behavior, or hosted Windows/macOS terminal qualification. See [ADR 0016](docs/adr/accepted/0016-tui-provider-setup.md), [ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md), [ADR 0023](docs/adr/accepted/0023-pi-tui-setup-engine.md), and [ADR 0024](docs/adr/accepted/0024-workbench-presentation-contract.md) for the interaction and security contracts. Keys: `a` add, `e`/Enter edit (the form shows the stored value masked; `Ctrl-R` reveals it, cleared when the form closes; a key that cannot be replaced, such as an environment key, opens the same view read-only), `d` remove, Space toggles the selected key (a provider is enabled or disabled on the Order page, not on its own page), `t` opens the Cancel-default test chooser (one pool round-robin test, or isolated per-key tests with Esc to stop), `u`/`d` reorder, Delete removes, `I` includes with confirmation, Ctrl-S saves drafts; connection pages act on rows with Enter as labeled. Secret entry is always masked, destructive or billable actions require a Cancel-default confirmation, SearXNG private-CIDR authorization is per-instance and never migrates between endpoints, environment-managed values stay read-only, opening setup issues no network request, non-TTY runs print one plain line without entering the alternate screen, and the terminal is always restored on exit. Automated Linux PTY qualification (`npm run test:setup`) covers all seven contexts on the source build and an offline-installed entry; it uses standard-library Python 3 as a development-only prerequisite, not an end-user CLI dependency. Human usability, real services, and hosted Windows/macOS terminals remain unqualified. See [ADR 0016](docs/adr/accepted/0016-tui-provider-setup.md), [ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md), [ADR 0023](docs/adr/accepted/0023-pi-tui-setup-engine.md), and [ADR 0024](docs/adr/accepted/0024-workbench-presentation-contract.md).
 
 Existing contracts remain: session-only `--lang en|zh` overrides saved `setupLanguage`; environment keys cannot be replaced, and unlinking references never changes external values; ownership/shared-reference guards, independent SearXNG enablement/order, narrow per-instance CIDR consent, explicit live-test consent, cancellation, and terminal restoration are preserved. Preview remains read-only and ephemeral, distinguishing stored from effective environment values without network or file writes. No-color rendering is supported.
 
@@ -109,7 +109,7 @@ arks provider list
 
 `arks key add` stores references only. In the workbench, open a new right-pane **Add** form for each additional key to append without deleting or replacing existing entries. If reference registration fails after a key is saved, the credential remains stored and the diagnostic identifies its reference without displaying the key. Do not paste keys into an Agent chat.
 
-## Nitter optional managed connection (unreleased)
+## Nitter optional managed connection
 
 `x-search` reads X through a Nitter instance you operate. In a trusted terminal run:
 
@@ -183,7 +183,7 @@ npx skills@latest list
 
 Installation is ready when:
 
-- `arks --version` reports the version currently published on npm (0.1.4 during 0.1.5 release-candidate preparation);
+- `arks --version` reports the installed CLI version; npm latest was verified as 0.1.7 on 2026-11-06; repository version 0.2.0 is an unpublished candidate;
 - at least one required Provider is ready in `arks doctor --json`;
 - the target Agent discovers the selected ArkSpace Skills.
 
@@ -198,7 +198,7 @@ Register MCP only for hosts that need it; Skills can execute `arks` directly.
 
 ## Update
 
-The manual npm updater is introduced in the 0.1.5 release candidate. Published `@arkspace/cli@0.1.4` does not include `arks update`. Until a release containing it is published, update the CLI to the current stable npm version and update Skills separately:
+The manual npm updater shipped in published 0.1.5. npm latest was verified as 0.1.7 on 2026-11-06; the repository package is currently 0.2.0, an unpublished candidate. Update the CLI and Skills separately:
 
 ```bash
 npm install --global @arkspace/cli@latest
@@ -253,7 +253,7 @@ A source checkout remains check-only; use the manual `@latest` npm install above
 
 ```bash
 npm pack --ignore-scripts --pack-destination /path/to/temporary-directory
-npm install --global --ignore-scripts /path/to/temporary-directory/arkspace-cli-0.1.5.tgz
+npm install --global --ignore-scripts /path/to/temporary-directory/arkspace-cli-0.2.0.tgz
 ```
 
-Synchronize the installed WeKnora Skill from the same checkout, preserving unrelated user files, and reload the Agent's Skills. This installs a local 0.1.5 source artifact without publishing; do not infer registry availability from its version string. Updating only the CLI or only the Skill leaves managed execution unavailable. Existing connection and credential files need no changes. Release and cross-platform qualification rules are documented in [Maintenance](docs/maintenance.md) and [Platform Support](docs/platform-support.md).
+Synchronize the installed WeKnora Skill from the same checkout, preserving unrelated user files, and reload the Agent's Skills. This installs a local 0.2.0 source artifact without publishing; do not infer registry availability from its version string. Updating only the CLI or only the Skill leaves managed execution unavailable. Existing connection and credential files need no changes. Release and cross-platform qualification rules are documented in [Maintenance](docs/maintenance.md) and [Platform Support](docs/platform-support.md).

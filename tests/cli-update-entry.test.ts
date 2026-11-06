@@ -8,6 +8,8 @@ import { afterEach, describe, expect, it } from "vitest";
 const directories: string[] = [];
 const fixture = pathToFileURL(resolve("tests/fixtures/cli-update-boundary.mjs")).href;
 const version = (JSON.parse(await readFile(resolve("package.json"), "utf8")) as { version: string }).version;
+const [major, minor] = version.split(".");
+const newerMinorVersion = `${major}.${Number(minor) + 10}.0`;
 const nativePty = process.platform === "linux" && spawnSync("python3", ["--version"]).status === 0;
 const npmPack = process.env.npm_execpath;
 const packedEntry = npmPack?.endsWith("npm-cli.js") && spawnSync("tar", ["--version"]).status === 0;
@@ -66,7 +68,8 @@ describe("manual CLI updates through the built entry", () => {
   it.each([
     [version, "up-to-date", false],
     ["0.0.1", "newer-than-registry", false],
-    ["0.1.10", "update-available", true],
+    ["0.1.10", "newer-than-registry", false],
+    [newerMinorVersion, "update-available", true],
   ] as const)("compares %s numerically without reinstalling or downgrading", async (latest, status, available) => {
     const scenario = await createScenario({ metadata: { name: "@arkspace/cli", version: latest } });
     const result = await runCli(scenario, ["update", "--check", "--json"]);

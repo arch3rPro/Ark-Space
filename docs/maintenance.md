@@ -4,9 +4,10 @@
 
 - `README.md` and `README.zh-CN.md` explain the user-facing project and must remain factually aligned.
 - `docs/architecture.md` owns the current system map and boundaries.
-- `docs/migration.md` owns migration phases, evidence, and cutover gates.
+- `ROADMAP.md` owns the current implementation progress summary and next acceptance gates.
+- `docs/migration.md` owns historical migration context and replacement cutover gates; its original phases are not current status.
 - `docs/field-testing.md` owns observations from real use before they are accepted into a Roadmap, issue, or development plan.
-- Proposed ADRs own unimplemented decisions and alternatives.
+- Proposed ADRs own decisions and alternatives that remain proposed; implementation status is verified against current source and evidence, not inferred from an ADR status label.
 - `AGENTS.md` owns cross-agent repository rules; `CLAUDE.md` contains Claude-specific differences only.
 - Plugin manifests own host metadata and reference canonical Skills directly; no generated plugin mirror exists.
 
@@ -44,7 +45,7 @@ An explicitly requested version release performs the plugin release checks:
 3. verify that referenced paths resolve and private configuration is excluded;
 4. publish only after explicit authorization.
 
-For the initial 0.1 line, exact-tag installed-host and cross-platform qualification are tracked as post-release work rather than publication blockers.
+A qualification arrangement from an earlier release does not automatically carry forward to a new major/minor candidate. For 0.2.0, hosted platform and installed-host qualification remain open gates and must be explicitly recorded; do not claim broader platform support until evidence exists.
 
 The Node/TypeScript CLI has a separate software build and npm release process. Do not describe that build as compiling the Codex plugin.
 
@@ -56,8 +57,8 @@ The Node/TypeScript CLI has a separate software build and npm release process. D
 
 Record a post-release passing `npm run test:e2e` using the procedure in `docs/provider-e2e.md`; it remains manual because it requires dedicated credentials, a public test webhook, charges, and post-run dashboard inspection.
 
-`npm run verify:release` composes project structure validation, typechecking, package verification, identity, legal metadata, and clean-Git checks. Release candidates also pass `npm run check`; the release verifier intentionally does not publish or tag. Exact-tag installed-host, hosted platform, and credentialed Provider tests remain post-release qualification for the 0.1 line.
+`npm run verify:release` composes project structure validation, typechecking, package verification, identity, legal metadata, and clean-Git checks. A release candidate must pass both `npm run check` and `npm run verify:release` on a clean reviewed commit. The verifier does not publish or tag. Installed-host, hosted platform, and credentialed Provider evidence must be evaluated and reported for the candidate; prior 0.1 arrangements are not a 0.2.0 waiver.
 
 ## Release boundary
 
-Publishing requires explicit authorization plus passing `npm run check` and `npm run verify:release` on the reviewed release commit. Publication does not declare the replacement cutover complete; the stricter cutover gates in `docs/migration.md` still govern replacing or retiring the existing ArkSpace project. Do not publish npm packages, create tags, change plugin versions, or retire the existing project as a side effect of ordinary maintenance.
+Publishing requires a clean reviewed commit, passing `npm run check` and `npm run verify:release`, and separate explicit authorization to publish. Passing checks or preparing 0.2.0 is not publication authorization. Publication does not declare replacement cutover complete; the stricter gates in `docs/migration.md` still govern replacing or retiring the existing ArkSpace project. Do not publish npm packages, create tags, change plugin versions, or retire the existing project as a side effect of ordinary maintenance.

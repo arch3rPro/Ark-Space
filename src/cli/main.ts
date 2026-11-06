@@ -110,7 +110,7 @@ import {
   createSearchProviderRegistry,
 } from "../providers/registry.js";
 
-const VERSION = "0.1.5";
+const VERSION = "0.2.0";
 const MAX_INPUT_BYTES = 1_048_576;
 // Capture before credential bootstrap so setup can distinguish external overrides from local keys.
 const originalEnvironment = { ...process.env };

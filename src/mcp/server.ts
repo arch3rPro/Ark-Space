@@ -104,7 +104,7 @@ for (const capability of Object.keys(UseGptInputSchemas) as Capability[]) {
 }
 
 export function createMcpServer(config?: ArkSpaceConfig, options: InvokeOptions = {}): McpServer {
-  const server = new McpServer({ name: "arkspace", version: "0.1.5" });
+  const server = new McpServer({ name: "arkspace", version: "0.2.0" });
   const activeRequests = new Map<string | number, AbortController>();
   const names = new Set<string>();
   for (const capability of Object.keys(inputSchemas) as Capability[]) {

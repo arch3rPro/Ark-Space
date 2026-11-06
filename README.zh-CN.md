@@ -15,7 +15,7 @@
 
 **面向 Web 证据、引用研究、浏览器操作与监控的可复用 Agent Skills；只有在需要共享 Provider 执行时，才通过统一且安全的本地边界运行。**
 
-ArkSpace 为 Coding Agent 提供聚焦的操作说明，而不是一个巨型 Prompt。首个版本包含八个 canonical Skills 与 `arks` CLI；CLI 负责协调 Provider 凭证、多 Key 轮询、fallback、远程资源所有权和机器可读结果。
+ArkSpace 为 Coding Agent 提供聚焦的操作说明，而不是一个巨型 Prompt。当前仓库包含十个 canonical Skills 与 `arks` CLI；CLI 负责协调 Provider 凭证、多 Key 轮询、fallback、远程资源所有权和机器可读结果。
 
 ## 两分钟开始使用
 
@@ -29,7 +29,7 @@ ArkSpace 为 Coding Agent 提供聚焦的操作说明，而不是一个巨型 Pr
 
 ### 或者自行安装
 
-功能、验证证据与验收限制见 [0.1.5 版本说明](release/0.1.5.md)。
+当前进度与验收门槛见 [Roadmap](ROADMAP.md)；0.2.0 候选版本详情见 [候选说明](release/0.2.0.md)（文件可用后）。0.2.0 尚未发布。
 
 ```bash
 npm install --global @arkspace/cli@latest
@@ -46,7 +46,7 @@ arks web search "agent skills"
 
 > **不要在 Agent 对话中输入 API Key。** `arks setup` 使用隐藏终端输入，并将本地凭证与配置和状态分开存储。CI 与外部 Secret 管理仍可使用环境变量。
 
-Host 安装、验证、更新、卸载、MCP 和凭证细节见 [INSTALL.md](INSTALL.md)。0.1.5 发布候选源码新增手动 npm CLI 更新检查与安装；已发布的 0.1.4 不包含更新器，也不表示候选版本已在 npm 上架。请使用 `@latest` 安装 CLI，并单独更新 Skills。
+Host 安装、验证、更新、卸载、MCP 和凭证细节见 [INSTALL.md](INSTALL.md)。CLI 更新器已随已发布的 0.1.5 提供；npm latest 为 0.1.7。请使用 `@latest` 安装 CLI，并单独更新 Skills。当前源码包版本为 0.2.0，尚未发布。
 
 ### 检查与更新已安装的 Skills
 
@@ -87,7 +87,7 @@ npx skills@latest update  # 手动更新已安装的技能
 手动设置的 `WEKNORA_BASE_URL` / `WEKNORA_API_KEY` 完整变量对仍可独立使用，无需 CLI。导入、文档/分块操作、多知识库搜索和流式问答继续使用环境变量路径；托管验证、知识库列表/详情和单知识库搜索为可选能力。详见[安装说明](INSTALL.md)和[托管指南](skills/weknora/references/managed.md)。
 
 
-### 可选：通过自有 Nitter 读取 X（未发布）
+### 可选：通过自有 Nitter 读取 X
 
 `x-search` 对你自己运营的 Nitter 实例调用四个只读能力（`x.search`、`x.thread`、`x.user`、`x.timeline`）。运行 `arks setup nitter` 保存地址和掩码令牌，或同时设置 `NITTER_BASE_URL` 与 `NITTER_API_TOKEN`。每次调用都消耗你的 X 会话额度，高频使用可能导致这些账号被限制。推文文本按不可信数据返回。Nitter 不是 Web 搜索 Provider。见 [ADR 0026](docs/adr/proposed/0026-owned-nitter-instance-x-search.md)。
 
@@ -160,9 +160,9 @@ Protocol Schema 发布在 [`schemas/protocol/v1/`](schemas/protocol/v1/) 下。
 
 ## 版本状态与限制
 
-**0.1.5 发布候选版本相较 0.1.4 的变化**包括手动 npm CLI 更新、改进的有界研究证据审阅，以及 Skill 图标和调用策略。验证证据与验收限制详见[版本说明](release/0.1.5.md)。0.1.4 新增了可选托管 WeKnora 验证与检索能力，详见[0.1.4 版本说明](release/0.1.4.md)。
+仓库正在准备 0.2.0 **未发布候选版本**，尚不能从 npm 安装。根据 2026-11-06 核实，npm latest 为 0.1.7。详情见 [0.2.0 候选说明](release/0.2.0.md) 与 [Roadmap](ROADMAP.md)。0.1.5 历史发布详情仍见[版本说明](release/0.1.5.md)；0.1.5 已发布并包含手动 CLI 更新器。
 
-0.1.3 随免 Key 的 SearXNG 交付了重建后的 Setup TUI。0.1.5 将该工作台迁移到差分渲染引擎，三轴交互契约保持不变：Top、Menu、Content 三个焦点区域以 Tab/Shift-Tab 循环；菜单分五个页面（搜索引擎、知识库、工具库、设置、退出），菜单方向键实时切换页面，Enter 仅进入内容区；Top 条跟随页面变化——搜索引擎页为 [Exa] [Tavily] [Firecrawl] [SearXNG] [Order] 标签（搜索顺序与引擎并列为标签），知识库/工具库为单标签，其余页面居中显示全称——`arks setup <上下文>` 仍可直接深入任一页面。安全语义不变：掩码密钥草稿与显式覆盖确认（默认 Cancel）、Provider 与 Key 启停开关、默认 Cancel 的测试选择器（一次轮询池测试，或按引用逐个隔离测试——每引用一次请求，Esc 可停止）、SearXNG 按实例的私有 CIDR 授权（永不跨端点迁移）、WeKnora 端点/密钥/知识库行与需同意的在线验证、UseGPT 状态/启停/诊断及离线的隧道 ID、数据目录、密钥与解绑管理、仅调序的搜索路由与逐引擎启用/停用（每次保存一次隐私确认，SearXNG 默认参与路由）、仅存会话的诊断记录（显示在各引擎页密钥列表下方）。打开 setup 永不发起网络请求；非 TTY 输出仅一行纯文本、绝不进入备用屏；退出时始终恢复终端状态。Linux 自动 PTY 验收通过 `npm run test:setup` 覆盖全部页面，分别针对源码构建与离线安装入口；真人易用性、真实服务及托管 Windows/macOS 终端仍未验收。交互与安全契约见 [ADR 0016](docs/adr/accepted/0016-tui-provider-setup.md) 与 [ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md)，引擎与呈现决策见 [ADR 0023](docs/adr/accepted/0023-pi-tui-setup-engine.md) 与 [ADR 0024](docs/adr/accepted/0024-workbench-presentation-contract.md)。
+Setup 当前有六个菜单项：Search、Social media、Knowledge、Tools、Settings、Exit。它管理七个服务上下文：四个 Web Provider（Exa、Tavily、Firecrawl、SearXNG）、WeKnora、UseGPT 和 Nitter。Search 页面上的 Order 是伪上下文，不是第八个服务。Linux 自动 PTY 覆盖不等于真人易用性、真实服务行为或托管 Windows/macOS 终端验收。交互、安全、引擎与呈现决策见 [ADR 0016](docs/adr/accepted/0016-tui-provider-setup.md)、[ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md)、[ADR 0023](docs/adr/accepted/0023-pi-tui-setup-engine.md) 和 [ADR 0024](docs/adr/accepted/0024-workbench-presentation-contract.md)。
 
 按照 [INSTALL.md](INSTALL.md#source-development) 构建当前源码，然后运行 `node dist/cli/main.js setup`（或附加 `exa`、`tavily`、`firecrawl`、`searxng`），无需替换全局安装。密钥预览、环境变量优先级、所有权保护、SearXNG 每实例窄 CIDR 授权、联网测试同意、取消与终端恢复等既有保障继续有效；真人易用性、真实服务和 Windows/macOS 终端仍未验收。
 
@@ -171,7 +171,7 @@ Protocol Schema 发布在 [`schemas/protocol/v1/`](schemas/protocol/v1/) 下。
 - Node.js 22.19.0 或更高版本，以及具备 Shell、网络和持久用户存储的本地 Host 是必需的。UseGPT Artifact Hub 存储使用无需标志的 `node:sqlite`。
 - Exa、Tavily、Firecrawl 操作需要对应账号，并可能产生 Provider 费用；SearXNG 搜索则需要显式配置实例。
 - 免 Key 的 Exa MCP 接入与 Tavily/Firecrawl OAuth 仅为研究主题，尚未实现为认证后端。
-- Hosted Cross-platform 与 Credentialed Live-provider Qualification 仍属于[发布后待办](docs/migration.md#post-release-01-qualification-backlog)。
+- 当前进度与剩余验收门槛见 [Roadmap](ROADMAP.md)；历史迁移待办不代表当前功能尚未实现。
 - 本版本不代表现有 ArkSpace 项目已经完成替换切换。
 
 ## 项目指南
@@ -180,7 +180,8 @@ Protocol Schema 发布在 [`schemas/protocol/v1/`](schemas/protocol/v1/) 下。
 | --- | --- |
 | 安装、验证、更新或卸载 | [安装说明](INSTALL.md) |
 | 理解边界和执行模式 | [架构](docs/architecture.md) |
-| 查看迁移和切换门槛 | [迁移计划](docs/migration.md) |
+| 查看当前进度与下一验收门槛 | [Roadmap](ROADMAP.md) |
+| 查看迁移历史与切换门槛 | [迁移计划](docs/migration.md) |
 | 查看 0.1 证据与阻塞项 | [0.1 版本证据](docs/migration/v1-evidence.md) |
 | 记录实际使用中的阻力与优化证据 | [Field Testing Log](docs/field-testing.md) |
 | 新增或设计 Skill | [Adding Skills](docs/adding-skills.md) |

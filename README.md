@@ -15,7 +15,7 @@
 
 **Reusable Agent Skills for web evidence, cited research, browser work, and monitoring—backed by one secure local execution boundary when shared Provider access is required.**
 
-ArkSpace gives coding Agents focused operating instructions instead of one oversized prompt. The first release includes eight canonical Skills and the `arks` CLI, which coordinates Provider credentials, multiple-key rotation, fallback, owned remote resources, and machine-readable results.
+ArkSpace gives coding Agents focused operating instructions instead of one oversized prompt. The current repository includes ten canonical Skills and the `arks` CLI, which coordinates Provider credentials, multiple-key rotation, fallback, owned remote resources, and machine-readable results.
 
 ## Start in two minutes
 
@@ -29,7 +29,7 @@ Install ArkSpace from https://github.com/arch3rPro/Ark-Space by following the re
 
 ### Or install it yourself
 
-See the [0.1.5 release notes](release/0.1.5.md) for features, verification evidence, and qualification limits.
+See the [Roadmap](ROADMAP.md) for current progress and acceptance gates, and the [0.2.0 candidate notes](release/0.2.0.md) for candidate-specific evidence when available. Version 0.2.0 is not published.
 
 ```bash
 npm install --global @arkspace/cli@latest
@@ -46,7 +46,7 @@ arks web search "agent skills"
 
 > **Keep API keys out of Agent chats.** `arks setup` uses hidden terminal input and stores local credentials separately from configuration and state. Environment variables remain available for CI and externally managed secrets.
 
-See [INSTALL.md](INSTALL.md) for host-specific installation, verification, update, uninstall, MCP, and credential details. The 0.1.5 release-candidate source adds manual npm CLI update checks and installation; published 0.1.4 does not include the updater, and availability of the candidate package on npm is not implied. Install the CLI with `@latest` and update Skills separately.
+See [INSTALL.md](INSTALL.md) for host-specific installation, verification, update, uninstall, MCP, and credential details. The CLI updater shipped in published 0.1.5. npm latest is 0.1.7; install the CLI with `@latest` and update Skills separately. The current source package version is 0.2.0; it remains an unpublished candidate.
 
 ### Check and update installed Skills
 
@@ -86,7 +86,7 @@ Run `arks setup weknora` in your trusted terminal to manage its API root, masked
 
 A manually supplied `WEKNORA_BASE_URL` / `WEKNORA_API_KEY` pair remains independent and needs no CLI. Imports, document/chunk operations, multi-base search, and streamed chat continue using that environment path. See [installation](INSTALL.md) and the [managed guide](skills/weknora/references/managed.md).
 
-### Optional X reading through your own Nitter (unreleased)
+### Optional X reading through your own Nitter
 
 `x-search` calls four read-only capabilities (`x.search`, `x.thread`, `x.user`, `x.timeline`) against a Nitter instance you operate. Run `arks setup nitter` to save its address and a masked token, or supply `NITTER_BASE_URL` and `NITTER_API_TOKEN` together. Every call spends your X session quota, and heavy use can get those accounts limited. Tweet text is returned as untrusted data. Nitter is not a Web search Provider. See [ADR 0026](docs/adr/proposed/0026-owned-nitter-instance-x-search.md).
 
@@ -159,9 +159,9 @@ The local credential file contains plaintext secrets and is not an operating-sys
 
 ## Release status and limits
 
-**0.1.5 release-candidate changes since 0.1.4** include manual npm CLI updates, improved bounded research evidence review, and Skill icons and invocation policies. See [release notes](release/0.1.5.md) for evidence and qualification limits. The 0.1.4 release added optional managed WeKnora verification and retrieval; see [0.1.4 release notes](release/0.1.4.md).
+The repository is preparing version 0.2.0 as an **unpublished candidate**; it is not available from npm. As verified on 2026-11-06, npm latest is 0.1.7. See [0.2.0 candidate notes](release/0.2.0.md) and the [Roadmap](ROADMAP.md). Historical 0.1.5 release details remain in [0.1.5 notes](release/0.1.5.md); that version is published and includes the manual CLI updater.
 
-Version 0.1.3 shipped keyless SearXNG with a rebuilt Setup TUI. In 0.1.5 that workbench runs on a differential-rendering engine with the same three-axis contract: Top/Menu/Content focus regions cycled with Tab/Shift-Tab, and the menu spans five pages (Search, Knowledge, Tools, Settings, Exit) that switch live with the menu arrows, and the Top strip follows the page—[Exa] [Tavily] [Firecrawl] [SearXNG] [Order] tabs on Search (order settings ride the strip beside the engines), single tabs on Knowledge/Tools, full page names elsewhere—with `arks setup <context>` deep-linking into any provider page. Security semantics are unchanged: masked key drafts with explicit overwrite consent (Cancel default), provider and key enablement toggles, a Cancel-default test chooser between one round-robin pool test and isolated per-key tests (one request per reference, Esc stops), per-instance private-CIDR consent for SearXNG that never migrates between endpoints, WeKnora endpoint/key/knowledge-base rows with consented live verify, UseGPT status/start/stop/diagnose plus offline Tunnel ID, data-directory, key, and unlink management, reorder-only search routing with per-engine enable/disable and a once-per-save privacy confirmation, and session-only diagnostics shown under each engine's key list. Opening setup never issues a network request; non-TTY streams print one plain line and never enter the alternate screen; the terminal is always restored on exit. Automated Linux PTY qualification covers every page through `npm run test:setup` against both the source build and an offline-installed entry; human usability, real services, and hosted Windows/macOS terminals remain unqualified. See [ADR 0016](docs/adr/accepted/0016-tui-provider-setup.md) and [ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md) for interaction and security contracts, [ADR 0023](docs/adr/accepted/0023-pi-tui-setup-engine.md) and [ADR 0024](docs/adr/accepted/0024-workbench-presentation-contract.md) for the engine and presentation decisions.
+Setup currently has six menu entries: Search, Social media, Knowledge, Tools, Settings, and Exit. It manages seven service contexts: four Web providers (Exa, Tavily, Firecrawl, SearXNG), WeKnora, UseGPT, and Nitter. Search Order is a pseudo-context on the Search strip, not an eighth service. Automated Linux PTY coverage does not establish human usability, live-service behavior, or hosted Windows/macOS terminal qualification. See [ADR 0016](docs/adr/accepted/0016-tui-provider-setup.md), [ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md), [ADR 0023](docs/adr/accepted/0023-pi-tui-setup-engine.md), and [ADR 0024](docs/adr/accepted/0024-workbench-presentation-contract.md) for the interaction, security, engine, and presentation decisions.
 
 Build the checkout as described in [INSTALL.md](INSTALL.md#source-development), then run `node dist/cli/main.js setup` (or append `exa`, `tavily`, `firecrawl`, or `searxng`) without replacing your global installation. Existing credential preview, environment precedence, ownership guards, narrow per-instance CIDR consent, live-test consent, cancellation, and terminal restoration remain as specified in the setup contract.
 
@@ -170,7 +170,7 @@ Current limits:
 - Node.js 22.19.0 or newer and a local host with shell, network, and persistent user storage are required. UseGPT Artifact Hub storage uses unflagged `node:sqlite`.
 - Exa, Tavily, and Firecrawl operations require the applicable account and may incur Provider charges; SearXNG search instead requires an explicitly configured instance.
 - Keyless Exa MCP access and Tavily/Firecrawl OAuth are research topics, not implemented authentication backends.
-- Hosted cross-platform and credentialed live-Provider qualification remains part of the [post-release backlog](docs/migration.md#post-release-01-qualification-backlog).
+- Current progress and remaining acceptance gates are tracked in the [Roadmap](ROADMAP.md); historical migration backlog entries are not current implementation status.
 - This release does not declare replacement cutover of the existing ArkSpace project.
 
 ## Project guide
@@ -179,7 +179,8 @@ Current limits:
 | --- | --- |
 | Install, verify, update, or uninstall | [Installation](INSTALL.md) |
 | Understand boundaries and execution models | [Architecture](docs/architecture.md) |
-| Review migration and cutover gates | [Migration plan](docs/migration.md) |
+| Current progress and next acceptance gates | [Roadmap](ROADMAP.md) |
+| Review migration history and cutover gates | [Migration plan](docs/migration.md) |
 | Inspect 0.1 evidence and blockers | [Version 0.1 evidence](docs/migration/v1-evidence.md) |
 | Record real-use friction and improvement evidence | [Field Testing Log](docs/field-testing.md) |
 | Add or design a Skill | [Adding Skills](docs/adding-skills.md) |
