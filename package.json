@@ -35,7 +35,7 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "build": "node -e \"import('node:fs/promises').then(({ rm }) => rm('dist', { recursive: true, force: true }))\" && tsc -p tsconfig.build.json",
+    "build": "node -e \"import('node:fs/promises').then(({ rm }) => rm('dist', { recursive: true, force: true }))\" && tsc -p tsconfig.build.json && node -e \"require('node:fs').chmodSync('dist/cli/main.js', 0o755)\"",
     "check": "npm run validate && npm run typecheck && npm test",
     "dev": "tsx src/cli/main.ts",
     "usegpt:tunnel": "npm run build && node dist/cli/main.js usegpt tunnel start",
