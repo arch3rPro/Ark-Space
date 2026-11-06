@@ -1,8 +1,10 @@
 interface:
-  display_name: "X search"
-  short_description: "Read X posts, threads and accounts through your own Nitter"
+  display_name: "X-Search"
+  short_description: "Read X posts, threads and accounts via your own Nitter"
   default_prompt: >-
     Use $x-search to read what people posted on X and cite the tweet URLs.
+  icon_small: "./assets/icon.svg"
+  icon_large: "./assets/icon.svg"
 
 policy:
   allow_implicit_invocation: true

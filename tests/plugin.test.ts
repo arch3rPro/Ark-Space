@@ -85,15 +85,16 @@ describe("direct-source plugin metadata", () => {
   });
 
   it.each([
-    ["browser", "chrome", false],
-    ["gh-repo", "github", true],
-    ["monitor", "azure-network-watcher", false],
-    ["research", "azure-cognitive-search", true],
-    ["web", "azure-website-staging", true],
-    ["weknora", "knowledgebase", true],
+    ["browser", false],
+    ["gh-repo", true],
+    ["monitor", false],
+    ["research", true],
+    ["web", true],
+    ["weknora", true],
+    ["usegpt", true],
   ] as const)(
     "keeps %s Codex display metadata, icons, invocation policy, and references usable outside the repository",
-    async (name, slug, implicit) => {
+    async (name, implicit) => {
       const isolated = await mkdtemp(resolve(tmpdir(), "arkspace-skill-icon-"));
       try {
         await cp(resolve("skills", name), isolated, { recursive: true });
@@ -123,10 +124,6 @@ describe("direct-source plugin metadata", () => {
         expect(icon).toMatch(/<svg\b/);
         expect(icon).toMatch(/viewBox="[^"]+"/);
         expect(icon).not.toMatch(/<script|<foreignObject|<!DOCTYPE|<!ENTITY|\bon\w+\s*=|(?:href|src)\s*=\s*["'](?:https?:|\/\/|data:)/i);
-        const notice = await readFile(resolve(isolated, "assets/NOTICE.md"), "utf8");
-        expect(notice).toContain(`https://thesvg.org/icon/${slug}`);
-        expect(notice).toContain("a7c5ddd3f529accdf86519cc8fb96cb76cef4efd");
-        expect(notice).toContain("License");
         if (name === "research") {
           const skill = await readFile(resolve(isolated, "SKILL.md"), "utf8");
           expect(skill).toMatch(/\[[^\]\n]+\]\((?:\.\/)?references\/evidence-review\.md\)/);

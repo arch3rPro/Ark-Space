@@ -1,1 +1,14 @@
-<svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>X search</title><circle cx="10" cy="10" r="6.5" fill="none" stroke="#111" stroke-width="2"/><path d="M7.5 7.5l5 5m0-5l-5 5" stroke="#111" stroke-width="2" stroke-linecap="round"/><path d="M15 15l6 6" stroke="#111" stroke-width="2.4" stroke-linecap="round"/></svg>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 25.4.1, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<svg version="1.0" id="katman_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 viewBox="0 0 1024 768" style="enable-background:new 0 0 1024 768;" xml:space="preserve">
+<style type="text/css">
+	.st0{fill:#FF6D70;}
+</style>
+<path class="st0" d="M768.6,253c0.4,5.7,0.4,11.5,0.4,17.2c0,174.7-133,376-376,376c-74.9,0-144.4-21.7-202.9-59.3
+	c10.6,1.2,20.9,1.6,31.9,1.6c61.8,0,118.7-20.9,164.1-56.5c-58.1-1.2-106.8-39.3-123.6-91.7c8.2,1.2,16.4,2,25,2
+	c11.9,0,23.7-1.6,34.8-4.5c-60.6-12.3-106-65.5-106-129.7v-1.6c17.6,9.8,38.1,16,59.7,16.8c-35.6-23.7-58.9-64.2-58.9-110.1
+	c0-24.5,6.5-47.1,18-66.7c65.1,80.2,162.8,132.6,272.5,138.3c-2-9.8-3.3-20-3.3-30.3c0-72.8,58.9-132.2,132.2-132.2
+	c38.1,0,72.4,16,96.6,41.7c29.9-5.7,58.5-16.8,83.9-31.9c-9.8,30.7-30.7,56.5-58.1,72.8c26.6-2.9,52.4-10.2,76.1-20.5
+	C816.9,210.9,794.4,234.2,768.6,253L768.6,253z"/>
+</svg>
