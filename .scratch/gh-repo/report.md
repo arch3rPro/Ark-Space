@@ -18,4 +18,4 @@ Status: implemented; local automated checks passed
 
 ## Limits
 
-Executed on local Linux only. No live credentialed GitHub, anonymous API integration, hosted Windows/macOS, host CLI installation, model activation, or source-analysis quality claim is made. Fixture prompts and prose checks establish structural intent, not routing behavior. No external source was imported, no dependencies installed, no global environment changed, and no release/publish/tag performed. Historic research documents are untouched.
+Executed on local Linux only. No live credentialed GitHub, anonymous API integration, hosted Windows/macOS, host CLI installation, model activation, or source-analysis quality claim is made. Fixture prompts and prose checks establish structural intent, not routing behavior. No dependencies installed, no global environment changed, and no release/publish/tag performed. Historic research documents are untouched.

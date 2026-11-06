@@ -8,7 +8,7 @@ Research date: 2026-09-10
 - [`engineering/wizard` Skill](https://github.com/mattpocock/skills/blob/3cca18b368ae95cdbdebbff572ccafa662551015/skills/engineering/wizard/SKILL.md) and [wizard template](https://github.com/mattpocock/skills/blob/3cca18b368ae95cdbdebbff572ccafa662551015/skills/engineering/wizard/template.sh), same revision.
 - [`ayghri/i-have-adhd` README](https://github.com/ayghri/i-have-adhd/blob/ff690b6fbd3383e4fce6a7e50c7b409ca9a6a804/README.md) and [installation guide](https://github.com/ayghri/i-have-adhd/blob/ff690b6fbd3383e4fce6a7e50c7b409ca9a6a804/INSTALL.md), revision `ff690b6fbd3383e4fce6a7e50c7b409ca9a6a804`.
 
-These sources were consulted for interaction and documentation patterns. No upstream source code is imported.
+These sources were consulted for interaction and documentation patterns.
 
 ## Findings
 

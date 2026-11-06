@@ -22,4 +22,4 @@ A default public instance would send queries to an unchosen third party and make
 
 ## Evidence and limits
 
-`tests/searxng.test.ts` covers keyless execution, strict/manual fallback, endpoint precedence, classified failures, malformed and empty JSON, source normalization, domain filtering, CIDR authorization, cancellation, and CLI entry. Existing local HTTP tests cover DNS, redirects and transport limits. No SearXNG server implementation or Pi architecture is copied. Live-instance and hosted cross-platform qualification remain unclaimed. Features, verification evidence, and qualification limits are recorded in [release notes](../../../release/0.1.3.md).
+`tests/searxng.test.ts` covers keyless execution, strict/manual fallback, endpoint precedence, classified failures, malformed and empty JSON, source normalization, domain filtering, CIDR authorization, cancellation, and CLI entry. Existing local HTTP tests cover DNS, redirects and transport limits. Live-instance and hosted cross-platform qualification remain unclaimed. Features, verification evidence, and qualification limits are recorded in [release notes](../../../release/0.1.3.md).

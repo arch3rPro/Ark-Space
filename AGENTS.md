@@ -52,13 +52,6 @@ Prefer a narrow concrete module over a speculative framework. Introduce an exten
 - Model timeout, cancellation, partial output, retries, and provider fallback as separate outcomes.
 - Browser and monitor operations require explicit ownership, confirmation for material side effects, and verified cleanup.
 
-## Source and License Rules
-
-- Record the upstream URL, revision, license, imported surface, and adaptation status before bringing external material into the project.
-- Treat API documentation used to implement behavior separately from copied source code.
-- Preserve required copyright and license notices.
-- Do not copy old architecture, generated package trees, or registry structure merely to speed migration.
-
 ## Test Scope
 
 - Before running checks, name the changed behavior, affected callers/boundaries, and the smallest test set that covers them. Reuse passing evidence while its relevant inputs are unchanged.

@@ -92,4 +92,3 @@ Status: scoped — 范围与优先级已于 2026-09-25 确认；首批工单见 
 
 - T1 各项虽低风险，但仍需确认不破坏现有 Protocol v1 输出稳定性。
 - T2 多数项的**未验证前提**（DNS rebinding、CJK find、`extraction_span` 口径、`curl` 可用性、上游分类覆盖）必须在实现前补验证，不得以假设推进。
-- 上游许可为 MIT，若未来复用其实现代码，须按 [AGENTS.md](../../AGENTS.md) 记录 URL/revision/许可/导入面并更新 `NOTICE.md`；本 spec 与调研笔记均未导入上游代码。

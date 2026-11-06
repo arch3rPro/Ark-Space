@@ -6,15 +6,9 @@ Build a new ArkSpace project at `~/Documents/Vibe-Coding/code/Ark-Space` without
 
 Migration means re-establishing valuable behavior behind the new architecture. It does not mean copying the old module layout or preserving obsolete commands.
 
-## Source-use rules
+## Migration boundaries
 
-Use the existing project for:
-
-- provider request and response details;
-- tests and fixtures that describe real edge cases;
-- multi-key rotation, cooldown, fallback, redaction, and readiness behavior;
-- supported provider/capability facts;
-- upstream source attribution and license obligations.
+Use the existing project for provider request and response details, real edge-case tests and fixtures, multi-key rotation/cooldown/fallback/redaction/readiness behavior, and supported provider/capability facts.
 
 Do not carry forward:
 
@@ -49,7 +43,7 @@ Do not carry forward:
 | Existing asset | Disposition |
 | --- | --- |
 | Provider HTTP helpers | Adapt request/response knowledge; rewrite in TypeScript |
-| Provider response fixtures | Copy with provenance where license permits; otherwise recreate equivalent fixtures |
+| Provider response fixtures | Recreate equivalent sanitized fixtures |
 | Provider tests | Port behavioral assertions, not Python implementation details |
 | `provider_config.py` | Extract requirements for key refs, cooldown, redaction, and errors; do not translate file-for-file |
 | Provider registries | Use as factual inventory during implementation; encode only facts consumed by new code |
@@ -67,8 +61,7 @@ Deliverables:
 - capability and provider matrix;
 - golden request/response fixtures with secrets removed;
 - error taxonomy;
-- multi-key selection scenarios;
-- upstream source and license ledger.
+- multi-key selection scenarios.
 
 Exit criteria:
 
@@ -226,12 +219,11 @@ The new project is ready to replace the existing project only when:
 4. published Skills comply with the Agent Skills directory and frontmatter requirements;
 5. Skills detect missing or incompatible `arks` versions and provide an actionable installation path;
 6. no new Skill or CLI command references the old repository;
-7. retained upstream code and behavior have license and attribution records;
-8. secrets are absent from state, logs, errors, fixtures, and telemetry;
-9. Claude Code and Codex plugin installation pass directly from the selected repository source or release tag;
-10. routine source development has no generated Codex package output;
-11. the old project is archived or tagged before deletion;
-12. a rollback installation path is documented.
+7. secrets are absent from state, logs, errors, fixtures, and telemetry;
+8. Claude Code and Codex plugin installation pass directly from the selected repository source or release tag;
+9. routine source development has no generated Codex package output;
+10. the old project is archived or tagged before deletion;
+11. a rollback installation path is documented.
 
 ## Post-release 0.1 qualification backlog
 

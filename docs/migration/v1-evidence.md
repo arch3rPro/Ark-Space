@@ -70,47 +70,13 @@ Live package publication, OS keychains, SQLite, standalone binaries, Firecrawl M
 
 Operation-level safety overrides this default table. Acceptance-unknown submissions, possibly-running Jobs, and failed cleanup set `safeToRetry: false` even when the underlying error kind is normally retryable.
 
-## Sources and provenance
+## Migration evidence
 
-| Source | Use | Migration mode |
-| --- | --- | --- |
-| [Exa Search API](https://docs.exa.ai/reference/search) | Endpoint, authentication, request fields, response vocabulary | reference-only |
-| [Tavily Search API](https://docs.tavily.com/documentation/api-reference/endpoint/search) | Endpoint, authentication, request fields, response vocabulary | reference-only |
-| [Exa Contents API](https://docs.exa.ai/reference/get-contents) | Fetch endpoint, request fields, and response vocabulary | reference-only |
-| [Tavily Extract API](https://docs.tavily.com/documentation/api-reference/endpoint/extract) | Fetch endpoint, request fields, partial failures, and response vocabulary | reference-only |
-| [Firecrawl Search API](https://docs.firecrawl.dev/api-reference/endpoint/search) | v2 Search endpoint and response vocabulary | reference-only |
-| [Firecrawl Scrape API](https://docs.firecrawl.dev/api-reference/endpoint/scrape) | v2 Scrape endpoint and response vocabulary | reference-only |
-| [Tavily Map API](https://docs.tavily.com/documentation/api-reference/endpoint/map) | Synchronous site mapping request and response contract | reference-only |
-| [Firecrawl Map API](https://docs.firecrawl.dev/api-reference/endpoint/map) | v2 site mapping request and response contract | reference-only |
-| [Tavily Crawl API](https://docs.tavily.com/documentation/api-reference/endpoint/crawl) | Synchronous crawl controls and result contract | reference-only |
-| [Firecrawl Crawl API](https://docs.firecrawl.dev/api-reference/endpoint/crawl-post) | Remote crawl job creation and bounded crawl controls | reference-only |
-| [Firecrawl Crawl Status API](https://docs.firecrawl.dev/api-reference/endpoint/crawl-get) | Polling states, pages, and pagination | reference-only |
-| [Firecrawl Cancel Crawl API](https://docs.firecrawl.dev/api-reference/endpoint/crawl-delete) | Remote cleanup contract | reference-only |
-| [Exa Public API OpenAPI](https://api.exa.ai/openapi.json) | `/findSimilar` request and response contract | reference-only |
-| [Exa Context API](https://docs.exa.ai/reference/context) | Code Context authentication, token budget, and response contract | reference-only |
-| [Firecrawl Extract API](https://docs.firecrawl.dev/api-reference/endpoint/extract) | Structured extraction job creation | reference-only |
-| [Firecrawl Extract Status API](https://docs.firecrawl.dev/api-reference/endpoint/extract-get) | Extract polling states and completed data | reference-only |
-| [Exa Agent create](https://exa.ai/docs/reference/agent-api/create-a-run) | Research run creation, effort controls, and output contract | reference-only |
-| [Exa Agent status](https://exa.ai/docs/reference/agent-api/get-a-run) | Research states, grounding, usage, and costs | reference-only |
-| [Exa Agent cancellation](https://exa.ai/docs/reference/agent-api/cancel-a-run) | Confirmed Research cleanup contract | reference-only |
-| [Tavily Research create](https://docs.tavily.com/documentation/api-reference/endpoint/research) | Research task creation and report controls | reference-only |
-| [Tavily Research status](https://docs.tavily.com/documentation/api-reference/endpoint/research-get) | Polling states, report, sources, and usage | reference-only |
-| [Research Provider API evidence](../research/research-provider-api-evidence.md) | Current API comparison, deprecations, and lifecycle evidence | reference-only |
-| [Browser, Monitor, and MCP API evidence](../research/browser-monitor-mcp-api-evidence.md) | Firecrawl Browser, Exa and Firecrawl Monitor, and stable MCP v2 contracts | reference-only |
-| [Firecrawl Browser Sandbox](https://docs.firecrawl.dev/features/browser) | Session lifecycle, TTL, execution, billing, and cleanup | reference-only |
-| [Exa Monitors API](https://exa.ai/docs/reference/monitors-api-guide-for-coding-agents) | Monitor lifecycle, schedule, webhook secret, runs, and pricing | reference-only |
-| [MCP TypeScript server SDK](https://github.com/modelcontextprotocol/typescript-sdk) | Stable v2 server, stdio, schema, and tool contracts | reference-only |
-| [SearXNG Search API](https://docs.searxng.org/dev/search_api.html) | Search parameter vocabulary; documentation pointer, live retrieval unavailable in this environment | reference-only; no documentation/source copied |
-| [Existing ArkSpace SearXNG adapter](https://github.com/arch3rPro/Ark-Space/blob/280cbf0efa7c7b511f24e9c701bb30f51c519992/skills/web-search/scripts/searxng_search.py) | Endpoint suffix, JSON output, categories/engines/language/page/safesearch/time-range and source metadata vocabulary | Behavioral reference at `280cbf0efa7c7b511f24e9c701bb30f51c519992`, MIT per reference LICENSE; no code imported or translated |
-| [pi-web-access SearXNG adapter](https://github.com/nicobailon/pi-web-access/blob/4c61056cec03c247bdfe725e9bc255eb1756ea81/searxng.ts) | Comparison of self-hosted configuration, local domain filtering, cancellation, and SSRF boundaries | Reference-only at `4c61056cec03c247bdfe725e9bc255eb1756ea81`, MIT (Nico Bailon); no source imported or adapted |
-| Existing ArkSpace Provider tests and fixtures | Behavioral edge-case inventory | reference-only |
-| Existing ArkSpace Provider runtime | Rotation, cooldown, fallback, and redaction requirements | reference-only |
-
-The TypeScript implementation and sanitized fixtures were written independently for the new architecture. No Python implementation file was translated or copied. Version 0.1 intentionally replaces the old Firecrawl CLI wrapper with the official REST API so all three Providers share credential rotation, error classification, and fallback behavior.
+Version 0.1 intentionally replaces the old Firecrawl CLI wrapper with the official REST API so all three Providers share credential rotation, error classification, and fallback behavior.
 
 ### SearXNG migration evidence
 
-The independent TypeScript SearXNG slice retains bounded search and optional source metadata, not the legacy CLI or Provider-manager architecture. The imported source surface is **none**: locally authored fixtures and tests exercise `GET <base-path>/search`, keyless execution, malformed/empty responses, local domain filtering, strict categories, classified errors, cancellation, explicit CIDRs, and built CLI configuration/invocation. Environment resolution deliberately changes legacy precedence: persisted configuration wins. Category broadening, automatic network retries, auth headers and proxies are unsupported. See [ADR 0013](../adr/accepted/0013-searxng-keyless-self-hosted-search.md). No live-instance success or hosted cross-platform qualification is claimed.
+The independent TypeScript SearXNG slice retains bounded search and optional source metadata, not the legacy CLI or Provider-manager architecture. Fixtures and tests exercise `GET <base-path>/search`, keyless execution, malformed/empty responses, local domain filtering, strict categories, classified errors, cancellation, explicit CIDRs, and built CLI configuration/invocation. Environment resolution deliberately changes legacy precedence: persisted configuration wins. Category broadening, automatic network retries, auth headers and proxies are unsupported. See [ADR 0013](../adr/accepted/0013-searxng-keyless-self-hosted-search.md). No live-instance success or hosted cross-platform qualification is claimed.
 
 The initial single-instance source verification passed `npm run check` (31 files, 197 tests) and `npm run verify:package`. An offline npm artifact was installed into a temporary isolated prefix; its absolute installed `arks` command configured a loopback fixture with an explicit `/32` exception and executed `arks invoke web.search --input <file>` successfully. The check verified no fake key ID, no key-pool state, and no automatic order insertion. It does not substitute for a real SearXNG instance or Windows/macOS qualification. Regression tests also reject uppercase and expanded mapped-IPv6 CIDRs before persistence and preserve unrelated fetch execution when SearXNG leads the configured order.
 
@@ -147,6 +113,5 @@ User feedback superseded the verbose dashboard and intermediate management picke
 ## Release blockers
 
 - Confirm ownership of `@arkspace/cli` before removing `private: true`.
-- Confirm the new project's copyright holder and replace the inherited `LICENSE` copyright line before publication.
 - Run npm installation and file-lock tests on Windows and Linux in addition to macOS.
 - Decide whether atomic locked JSON remains the state store after the cross-platform spike.

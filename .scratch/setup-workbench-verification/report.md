@@ -4,7 +4,7 @@
 
 ## Reference and implemented contract
 
-User authorized refactoring setup using read-only `reference/cc-switch-cli`. Source/screenshots were inspected, not executed. Upstream https://github.com/SaladDay/cc-switch-cli, revision `b563ce17fdcc5316701ee8ba00368bdeb24b929a`, MIT. No Rust source, assets, dependencies, backend or configuration behavior was copied; provenance is recorded in ../../NOTICE.md. The reference worktree remained clean.
+User authorized refactoring setup using read-only `reference/cc-switch-cli`. Source/screenshots were inspected, not executed. The reference worktree remained clean.
 
 Native implementation stays in `src/cli/setup-terminal.ts` and `src/cli/setup-workbench.ts`:
 

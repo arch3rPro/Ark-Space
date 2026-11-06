@@ -960,6 +960,7 @@ Project 删除时只覆盖此前未删除的后代；恢复同一批次不会复
 - `dataDir` 跨平台路径与现有全局配置规则的实施验证；
 - 是否需要加密本地 Blob；
 - 任务历史是否提供全文搜索，以及索引哪些正文；
+
 ## 18. 源码证据与验证范围
 
 以下为实现证据，不能等价为 ArkSpace 已验证支持所有 ChatGPT 能力：
@@ -973,5 +974,3 @@ Project 删除时只覆盖此前未删除的后代；恢复同一批次不会复
 - WebCodex [`agent_wake.rs#L250-L260`](https://github.com/yyjeqhc/webcodex/blob/93d5911587afbb75b6ecf61051e79583ff59597e/src/agent_wake.rs#L250-L260)：SQLite 持久状态与进程内 continuation adapter 的分离。
 
 上游测试只阅读、未执行；本轮没有在真实 ChatGPT 上测试文件导入。此前用户确认过原生 Host 的文本探针完成，以及先激活 App 再本地 seed 的任务完成；这不证明重复执行、后台常驻、跨会话持久唤醒或任意能力组合已通过。
-
-WebCodex 为 Apache-2.0，DevSpace 为 MIT。复制源码前须按仓库来源规则记录 URL、revision、license、导入范围和适配状态，保留必要声明。本设计仅引用证据，未导入上游代码。

@@ -1,6 +1,6 @@
 # X search through a user-owned Nitter instance
 
-Status: proposed; ADR 0026 written; source implemented, real instance unverified. Upstream: https://github.com/xiaoY233/nitter @ bb5a0bc3e9297fe47acc701107f065585e2b6575 (2026-11-05), AGPL-3.0, owned by the user. Only its HTTP API contract is used; no source is copied.
+Status: proposed; ADR 0026 written; source implemented, real instance unverified. API contract: https://github.com/xiaoY233/nitter @ bb5a0bc3e9297fe47acc701107f065585e2b6575 (2026-11-05).
 
 ## User task and completion
 An Agent reads public X content (search, thread, profile, timeline) through the user's own Nitter instance. Done = the Skill returns bounded, cited, untrusted-fenced tweets, or a classified failure. Saving a connection is not completion; verification is a separate, consented step.
@@ -59,7 +59,7 @@ rate_limited→rate-limit (keep retry_after_s); unauthorized→auth; forbidden_o
 4. Setup context + CLI flags. Tests: TUI unit, `npm run test:setup`.
 5. Skill + isolated-Skill check, `npm run validate`.
 6. Live run against the user's instance; findings back to the fork.
-7. Docs: architecture.md, NOTICE.md (API-docs-only provenance), README en/zh aligned.
+7. Docs: architecture.md, README en/zh aligned.
 `npm run typecheck` from step 2. No full `npm test` unless requested.
 
 ## Not in v1

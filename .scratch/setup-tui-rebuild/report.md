@@ -16,7 +16,7 @@ The browse controller and its typed rendering contract were rewritten in `src/cl
 - Right-content editing retains field Enter/edit/draft commit, field Esc rollback, whole-draft Ctrl-S validation, retained drafts after canceled consent, masked grapheme count/caret, bounded fragmented input and paste draining. Forms/overlays/busy states own input before browse dispatch.
 - Badge and focus-specific footer directions follow the session language; the critical top-switch instructions fit 60×16 in English and Chinese.
 
-Reference: https://github.com/SaladDay/cc-switch-cli, revision `b563ce17fdcc5316701ee8ba00368bdeb24b929a`, MIT. Its current source and screenshots informed the structure and row-intent model. No Rust/assets/dependencies imported; reference worktree clean. A one-line header, wrapped content hints below the table, and an operable Top focus are ArkSpace adaptations, not pixel-identical screenshot reproduction.
+A one-line header, wrapped content hints below the table, and an operable Top focus are ArkSpace's design, not pixel-identical screenshot reproduction.
 
 ## Fresh evidence
 

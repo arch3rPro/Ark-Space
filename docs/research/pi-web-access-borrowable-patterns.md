@@ -2,28 +2,11 @@
 
 调研日期：2026-09-25
 
-## 范围与来源
+## 范围
 
-本笔记只研究上游 `nicobailon/pi-web-access`（MIT，TypeScript，Pi coding-agent 扩展，npm 包 `pi-web-access`，版本 0.31.0[^pkg]）在固定修订 [`610a52033f1e9705c0023ff9e0fac399319310a3`](https://github.com/nicobailon/pi-web-access/commit/610a52033f1e9705c0023ff9e0fac399319310a3)（main，2026-09-23）下可被 ArkSpace 借鉴的**事实性能力与模式**。目标不是实现方案，也不是路线图排序。
+本笔记归纳 `pi-web-access` 在固定修订 [`610a52033f1e9705c0023ff9e0fac399319310a3`](https://github.com/nicobailon/pi-web-access/commit/610a52033f1e9705c0023ff9e0fac399319310a3) 中可供 ArkSpace 借鉴的事实性能力与模式。目标不是实现方案，也不是路线图排序。
 
-上游文件检查清单（均位于该固定修订）：
-
-- GitHub 克隆/API：`github-extract.ts`、`github-api.ts`、`github-issue-pr.ts`
-- 网络安全边界：`ssrf-protection.ts`、`extract.ts`、`fetch-params.ts`、`utils.ts`（代理）
-- 大结果存储/检索：`storage.ts`、`content-find.ts`、`index.ts`（`get_search_content`、工具名、内联上限）
-- 并发/取消：`extract.ts`（`fetchAllContent`、`pLimit`）、`abortable.ts`、`promise-try.d.ts`
-- 证据工件：`source-check.ts`
-- 零配置/凭据复用：`exa.ts`、`openai-search.ts`、`kimi-search.ts`、`duckduckgo.ts`、`credential-source.ts`、`gemini-adc.ts`、`chrome-cookies.ts`、`auth-fetch.ts`、`gemini-web-config.ts`
-- 内容抽取：`extract.ts`、`rsc-extract.ts`、`jina-search.ts`、`pdf-extract.ts`、`datalab-pdf-extract.ts`、`gemini-pdf-extract.ts`、`youtube-extract.ts`、`video-extract.ts`、`crawl4ai.ts`、`firecrawl.ts`、`data-uri-sanitize.ts`、`declared-web-links.ts`
-- 路由/错误分类：`gemini-search.ts`、`render-search-error.ts`、`page-query.ts`
-- 工具激活/注册：`tool-activation.ts`、`index.ts`
-- 配置/脱敏：`utils.ts`、`credential-source.ts`、`feature-config.ts`
-- Curator/摘要：`curator-page.ts`、`curator-run.ts`、`curator-server.ts`、`summary-model-scope.ts`、`summary-review.ts`
-- 测试/打包/证据：`test/`（重点 `provider-precedence`、`search-routing`、`ssrf-protection`、`get-search-content`、`content-find`、`github-extract`、`tool-activation`）、`evidence/CONTRACT-EVIDENCE.md`、`evidence/contract-probe.mjs`、`scripts/build.js`、`scripts/publish.js`、`package.json`、`LICENSE`、`SECURITY.md`、`README.md`
-
-ArkSpace 侧边界依据：`AGENTS.md`、`docs/architecture.md`、`docs/capabilities.md`、`package.json`、`src/providers/contracts.ts`、`src/capabilities/provider-execution.ts`、`src/capabilities/web-fetch.ts`、`src/config/schema.ts`、`src/config/credentials.ts`、`src/protocol/types.ts`、`src/io/json-store.ts`、`skills/web/references/`。
-
-[^pkg]: package.json 固定修订版本，见 [参考来源](#参考来源)。
+ArkSpace 对照边界包括 Provider 执行、配置、协议、安全与 Skill 约定；相关文件链接在各主题中列出。
 
 ---
 
@@ -310,15 +293,6 @@ ArkSpace 侧边界依据：`AGENTS.md`、`docs/architecture.md`、`docs/capabili
 
 ---
 
-## 来源许可与合规
-
-- 上游 `pi-web-access` 采用 MIT 许可，版权 `Copyright (c) 2025 Nico Bailon`（[LICENSE](https://github.com/nicobailon/pi-web-access/blob/610a52033f1e9705c0023ff9e0fac399319310a3/LICENSE)）。MIT 允许使用、复制、修改、合并、发布，但要求在任何副本或实质部分中保留版权与许可声明。
-- ArkSpace 的 [`AGENTS.md`](../../AGENTS.md) 规定：将外部材料引入项目前必须记录上游 URL、修订、许可、导入面与适配状态；把“用于实现行为的 API 文档”与“复制的源代码”分开处理；保留必需的版权与许可声明；禁止仅为加速迁移而复制旧架构。
-- **本笔记没有导入任何上游源代码或成段散文。** 笔记中的引文仅为定位事实所需的极短片段（标识符、常量值、函数名、配置键、简短行为描述），并在文中注明来源；没有复制实现，也不构成可编译代码。若未来 ArkSpace 真正复用上游实现，需按 MIT 与 `AGENTS.md` 重新记录许可与导入面。
-- 本调研遵守约束：未修改除本文件外的任何文件，未运行构建/测试/安装，未在仓库内创建临时文件（临时文件位于 `/tmp/piweb`）。
-
----
-
 ## 未验证 / 存疑
 
 - **DNS rebinding**：上游 `validateRemoteUrl` 只在 fetch 前用 `dns.lookup` 预检，未把解析结果固定到实际连接；理论上的 TOCTOU/DNS rebinding 窗口**未验证**是否被 undici 或自定义 dispatcher 缓解。
@@ -332,24 +306,3 @@ ArkSpace 侧边界依据：`AGENTS.md`、`docs/architecture.md`、`docs/capabili
 - **`fetchRouting.allowRemoteHostedProviders` 的默认关闭**：README 与 `extract.ts` 均表明默认关闭，但未逐 provider 走查是否所有远程抽取路径都受该开关控制（只确认了默认顺序常量与配置加载）。
 - **`package.json` 的发布产物**：上游 0.31.0 的 `files` 与 `pi.extensions` 行为已读，但未验证实际 npm 发布产物内容。
 - **上游对中文/非英文站点的抽取质量**：未评估；上游文档与源码注释也未声称有针对性优化。
-
----
-
-## 参考来源
-
-所有上游引用均固定在修订 [`610a52033f1e9705c0023ff9e0fac399319310a3`](https://github.com/nicobailon/pi-web-access/commit/610a52033f1e9705c0023ff9e0fac399319310a3)（main，2026-09-23）。完整树见 [`git/trees` API](https://api.github.com/repos/nicobailon/pi-web-access/git/trees/610a52033f1e9705c0023ff9e0fac399319310a3?recursive=1)。下列路径均以 `https://github.com/nicobailon/pi-web-access/blob/610a52033f1e9705c0023ff9e0fac399319310a3/` 为前缀：
-
-- `package.json`、`LICENSE`、`SECURITY.md`、`README.md`、`CHANGELOG.md`
-- `github-extract.ts`、`github-api.ts`、`github-issue-pr.ts`
-- `ssrf-protection.ts`、`extract.ts`、`fetch-params.ts`、`utils.ts`、`abortable.ts`、`promise-try.d.ts`
-- `storage.ts`、`content-find.ts`、`index.ts`、`source-check.ts`
-- `credential-source.ts`、`exa.ts`、`openai-search.ts`、`kimi-search.ts`、`duckduckgo.ts`、`gemini-adc.ts`、`chrome-cookies.ts`、`gemini-web-config.ts`、`auth-fetch.ts`
-- `rsc-extract.ts`、`jina-search.ts`、`pdf-extract.ts`、`datalab-pdf-extract.ts`、`gemini-pdf-extract.ts`、`youtube-extract.ts`、`video-extract.ts`、`crawl4ai.ts`、`firecrawl.ts`、`data-uri-sanitize.ts`、`declared-web-links.ts`
-- `gemini-search.ts`、`render-search-error.ts`、`page-query.ts`、`feature-config.ts`
-- `curator-page.ts`、`curator-run.ts`、`curator-server.ts`、`summary-model-scope.ts`、`summary-review.ts`
-- `tool-activation.ts`
-- `evidence/CONTRACT-EVIDENCE.md`、`evidence/contract-probe.mjs`
-- `test/provider-precedence.test.mjs`、`test/search-routing.test.mjs`、`test/ssrf-protection.test.mjs`、`test/get-search-content.test.mjs`、`test/content-find.test.mjs`、`test/github-extract.test.mjs`、`test/tool-activation.test.mjs`、`test/config-path.test.mjs`
-- `scripts/build.js`、`scripts/publish.js`
-
-ArkSpace 本地依据（相对当前工作树）：`AGENTS.md`、`docs/architecture.md`、`docs/capabilities.md`、`package.json`、`src/providers/contracts.ts`、`src/providers/http.ts`、`src/providers/registry.ts`、`src/capabilities/provider-execution.ts`、`src/capabilities/web-fetch.ts`、`src/capabilities/web-crawl.ts`、`src/config/schema.ts`、`src/config/credentials.ts`、`src/config/paths.ts`、`src/protocol/types.ts`、`src/protocol/resource-schema.ts`、`src/protocol/site-monitor-schema.ts`、`src/io/json-store.ts`、`src/key-pool/key-pool.ts`、`src/mcp/server.ts`、`src/errors/provider-error.ts`、`skills/web/references/fetch.md`、`docs/research/` 现有笔记。

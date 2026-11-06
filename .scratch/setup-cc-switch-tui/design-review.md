@@ -6,7 +6,7 @@
 
 The user rejected the previous refactor's layout and operation model, then approved this redesigned structure and operation flow with “同意 继续”. Implementation is authorized and now verified in unreleased source; see [report.md](report.md) for fresh 379-test and source/installed 106-assertion evidence. The two unfinished edits made before that pause were precisely removed, retaining all preceding uncommitted work; type checking passed after cleanup. The previously built UI is not claimed to satisfy this design.
 
-Reference: read-only `reference/cc-switch-cli`, upstream https://github.com/SaladDay/cc-switch-cli, revision `b563ce17fdcc5316701ee8ba00368bdeb24b929a`, MIT. This review uses actual source and repository screenshots, not an executed/human-qualified reference application. No imported code/assets.
+This review uses actual source and repository screenshots from read-only `reference/cc-switch-cli`, not an executed/human-qualified reference application.
 
 ## 1. Root misunderstanding
 

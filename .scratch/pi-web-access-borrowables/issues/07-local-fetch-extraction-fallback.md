@@ -18,7 +18,7 @@ Blocks: 06-local-fetch-ssrf-boundary.md
 - 定义本地 HTTP fetch provider 的能力边界、请求/响应契约、超时/取消、大小上限、内容类型和正文口径。
 - 为 `web.fetch` 增加最小显式模式（至少区分 raw 与 readable，或给出有证据的更小设计）；保持 Protocol v1 版本兼容策略，并同步 `docs/capabilities.md`、Skill reference 和 JSON schema。
 - 定义本地路径的 HTTP(S) 安全门接口与路由，并先用注入传输验证 raw/抽取契约；**在 W6 安全门完成前，不得从任何入口启用真实本地直连 HTTP 请求**。W6 验收后再开启最小纵向切片：安全门 → 响应上限/内容类型校验 → raw 或本地 readable 抽取；Provider API 仍可按配置顺序 fallback。
-- 仅在真实失败样本证明需要时引入正文抽取依赖；记录依赖版本、许可证、导入面和跨平台验证。优先标准库/已有依赖，不复制上游代码。
+- 仅在真实失败样本证明需要时引入正文抽取依赖；记录依赖版本和跨平台验证。优先标准库/已有依赖。
 - 为显式 provider 选择、auto 路由、失败分类、部分结果、取消和入口隔离增加契约测试；本地路径不应泄漏私密 URL、请求头或响应原文到错误。
 
 ## Out of scope
@@ -35,7 +35,7 @@ Blocks: 06-local-fetch-ssrf-boundary.md
 - [ ] W6 验收前，本地直连在 CLI、MCP、`arks invoke` 均不可访问；启用后所有本地请求先经过安全门。默认路由不扩大现有远程 provider 的安全声明。
 - [ ] `provider` 显式选择不会悄悄改成另一路径；`auto` 的优先级、失败分类和 fallbackOn 有表驱动测试。
 - [ ] 取消/超时不会遗留未报告的本地工作；结果遵循既有 Protocol envelope 和 attempt evidence。
-- [ ] 不引入未经证明需要的新重依赖；如引入，写清版本、许可证、消费者和跨平台检查。
+- [ ] 不引入未经证明需要的新重依赖；如引入，写清版本、消费者和跨平台检查。
 - [ ] `npm run check`、真实 `arks invoke web.fetch` 入口测试及适用的 `npm run test:hosts` 证据通过。
 
 ## Verification

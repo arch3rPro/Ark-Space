@@ -28,8 +28,7 @@
     ".codex-plugin",
     "assets/plugin",
     "README.md",
-    "LICENSE",
-    "NOTICE.md"
+    "LICENSE"
   ],
   "engines": {
     "node": ">=22.19.0"

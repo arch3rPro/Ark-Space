@@ -6,8 +6,6 @@ User authorizes refactoring ArkSpace setup using the interaction, layout, colors
 
 ## Reference evidence
 
-Upstream https://github.com/SaladDay/cc-switch-cli; revision `b563ce17fdcc5316701ee8ba00368bdeb24b929a`; MIT, copyright 2025 Jason Young and 2025 saladday. Source and screenshots only; application not executed. Imported source/assets: none. See ../../NOTICE.md.
-
 Actual source landmarks under `src-tauri/src/cli/tui/`:
 
 - `ui.rs:77`: bordered three-line header, fixed left navigation, right routed content, global footer.

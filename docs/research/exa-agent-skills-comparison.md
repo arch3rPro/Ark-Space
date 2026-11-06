@@ -4,7 +4,7 @@ Research date: 2026-09-10
 
 ## Scope and sources
 
-This review uses the official `exa-labs/agent-skills` repository at revision [`14714fdc8d322e24cfc347a912407c4a1d962e16`](https://github.com/exa-labs/agent-skills/commit/14714fdc8d322e24cfc347a912407c4a1d962e16). The inspected upstream surface is the immutable [repository tree at that revision](https://github.com/exa-labs/agent-skills/tree/14714fdc8d322e24cfc347a912407c4a1d962e16). No Exa source or prose was imported.
+This review uses the official `exa-labs/agent-skills` repository at revision [`14714fdc8d322e24cfc347a912407c4a1d962e16`](https://github.com/exa-labs/agent-skills/commit/14714fdc8d322e24cfc347a912407c4a1d962e16). The inspected upstream surface is the immutable [repository tree at that revision](https://github.com/exa-labs/agent-skills/tree/14714fdc8d322e24cfc347a912407c4a1d962e16).
 
 ArkSpace is compared as the current working tree, principally against [`skills/`](../../skills/), [`docs/adding-skills.md`](../adding-skills.md), [`docs/architecture.md`](../architecture.md), [`INSTALL.md`](../../INSTALL.md), [`package.json`](../../package.json), and [`tests/plugin.test.ts`](../../tests/plugin.test.ts).
 

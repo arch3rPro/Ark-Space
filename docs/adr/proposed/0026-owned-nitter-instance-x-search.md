@@ -26,7 +26,7 @@ Saving a connection is not capability completion. Delivery distinguishes "connec
 
 Tweet text, bios and names are attacker-controlled third-party data. They are fenced as untrusted in output and cannot authorize command execution, credential disclosure, configuration changes, or further escalation. Private individuals get the minimum the user asked for.
 
-The upstream is a fork the user controls, so integration gaps are fixed upstream and recorded in the spec's issue log rather than worked around silently. Reviewed revisions belong in `NOTICE.md` as API-contract provenance only; no upstream source is copied.
+The upstream is a fork the user controls, so integration gaps are fixed upstream and recorded in the spec's issue log rather than worked around silently.
 
 ## Rejected alternatives
 

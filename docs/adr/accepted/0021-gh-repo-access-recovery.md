@@ -19,10 +19,6 @@ The optional issue/PR helper keeps authenticated `gh` as its default; explicit `
 
 ## Consequences and boundaries
 
-ADR 0018 remains authoritative except that its clause saying the helper is unchanged is superseded by this decision. No new reference file, SDK, account registry, shared runtime, or tool-specific clone script is introduced. Guidance is original prose informed by official API documentation; no external source code is imported.
+ADR 0018 remains authoritative except that its clause saying the helper is unchanged is superseded by this decision. No new reference file, SDK, account registry, shared runtime, or tool-specific clone script is introduced.
 
 Validation, typecheck, package verification and 52 focused helper/guidance/plugin tests passed on Linux, including isolated Skill copies, deadlines during body reading, and owned-child cancellation. One live anonymous read of `cli/cli#1` succeeded. Credentialed access, actual rate-limit recovery, and native macOS/Windows behavior remain unqualified; fixtures do not establish them. No release follows from this decision.
-
-## Source policy
-
-Original implementation uses Node built-ins; no external source code is imported. Official documentation informs authentication and error semantics separately from source-code licensing: [REST limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api), [REST best practices](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api), and [`gh api`](https://cli.github.com/manual/gh_api).

@@ -8,7 +8,6 @@ ArkSpace is being rebuilt as a reusable Agent Skills workspace with an optional 
 2. Check `docs/migration.md` before adapting behavior from the existing project.
 3. Review the proposed ADR that owns the affected decision.
 4. Keep one change focused on one problem.
-5. Record upstream attribution and license obligations before importing external material.
 
 ## Design-Stage Contributions
 

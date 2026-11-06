@@ -8,7 +8,6 @@
 - `docs/field-testing.md` owns observations from real use before they are accepted into a Roadmap, issue, or development plan.
 - Proposed ADRs own unimplemented decisions and alternatives.
 - `AGENTS.md` owns cross-agent repository rules; `CLAUDE.md` contains Claude-specific differences only.
-- `NOTICE.md` owns migrated-source attribution warnings and links to the project license.
 - Plugin manifests own host metadata and reference canonical Skills directly; no generated plugin mirror exists.
 
 Keep each fact in one owner and link to it elsewhere.
@@ -26,8 +25,7 @@ Before code scaffolding exists:
 - verify local Markdown links;
 - keep English and Chinese README claims aligned;
 - distinguish proposals from implemented behavior;
-- avoid documenting commands or package scripts that do not exist;
-- check that source and license obligations are recorded before migration.
+- avoid documenting commands or package scripts that do not exist.
 
 ## Implementation-stage checks
 

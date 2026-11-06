@@ -34,8 +34,6 @@ Production-page regressions additionally cover rejected-paste Escape/discard tai
 
 Only synthetic credentials, owned temporary homes, and an owned localhost HTTP fixture were used. Reveal frames are redacted; no real keys, external service requests, or user setup writes occurred. Owned CLI processes, listener, temporary package and offline installation were cleaned. No global install/upgrade, publication, tag or version change; package remains **0.1.2**.
 
-Read-only reference: https://github.com/SaladDay/cc-switch-cli, revision `b563ce17fdcc5316701ee8ba00368bdeb24b929a`, MIT. Source/screenshots consulted; no source/assets/dependencies imported and no execution of the reference application claimed.
-
 Human usability acceptance, real-service behavior, Windows/macOS terminals, arbitrary font/emoji geometry and browser screenshots remain **unverified**. Earlier 355/168, 344/143 and older results belong to prior layouts, not this design. `diagnostic-pty.json` is exploratory evidence before the final expanded harness; final source/installed reports above are authoritative.
 
 ## Reproduction
