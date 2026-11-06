@@ -2,11 +2,11 @@
 
 This is the concise version ledger. Detailed changes, upgrade instructions, verification evidence, and qualification limits live in the linked release notes; current development status lives in [Roadmap](ROADMAP.md). Dates below are npm publication dates, not preparation or GitHub Release dates.
 
-## 0.2.0 - Unreleased
+## 0.2.0 - 2026-11-06
 
 - Add the UseGPT Artifact Hub workflow, `notes` and `x-search`, four X capabilities, and the rebuilt Setup workbench with Nitter management.
 - Harden X diagnostics, output completeness reporting, credential redaction, and pagination; preserve the CLI entry's executable permissions.
-- **Breaking:** require Node.js `>=22.19.0` and retire the old Setup engine and legacy UseGPT/CDP path. See [candidate release notes](release/0.2.0.md).
+- **Breaking:** require Node.js `>=22.19.0` and retire the old Setup engine and legacy UseGPT/CDP path. See [release notes](release/0.2.0.md).
 
 ## 0.1.7 - 2026-10-26
 

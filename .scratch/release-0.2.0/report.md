@@ -1,5 +1,7 @@
 # ArkSpace 0.2.0 preparation
 
+Historical snapshot for preparation commit `65867ea`. The user subsequently authorized formal publication. The original preparation archive is retained as `release/artifacts/arkspace-cli-0.2.0-preparation.tgz`; the final release archive differs only in the English/Chinese README publication wording. The preparation-stage authorization and evidence below are preserved, not presented as the later publication outcome.
+
 Status: local release preparation verified; publication is not authorized. A clean reviewed preparation commit must pass the final release gate. Its result and commit identity are recorded locally in `release/artifacts/0.2.0-preparation.json` after that commit, avoiding a self-referential commit hash in this report.
 
 ## Authorized scope
@@ -50,7 +52,7 @@ Prior real-service evidence is reused at its original scope: `.scratch/x-search/
 
 ## Local candidate artifact
 
-- File: `release/artifacts/arkspace-cli-0.2.0.tgz`
+- Retained file: `release/artifacts/arkspace-cli-0.2.0-preparation.tgz` (original preparation filename: `arkspace-cli-0.2.0.tgz`)
 - Bytes: **422607**
 - Files: **327**
 - SHA-256: `9979ed557dfd94d1fcb22aecfadd02db289109465d84bd4732abd93519cf567c`

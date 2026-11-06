@@ -29,7 +29,7 @@ ArkSpace 为 Coding Agent 提供聚焦的操作说明，而不是一个巨型 Pr
 
 ### 或者自行安装
 
-当前进度与验收门槛见 [Roadmap](ROADMAP.md)；0.2.0 候选版本详情见 [候选说明](release/0.2.0.md)（文件可用后）。0.2.0 尚未发布。
+当前进度与验收门槛见 [Roadmap](ROADMAP.md)；0.2.0 发布详情和验收证据见[版本说明](release/0.2.0.md)。
 
 ```bash
 npm install --global @arkspace/cli@latest
@@ -46,7 +46,7 @@ arks web search "agent skills"
 
 > **不要在 Agent 对话中输入 API Key。** `arks setup` 使用隐藏终端输入，并将本地凭证与配置和状态分开存储。CI 与外部 Secret 管理仍可使用环境变量。
 
-Host 安装、验证、更新、卸载、MCP 和凭证细节见 [INSTALL.md](INSTALL.md)。CLI 更新器已随已发布的 0.1.5 提供；npm latest 为 0.1.7。请使用 `@latest` 安装 CLI，并单独更新 Skills。当前源码包版本为 0.2.0，尚未发布。
+Host 安装、验证、更新、卸载、MCP 和凭证细节见 [INSTALL.md](INSTALL.md)。CLI 更新器随 0.1.5 引入。请使用 `@latest` 安装已发布的 CLI，并运行 `arks --version` 确认版本为 `0.2.0`；Skills 需单独更新。
 
 ### 检查与更新已安装的 Skills
 
@@ -160,7 +160,7 @@ Protocol Schema 发布在 [`schemas/protocol/v1/`](schemas/protocol/v1/) 下。
 
 ## 版本状态与限制
 
-仓库正在准备 0.2.0 **未发布候选版本**，尚不能从 npm 安装。根据 2026-11-06 核实，npm latest 为 0.1.7。详情见 [0.2.0 候选说明](release/0.2.0.md) 与 [Roadmap](ROADMAP.md)。0.1.5 历史发布详情仍见[版本说明](release/0.1.5.md)；0.1.5 已发布并包含手动 CLI 更新器。
+0.2.0 于 2026-11-06 正式发布。请运行 `npm install --global @arkspace/cli@latest` 安装，并用 `arks --version` 验证版本为 `0.2.0`。详情见 [0.2.0 版本说明](release/0.2.0.md) 与 [Roadmap](ROADMAP.md)。0.1.7 保留为历史对比基线；0.1.5 引入手动 CLI 更新器。
 
 Setup 当前有六个菜单项：Search、Social media、Knowledge、Tools、Settings、Exit。它管理七个服务上下文：四个 Web Provider（Exa、Tavily、Firecrawl、SearXNG）、WeKnora、UseGPT 和 Nitter。Search 页面上的 Order 是伪上下文，不是第八个服务。Linux 自动 PTY 覆盖不等于真人易用性、真实服务行为或托管 Windows/macOS 终端验收。交互、安全、引擎与呈现决策见 [ADR 0016](docs/adr/accepted/0016-tui-provider-setup.md)、[ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md)、[ADR 0023](docs/adr/accepted/0023-pi-tui-setup-engine.md) 和 [ADR 0024](docs/adr/accepted/0024-workbench-presentation-contract.md)。
 
@@ -172,7 +172,7 @@ Setup 当前有六个菜单项：Search、Social media、Knowledge、Tools、Set
 - Exa、Tavily、Firecrawl 操作需要对应账号，并可能产生 Provider 费用；SearXNG 搜索则需要显式配置实例。
 - 免 Key 的 Exa MCP 接入与 Tavily/Firecrawl OAuth 仅为研究主题，尚未实现为认证后端。
 - 当前进度与剩余验收门槛见 [Roadmap](ROADMAP.md)；历史迁移待办不代表当前功能尚未实现。
-- 本版本不代表现有 ArkSpace 项目已经完成替换切换。
+- 本版本不代表现有 ArkSpace 项目已经完成替换切换；更广泛的 Host、平台和真实 Provider 验收仍需独立完成。
 
 ## 项目指南
 

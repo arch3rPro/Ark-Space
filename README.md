@@ -29,7 +29,7 @@ Install ArkSpace from https://github.com/arch3rPro/Ark-Space by following the re
 
 ### Or install it yourself
 
-See the [Roadmap](ROADMAP.md) for current progress and acceptance gates, and the [0.2.0 candidate notes](release/0.2.0.md) for candidate-specific evidence when available. Version 0.2.0 is not published.
+See the [Roadmap](ROADMAP.md) for current progress and acceptance gates, and the [0.2.0 release notes](release/0.2.0.md) for release evidence.
 
 ```bash
 npm install --global @arkspace/cli@latest
@@ -46,7 +46,7 @@ arks web search "agent skills"
 
 > **Keep API keys out of Agent chats.** `arks setup` uses hidden terminal input and stores local credentials separately from configuration and state. Environment variables remain available for CI and externally managed secrets.
 
-See [INSTALL.md](INSTALL.md) for host-specific installation, verification, update, uninstall, MCP, and credential details. The CLI updater shipped in published 0.1.5. npm latest is 0.1.7; install the CLI with `@latest` and update Skills separately. The current source package version is 0.2.0; it remains an unpublished candidate.
+See [INSTALL.md](INSTALL.md) for host-specific installation, verification, update, uninstall, MCP, and credential details. The CLI updater shipped in 0.1.5. Install the released CLI with `@latest`, verify with `arks --version` (0.2.0), and update Skills separately.
 
 ### Check and update installed Skills
 
@@ -159,7 +159,7 @@ The local credential file contains plaintext secrets and is not an operating-sys
 
 ## Release status and limits
 
-The repository is preparing version 0.2.0 as an **unpublished candidate**; it is not available from npm. As verified on 2026-11-06, npm latest is 0.1.7. See [0.2.0 candidate notes](release/0.2.0.md) and the [Roadmap](ROADMAP.md). Historical 0.1.5 release details remain in [0.1.5 notes](release/0.1.5.md); that version is published and includes the manual CLI updater.
+Version 0.2.0 was released on 2026-11-06. Install with `npm install --global @arkspace/cli@latest` and verify the installed version with `arks --version` (expected: `0.2.0`). See [0.2.0 release notes](release/0.2.0.md) and the [Roadmap](ROADMAP.md). Version 0.1.7 remains the historical comparison baseline; 0.1.5 introduced the manual CLI updater.
 
 Setup currently has six menu entries: Search, Social media, Knowledge, Tools, Settings, and Exit. It manages seven service contexts: four Web providers (Exa, Tavily, Firecrawl, SearXNG), WeKnora, UseGPT, and Nitter. Search Order is a pseudo-context on the Search strip, not an eighth service. Automated Linux PTY coverage does not establish human usability, live-service behavior, or hosted Windows/macOS terminal qualification. See [ADR 0016](docs/adr/accepted/0016-tui-provider-setup.md), [ADR 0017](docs/adr/accepted/0017-workbench-modal-setup.md), [ADR 0023](docs/adr/accepted/0023-pi-tui-setup-engine.md), and [ADR 0024](docs/adr/accepted/0024-workbench-presentation-contract.md) for the interaction, security, engine, and presentation decisions.
 
@@ -171,7 +171,7 @@ Current limits:
 - Exa, Tavily, and Firecrawl operations require the applicable account and may incur Provider charges; SearXNG search instead requires an explicitly configured instance.
 - Keyless Exa MCP access and Tavily/Firecrawl OAuth are research topics, not implemented authentication backends.
 - Current progress and remaining acceptance gates are tracked in the [Roadmap](ROADMAP.md); historical migration backlog entries are not current implementation status.
-- This release does not declare replacement cutover of the existing ArkSpace project.
+- This release does not declare replacement cutover of the existing ArkSpace project; broader host, platform, and real-Provider qualification remains separate.
 
 ## Project guide
 

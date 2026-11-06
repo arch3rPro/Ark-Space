@@ -28,14 +28,14 @@ An Agent performing the installation must:
 
 ## Install the CLI
 
-See the [Roadmap](ROADMAP.md) for current progress, and [0.2.0 candidate notes](release/0.2.0.md) for candidate evidence when available. Version 0.2.0 is not published. Install the current published CLI:
+See the [Roadmap](ROADMAP.md) for current progress, and [0.2.0 release notes](release/0.2.0.md) for release evidence. Install the released CLI:
 
 ```bash
 npm install --global @arkspace/cli@latest
 arks --version
 ```
 
-npm latest was verified as 0.1.7 on 2026-11-06; 0.1.5 is also published. The current source package version is 0.2.0, an unpublished candidate.
+The expected installed version is `0.2.0`; confirm it with `arks --version`. Version 0.1.7 is the historical comparison baseline.
 
 ## Install the Skills
 
@@ -183,7 +183,7 @@ npx skills@latest list
 
 Installation is ready when:
 
-- `arks --version` reports the installed CLI version; npm latest was verified as 0.1.7 on 2026-11-06; repository version 0.2.0 is an unpublished candidate;
+- `arks --version` reports `0.2.0` for this release;
 - at least one required Provider is ready in `arks doctor --json`;
 - the target Agent discovers the selected ArkSpace Skills.
 
@@ -198,7 +198,7 @@ Register MCP only for hosts that need it; Skills can execute `arks` directly.
 
 ## Update
 
-The manual npm updater shipped in published 0.1.5. npm latest was verified as 0.1.7 on 2026-11-06; the repository package is currently 0.2.0, an unpublished candidate. Update the CLI and Skills separately:
+The manual npm updater shipped in 0.1.5. Update the CLI and Skills separately; after updating, `arks --version` should report `0.2.0`:
 
 ```bash
 npm install --global @arkspace/cli@latest
