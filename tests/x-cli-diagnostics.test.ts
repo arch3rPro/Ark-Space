@@ -105,3 +105,18 @@ describe.each(X_CAPABILITIES)("built %s local diagnostics", capability => {
     if (reason !== "confirmation-required") expect(output).not.toContain("confirmed=true");
   });
 });
+
+describe("built unsupported capability diagnostics", () => {
+  it("keeps the requested capability name instead of relabeling it", async () => {
+    const home = await mkdtemp(join(tmpdir(), "arks-x-unknown-capability-"));
+    directories.push(home);
+    const inputPath = join(home, "request.json");
+    await writeFile(inputPath, JSON.stringify({ protocolVersion: 1, capability: "x.nope", input: {} }));
+    const result = spawnSync(process.execPath, [resolve("dist/cli/main.js"), "invoke", "x.nope", "--input", inputPath], {
+      cwd: home, encoding: "utf8", timeout: 10_000,
+      env: { ...process.env, ARKSPACE_HOME: home, NODE_OPTIONS: "" },
+    });
+    expect(result.status).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({ ok: false, capability: "x.nope", error: { kind: "invalid-request" } });
+  });
+});

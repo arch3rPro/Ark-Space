@@ -641,7 +641,7 @@ export interface ResearchSuccessEnvelope {
   warnings: string[];
 }
 
-export interface FailureEnvelope<C extends Capability = "web.search"> {
+export interface FailureEnvelope<C extends string = "web.search"> {
   protocolVersion: typeof PROTOCOL_VERSION;
   ok: false;
   capability: C;

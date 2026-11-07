@@ -190,7 +190,12 @@ export async function executeX(capability: XCapability, request: unknown, paths:
   const parsed = XRequestSchema.safeParse(request);
   if (!parsed.success || parsed.data.capability !== capability) {
     const input = isObj(request) && isObj(request.input) ? request.input : undefined;
-    return fail("invalid-request", { reason: input && input.confirmed !== true ? "confirmation-required" : "request-schema" });
+    const confirmed = input?.confirmed === true;
+    // Only echo the offending field path; paths are schema keys and the issue message is bounded.
+    const issue = parsed.success || !confirmed ? undefined : parsed.error.issues[0];
+    const field = issue?.path.map(String).join(".");
+    const detail = issue ? `Invalid ${field || "request"}: ${issue.message.replace(/\.$/, "")}.`.slice(0, 500) : undefined;
+    return fail("invalid-request", { reason: confirmed ? "request-schema" : "confirmation-required", ...(detail ? { detail } : {}) });
   }
   if (!originalEnvironment) return fail("config");
   const controller = new AbortController();

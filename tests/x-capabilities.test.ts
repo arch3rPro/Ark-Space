@@ -247,6 +247,9 @@ it("distinguishes missing confirmation from other request validation failures of
   const f = await fixture();
   expect(await f.run("x.user", { username: "jack", confirmed: false })).toMatchObject({ ok: false, error: { kind: "invalid-request", reason: "confirmation-required" } });
   expect(await f.run("x.user", { username: "invalid handle", confirmed: true })).toMatchObject({ ok: false, error: { kind: "invalid-request", reason: "request-schema" } });
+  const field = await f.run("x.search", { query: "a", confirmed: true, limit: 51 });
+  expect(field).toMatchObject({ ok: false, error: { kind: "invalid-request", reason: "request-schema" } });
+  expect((field as any).error.message).toContain("input.limit");
   expect(f.seen).toHaveLength(0);
 });
 
@@ -254,6 +257,7 @@ it("resolves connections: external pair wins, partial pair and override conflict
   const f = await fixture();
   expect(await f.run("x.user", { username: "jack" }, { NITTER_BASE_URL: f.baseUrl })).toMatchObject({ ok: false, error: { kind: "config" } });
   expect(await f.run("x.user", { username: "jack" }, { ARKSPACE_NITTER_API_TOKEN: "other" })).toMatchObject({ ok: false, error: { kind: "config" } });
+  expect(await f.run("x.user", { username: "jack" }, { NITTER_BASE_URL: f.baseUrl, NITTER_API_TOKEN: "short" })).toMatchObject({ ok: false, error: { kind: "config" } });
   expect(f.seen).toHaveLength(0);
   const ok = await f.run("x.user", { username: "jack" }, { NITTER_BASE_URL: f.baseUrl, NITTER_API_TOKEN: "fixture-external-secret" });
   expect(ok).toMatchObject({ source: "environment" }); expect(f.seen[0]!.auth).toBe("Bearer fixture-external-secret");

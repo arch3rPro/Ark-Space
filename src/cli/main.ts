@@ -672,7 +672,7 @@ program
   .option("--input-file <path>", "UTF-8 content file for usegpt.artifact.publish_inline only (at most 1 MiB)")
   .action(async (capability: string, options: { input: string; inputFile?: string }) => {
     if (!isCapability(capability)) {
-      writeMachineFailure("web.search", new ProviderError(`Unsupported capability: ${capability}`, { kind: "invalid-request" }));
+      writeMachineFailure(capability, new ProviderError(`Unsupported capability: ${capability}`, { kind: "invalid-request" }));
       return;
     }
     try {
@@ -1182,7 +1182,7 @@ function writeMachineResult(result: { ok: boolean }): void {
   if (!result.ok) process.exitCode = 1;
 }
 
-function writeMachineFailure(capability: Capability, error: unknown): void {
+function writeMachineFailure(capability: string, error: unknown): void {
   if (capability.startsWith("usegpt.")) {
     const message = error instanceof ProviderError ? error.message : "UseGPT command failed.";
     process.stdout.write(`${JSON.stringify(useGptFailure(capability as UseGptCapability, "invalid-request", message))}\n`);
@@ -1206,7 +1206,7 @@ function writeMachineFailure(capability: Capability, error: unknown): void {
   }
   const normalized = publicError(error);
   const correction = correctionFor(normalized.kind);
-  const envelope: FailureEnvelope<Capability> = {
+  const envelope: FailureEnvelope<string> = {
     protocolVersion: PROTOCOL_VERSION,
     ok: false,
     capability,

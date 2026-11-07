@@ -18,6 +18,9 @@ function fail(message: string): never {
   throw new ProviderError(`Nitter: ${message}`, { kind: "config" });
 }
 
+// A shorter value cannot be a real token, and it would make the response echo guard reject every body.
+const MIN_TOKEN_LENGTH = 8;
+
 /** Caller must capture the environment BEFORE credential hydration.
  * Both external variables are required together; a partial pair never falls back to managed values.
  */
@@ -30,7 +33,7 @@ export async function resolveNitterConnection(
     if (!hasUrl || !hasToken) fail("Supply NITTER_BASE_URL and NITTER_API_TOKEN together; no managed fallback is allowed.");
     const parsed = NitterConnectionSchema.safeParse({ baseUrl: originalEnvironment.NITTER_BASE_URL, apiKeyRef: NITTER_MANAGED_KEY_REF });
     const token = validateCredentialValue(originalEnvironment.NITTER_API_TOKEN ?? "");
-    if (!parsed.success || !token) fail("Invalid external Nitter connection pair; no managed fallback is allowed.");
+    if (!parsed.success || !token || token.length < MIN_TOKEN_LENGTH) fail("Invalid external Nitter connection pair; no managed fallback is allowed.");
     return { baseUrl: parsed.data.baseUrl, source: "environment", token, warnings: nitterTransportWarnings(parsed.data.baseUrl) };
   }
   const connection = config.connections?.nitter;
@@ -41,6 +44,6 @@ export async function resolveNitterConnection(
   if (Object.hasOwn(originalEnvironment, variable)) fail("Managed credential reference is externally overridden; supply the complete external pair instead.");
   const store = await loadCredentialStore(credentialPath);
   const token = validateCredentialValue(store.values[variable] ?? "");
-  if (!token) fail("Managed Nitter credential is missing or invalid; no external fallback is allowed.");
+  if (!token || token.length < MIN_TOKEN_LENGTH) fail("Managed Nitter credential is missing or invalid; no external fallback is allowed.");
   return { baseUrl: parsed.data.baseUrl, source: "managed", token, warnings: nitterTransportWarnings(parsed.data.baseUrl) };
 }

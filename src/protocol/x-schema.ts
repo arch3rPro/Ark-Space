@@ -114,7 +114,7 @@ export const XEnvelopeSchemas = {
 } as const;
 export type XEnvelope = z.infer<(typeof XEnvelopeSchemas)[XCapability]>;
 
-export function xFailure(capability: XCapability, kind: XFailureKind, extra: { retryable?: boolean; retryAfterSeconds?: number; status?: number; warnings?: string[]; source?: "managed" | "environment"; reason?: XFailureReason } = {}): XEnvelope {
+export function xFailure(capability: XCapability, kind: XFailureKind, extra: { retryable?: boolean; retryAfterSeconds?: number; status?: number; warnings?: string[]; source?: "managed" | "environment"; reason?: XFailureReason; detail?: string } = {}): XEnvelope {
   const hints: Partial<Record<XFailureKind, string>> = {
     "invalid-request": " Check the request against the capability input schema.",
     config: " Run `arks setup nitter`, or supply both NITTER_BASE_URL and NITTER_API_TOKEN; never mix sources.",
@@ -135,7 +135,7 @@ export function xFailure(capability: XCapability, kind: XFailureKind, extra: { r
   return XEnvelopeSchemas[capability].parse({
     protocolVersion: 1, capability, connection: "nitter", ok: false, ...(extra.source ? { source: extra.source } : {}), warnings: extra.warnings ?? [],
     error: {
-      kind, message: `X request failed (${kind}).${extra.reason ? reasons[extra.reason] : hints[kind] ?? ""}`, retryable: extra.retryable ?? false,
+      kind, message: `X request failed (${kind}).${extra.reason ? reasons[extra.reason] : hints[kind] ?? ""}${extra.detail ? ` ${extra.detail}` : ""}`, retryable: extra.retryable ?? false,
       ...(extra.reason ? { reason: extra.reason } : {}),
       ...(extra.retryAfterSeconds ? { retryAfterSeconds: extra.retryAfterSeconds } : {}), ...(extra.status !== undefined ? { status: extra.status } : {}),
     },
